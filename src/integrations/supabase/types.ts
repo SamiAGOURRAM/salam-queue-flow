@@ -14,16 +14,756 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      appointment_metrics: {
+        Row: {
+          absolute_error: number | null
+          actual_wait_time: number | null
+          appointment_id: string
+          average_service_time: number | null
+          clinic_id: string
+          confidence_score: number | null
+          current_delay_minutes: number | null
+          features: Json
+          id: string
+          model_version: string | null
+          predicted_wait_time: number | null
+          prediction_error: number | null
+          queue_length: number | null
+          queue_position: number | null
+          recorded_at: string | null
+          staff_count: number | null
+        }
+        Insert: {
+          absolute_error?: number | null
+          actual_wait_time?: number | null
+          appointment_id: string
+          average_service_time?: number | null
+          clinic_id: string
+          confidence_score?: number | null
+          current_delay_minutes?: number | null
+          features: Json
+          id?: string
+          model_version?: string | null
+          predicted_wait_time?: number | null
+          prediction_error?: number | null
+          queue_length?: number | null
+          queue_position?: number | null
+          recorded_at?: string | null
+          staff_count?: number | null
+        }
+        Update: {
+          absolute_error?: number | null
+          actual_wait_time?: number | null
+          appointment_id?: string
+          average_service_time?: number | null
+          clinic_id?: string
+          confidence_score?: number | null
+          current_delay_minutes?: number | null
+          features?: Json
+          id?: string
+          model_version?: string | null
+          predicted_wait_time?: number | null
+          prediction_error?: number | null
+          queue_length?: number | null
+          queue_position?: number | null
+          recorded_at?: string | null
+          staff_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_metrics_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_metrics_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      appointments: {
+        Row: {
+          actual_duration: number | null
+          actual_end_time: string | null
+          actual_start_time: string | null
+          appointment_date: string
+          appointment_type: Database["public"]["Enums"]["appointment_type"]
+          booked_by: string | null
+          booking_method: string | null
+          cancellation_reason: string | null
+          checked_in_at: string | null
+          clinic_id: string
+          complexity_score: number | null
+          created_at: string | null
+          day_of_week: number | null
+          estimated_duration: number | null
+          id: string
+          is_first_visit: boolean | null
+          is_holiday: boolean | null
+          is_walk_in: boolean | null
+          last_notification_sent_at: string | null
+          last_prediction_update: string | null
+          late_by_minutes: number | null
+          notes: string | null
+          notification_count: number | null
+          patient_arrival_time: string | null
+          patient_id: string
+          predicted_start_time: string | null
+          predicted_wait_time: number | null
+          prediction_confidence: number | null
+          queue_position: number | null
+          reason_for_visit: string | null
+          requires_preparation: boolean | null
+          scheduled_time: string | null
+          staff_id: string
+          status: Database["public"]["Enums"]["appointment_status"] | null
+          time_slot: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          actual_duration?: number | null
+          actual_end_time?: string | null
+          actual_start_time?: string | null
+          appointment_date: string
+          appointment_type: Database["public"]["Enums"]["appointment_type"]
+          booked_by?: string | null
+          booking_method?: string | null
+          cancellation_reason?: string | null
+          checked_in_at?: string | null
+          clinic_id: string
+          complexity_score?: number | null
+          created_at?: string | null
+          day_of_week?: number | null
+          estimated_duration?: number | null
+          id?: string
+          is_first_visit?: boolean | null
+          is_holiday?: boolean | null
+          is_walk_in?: boolean | null
+          last_notification_sent_at?: string | null
+          last_prediction_update?: string | null
+          late_by_minutes?: number | null
+          notes?: string | null
+          notification_count?: number | null
+          patient_arrival_time?: string | null
+          patient_id: string
+          predicted_start_time?: string | null
+          predicted_wait_time?: number | null
+          prediction_confidence?: number | null
+          queue_position?: number | null
+          reason_for_visit?: string | null
+          requires_preparation?: boolean | null
+          scheduled_time?: string | null
+          staff_id: string
+          status?: Database["public"]["Enums"]["appointment_status"] | null
+          time_slot?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          actual_duration?: number | null
+          actual_end_time?: string | null
+          actual_start_time?: string | null
+          appointment_date?: string
+          appointment_type?: Database["public"]["Enums"]["appointment_type"]
+          booked_by?: string | null
+          booking_method?: string | null
+          cancellation_reason?: string | null
+          checked_in_at?: string | null
+          clinic_id?: string
+          complexity_score?: number | null
+          created_at?: string | null
+          day_of_week?: number | null
+          estimated_duration?: number | null
+          id?: string
+          is_first_visit?: boolean | null
+          is_holiday?: boolean | null
+          is_walk_in?: boolean | null
+          last_notification_sent_at?: string | null
+          last_prediction_update?: string | null
+          late_by_minutes?: number | null
+          notes?: string | null
+          notification_count?: number | null
+          patient_arrival_time?: string | null
+          patient_id?: string
+          predicted_start_time?: string | null
+          predicted_wait_time?: number | null
+          prediction_confidence?: number | null
+          queue_position?: number | null
+          reason_for_visit?: string | null
+          requires_preparation?: boolean | null
+          scheduled_time?: string | null
+          staff_id?: string
+          status?: Database["public"]["Enums"]["appointment_status"] | null
+          time_slot?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_logs: {
+        Row: {
+          action: string
+          changes: Json | null
+          clinic_id: string | null
+          created_at: string | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+          ip_address: unknown | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          changes?: Json | null
+          clinic_id?: string | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          ip_address?: unknown | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          changes?: Json | null
+          clinic_id?: string | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          ip_address?: unknown | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clinic_staff: {
+        Row: {
+          average_consultation_duration: number | null
+          clinic_id: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          license_number: string | null
+          patients_per_day_avg: number | null
+          role: string
+          specialization: string | null
+          updated_at: string | null
+          user_id: string
+          working_hours: Json | null
+        }
+        Insert: {
+          average_consultation_duration?: number | null
+          clinic_id: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          license_number?: string | null
+          patients_per_day_avg?: number | null
+          role: string
+          specialization?: string | null
+          updated_at?: string | null
+          user_id: string
+          working_hours?: Json | null
+        }
+        Update: {
+          average_consultation_duration?: number | null
+          clinic_id?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          license_number?: string | null
+          patients_per_day_avg?: number | null
+          role?: string
+          specialization?: string | null
+          updated_at?: string | null
+          user_id?: string
+          working_hours?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_staff_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clinics: {
+        Row: {
+          address: string
+          city: string
+          created_at: string | null
+          email: string | null
+          id: string
+          is_active: boolean | null
+          logo_url: string | null
+          name: string
+          name_ar: string | null
+          owner_id: string
+          phone: string
+          practice_type: Database["public"]["Enums"]["practice_type"]
+          settings: Json | null
+          specialty: string
+          subscription_tier: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address: string
+          city: string
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          logo_url?: string | null
+          name: string
+          name_ar?: string | null
+          owner_id: string
+          phone: string
+          practice_type?: Database["public"]["Enums"]["practice_type"]
+          settings?: Json | null
+          specialty: string
+          subscription_tier?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string
+          city?: string
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          logo_url?: string | null
+          name?: string
+          name_ar?: string | null
+          owner_id?: string
+          phone?: string
+          practice_type?: Database["public"]["Enums"]["practice_type"]
+          settings?: Json | null
+          specialty?: string
+          subscription_tier?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      notification_analytics: {
+        Row: {
+          channel: Database["public"]["Enums"]["notification_channel"]
+          clinic_id: string
+          cost_actual: number | null
+          created_at: string | null
+          date: string
+          delivery_time_seconds: number | null
+          id: string
+          notification_id: string | null
+          type: Database["public"]["Enums"]["notification_type"]
+          was_delivered: boolean
+        }
+        Insert: {
+          channel: Database["public"]["Enums"]["notification_channel"]
+          clinic_id: string
+          cost_actual?: number | null
+          created_at?: string | null
+          date: string
+          delivery_time_seconds?: number | null
+          id?: string
+          notification_id?: string | null
+          type: Database["public"]["Enums"]["notification_type"]
+          was_delivered: boolean
+        }
+        Update: {
+          channel?: Database["public"]["Enums"]["notification_channel"]
+          clinic_id?: string
+          cost_actual?: number | null
+          created_at?: string | null
+          date?: string
+          delivery_time_seconds?: number | null
+          id?: string
+          notification_id?: string | null
+          type?: Database["public"]["Enums"]["notification_type"]
+          was_delivered?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_analytics_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_analytics_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          appointment_id: string | null
+          channel: Database["public"]["Enums"]["notification_channel"]
+          clinic_id: string
+          cost_estimate: number | null
+          created_at: string | null
+          delivered_at: string | null
+          error_message: string | null
+          id: string
+          max_retries: number | null
+          message_template: string
+          message_variables: Json | null
+          patient_id: string
+          priority: number | null
+          read_at: string | null
+          recipient: string
+          rendered_message: string | null
+          retry_count: number | null
+          scheduled_for: string | null
+          sent_at: string | null
+          status: Database["public"]["Enums"]["notification_status"] | null
+          type: Database["public"]["Enums"]["notification_type"]
+        }
+        Insert: {
+          appointment_id?: string | null
+          channel: Database["public"]["Enums"]["notification_channel"]
+          clinic_id: string
+          cost_estimate?: number | null
+          created_at?: string | null
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          max_retries?: number | null
+          message_template: string
+          message_variables?: Json | null
+          patient_id: string
+          priority?: number | null
+          read_at?: string | null
+          recipient: string
+          rendered_message?: string | null
+          retry_count?: number | null
+          scheduled_for?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["notification_status"] | null
+          type: Database["public"]["Enums"]["notification_type"]
+        }
+        Update: {
+          appointment_id?: string | null
+          channel?: Database["public"]["Enums"]["notification_channel"]
+          clinic_id?: string
+          cost_estimate?: number | null
+          created_at?: string | null
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          max_retries?: number | null
+          message_template?: string
+          message_variables?: Json | null
+          patient_id?: string
+          priority?: number | null
+          read_at?: string | null
+          recipient?: string
+          rendered_message?: string | null
+          retry_count?: number | null
+          scheduled_for?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["notification_status"] | null
+          type?: Database["public"]["Enums"]["notification_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      patient_clinic_history: {
+        Row: {
+          average_actual_duration: number | null
+          cancellation_count: number | null
+          clinic_id: string
+          completed_visits: number | null
+          id: string
+          last_appointment_id: string | null
+          last_visit_date: string | null
+          no_show_count: number | null
+          patient_id: string
+          preferred_day_of_week: number | null
+          preferred_staff_id: string | null
+          preferred_time_slot: string | null
+          punctuality_score: number | null
+          reliability_score: number | null
+          total_visits: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          average_actual_duration?: number | null
+          cancellation_count?: number | null
+          clinic_id: string
+          completed_visits?: number | null
+          id?: string
+          last_appointment_id?: string | null
+          last_visit_date?: string | null
+          no_show_count?: number | null
+          patient_id: string
+          preferred_day_of_week?: number | null
+          preferred_staff_id?: string | null
+          preferred_time_slot?: string | null
+          punctuality_score?: number | null
+          reliability_score?: number | null
+          total_visits?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          average_actual_duration?: number | null
+          cancellation_count?: number | null
+          clinic_id?: string
+          completed_visits?: number | null
+          id?: string
+          last_appointment_id?: string | null
+          last_visit_date?: string | null
+          no_show_count?: number | null
+          patient_id?: string
+          preferred_day_of_week?: number | null
+          preferred_staff_id?: string | null
+          preferred_time_slot?: string | null
+          punctuality_score?: number | null
+          reliability_score?: number | null
+          total_visits?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_clinic_history_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_clinic_history_last_appointment_id_fkey"
+            columns: ["last_appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_clinic_history_preferred_staff_id_fkey"
+            columns: ["preferred_staff_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          full_name: string
+          id: string
+          notification_preferences: Json | null
+          phone_number: string
+          preferred_language: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          full_name: string
+          id: string
+          notification_preferences?: Json | null
+          phone_number: string
+          preferred_language?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          full_name?: string
+          id?: string
+          notification_preferences?: Json | null
+          phone_number?: string
+          preferred_language?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      queue_snapshots: {
+        Row: {
+          active_staff_count: number | null
+          average_wait_time: number | null
+          clinic_id: string
+          created_at: string | null
+          current_delay_minutes: number | null
+          id: string
+          longest_wait_time: number | null
+          snapshot_date: string
+          snapshot_time: string
+          staff_utilization: number | null
+          total_completed_today: number | null
+          total_in_progress: number | null
+          total_waiting: number | null
+        }
+        Insert: {
+          active_staff_count?: number | null
+          average_wait_time?: number | null
+          clinic_id: string
+          created_at?: string | null
+          current_delay_minutes?: number | null
+          id?: string
+          longest_wait_time?: number | null
+          snapshot_date: string
+          snapshot_time: string
+          staff_utilization?: number | null
+          total_completed_today?: number | null
+          total_in_progress?: number | null
+          total_waiting?: number | null
+        }
+        Update: {
+          active_staff_count?: number | null
+          average_wait_time?: number | null
+          clinic_id?: string
+          created_at?: string | null
+          current_delay_minutes?: number | null
+          id?: string
+          longest_wait_time?: number | null
+          snapshot_date?: string
+          snapshot_time?: string
+          staff_utilization?: number | null
+          total_completed_today?: number | null
+          total_in_progress?: number | null
+          total_waiting?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "queue_snapshots_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          clinic_id: string | null
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          clinic_id?: string | null
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          clinic_id?: string | null
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_user_roles_clinic"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_clinic_role: {
+        Args: {
+          _clinic_id: string
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "super_admin" | "clinic_owner" | "staff" | "patient"
+      appointment_status:
+        | "scheduled"
+        | "waiting"
+        | "in_progress"
+        | "completed"
+        | "cancelled"
+        | "no_show"
+        | "rescheduled"
+      appointment_type:
+        | "consultation"
+        | "follow_up"
+        | "emergency"
+        | "procedure"
+        | "vaccination"
+        | "screening"
+      notification_channel: "sms" | "whatsapp" | "email" | "push"
+      notification_status: "pending" | "sent" | "delivered" | "failed"
+      notification_type:
+        | "appointment_confirmed"
+        | "position_update"
+        | "almost_your_turn"
+        | "your_turn"
+        | "appointment_delayed"
+        | "appointment_cancelled"
+      practice_type: "solo_practice" | "group_clinic" | "hospital"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +890,36 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["super_admin", "clinic_owner", "staff", "patient"],
+      appointment_status: [
+        "scheduled",
+        "waiting",
+        "in_progress",
+        "completed",
+        "cancelled",
+        "no_show",
+        "rescheduled",
+      ],
+      appointment_type: [
+        "consultation",
+        "follow_up",
+        "emergency",
+        "procedure",
+        "vaccination",
+        "screening",
+      ],
+      notification_channel: ["sms", "whatsapp", "email", "push"],
+      notification_status: ["pending", "sent", "delivered", "failed"],
+      notification_type: [
+        "appointment_confirmed",
+        "position_update",
+        "almost_your_turn",
+        "your_turn",
+        "appointment_delayed",
+        "appointment_cancelled",
+      ],
+      practice_type: ["solo_practice", "group_clinic", "hospital"],
+    },
   },
 } as const
