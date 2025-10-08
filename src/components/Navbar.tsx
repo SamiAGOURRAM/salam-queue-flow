@@ -2,7 +2,11 @@ import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 
-const Navbar = () => {
+interface NavbarProps {
+  onGetStarted?: () => void;
+}
+
+const Navbar = ({ onGetStarted }: NavbarProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -35,10 +39,10 @@ const Navbar = () => {
 
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center gap-3">
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" onClick={() => window.location.href = '/auth/login'}>
               Sign In
             </Button>
-            <Button size="sm" className="shadow-md">
+            <Button size="sm" className="shadow-md" onClick={onGetStarted}>
               Get Started
             </Button>
           </div>
@@ -68,10 +72,10 @@ const Navbar = () => {
               Contact
             </a>
             <div className="pt-4 space-y-2">
-              <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full" onClick={() => window.location.href = '/auth/login'}>
                 Sign In
               </Button>
-              <Button className="w-full">
+              <Button className="w-full" onClick={onGetStarted}>
                 Get Started
               </Button>
             </div>

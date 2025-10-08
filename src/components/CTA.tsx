@@ -1,7 +1,9 @@
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Calendar } from "lucide-react";
 
 const CTA = () => {
+  const navigate = useNavigate();
   return (
     <section className="py-24 relative overflow-hidden">
       {/* Background Gradient */}
@@ -29,7 +31,7 @@ const CTA = () => {
             
             {/* CTA Buttons */}
             <div className="flex flex-wrap gap-4 justify-center mb-8">
-              <Button size="lg" className="group shadow-xl hover:shadow-2xl transition-all text-lg px-8">
+              <Button size="lg" className="group shadow-xl hover:shadow-2xl transition-all text-lg px-8" onClick={() => navigate("/auth/signup")}>
                 Start Free Trial
                 <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </Button>
