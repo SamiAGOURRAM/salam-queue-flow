@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
-import { Menu, X } from "lucide-react";
+import { Menu, X, LogOut } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface NavbarProps {
   onGetStarted?: () => void;
@@ -8,6 +9,7 @@ interface NavbarProps {
 
 const Navbar = ({ onGetStarted }: NavbarProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  const { user, signOut } = useAuth();
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b">
@@ -39,12 +41,21 @@ const Navbar = ({ onGetStarted }: NavbarProps) => {
 
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => window.location.href = '/auth/login'}>
-              Sign In
-            </Button>
-            <Button size="sm" className="shadow-md" onClick={onGetStarted}>
-              Get Started
-            </Button>
+            {user ? (
+              <Button variant="outline" size="sm" onClick={signOut} className="gap-2">
+                <LogOut className="w-4 h-4" />
+                Sign Out
+              </Button>
+            ) : (
+              <>
+                <Button variant="ghost" size="sm" onClick={() => window.location.href = '/auth/login'}>
+                  Sign In
+                </Button>
+                <Button size="sm" className="shadow-md" onClick={onGetStarted}>
+                  Get Started
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -72,12 +83,21 @@ const Navbar = ({ onGetStarted }: NavbarProps) => {
               Contact
             </a>
             <div className="pt-4 space-y-2">
-              <Button variant="outline" className="w-full" onClick={() => window.location.href = '/auth/login'}>
-                Sign In
-              </Button>
-              <Button className="w-full" onClick={onGetStarted}>
-                Get Started
-              </Button>
+              {user ? (
+                <Button variant="outline" className="w-full gap-2" onClick={signOut}>
+                  <LogOut className="w-4 h-4" />
+                  Sign Out
+                </Button>
+              ) : (
+                <>
+                  <Button variant="outline" className="w-full" onClick={() => window.location.href = '/auth/login'}>
+                    Sign In
+                  </Button>
+                  <Button className="w-full" onClick={onGetStarted}>
+                    Get Started
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         )}
