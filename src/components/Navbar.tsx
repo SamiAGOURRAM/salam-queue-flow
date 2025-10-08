@@ -14,11 +14,16 @@ const Navbar = () => {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate("/")}>
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
               <span className="text-white font-bold text-sm">Q</span>
             </div>
-            <span className="text-xl font-bold">QueueMed</span>
+            <div className="flex flex-col">
+              <span className="text-xl font-bold leading-none">QueueMed</span>
+              <span className="text-xs text-muted-foreground">
+                {isClinicOwner || isStaff ? "Clinic Portal" : "Patient Portal"}
+              </span>
+            </div>
           </div>
 
           {/* Desktop Navigation */}
@@ -42,6 +47,17 @@ const Navbar = () => {
 
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center gap-3">
+            {!user && !isClinicOwner && !isStaff && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigate("/auth/login")}
+                className="gap-2"
+              >
+                <Building2 className="w-4 h-4" />
+                For Clinics
+              </Button>
+            )}
             {user ? (
               <Button variant="outline" size="sm" onClick={signOut} className="gap-2">
                 <LogOut className="w-4 h-4" />
@@ -87,6 +103,16 @@ const Navbar = () => {
               </Button>
             )}
             <div className="pt-4 space-y-2">
+              {!user && !isClinicOwner && !isStaff && (
+                <Button 
+                  variant="outline" 
+                  className="w-full gap-2" 
+                  onClick={() => navigate("/auth/login")}
+                >
+                  <Building2 className="w-4 h-4" />
+                  For Clinics
+                </Button>
+              )}
               {user ? (
                 <Button variant="outline" className="w-full gap-2" onClick={signOut}>
                   <LogOut className="w-4 h-4" />
