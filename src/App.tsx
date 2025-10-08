@@ -11,6 +11,8 @@ import PatientOnboarding from "./pages/auth/onboarding/PatientOnboarding";
 import ClinicOnboarding from "./pages/auth/onboarding/ClinicOnboarding";
 import PatientDashboard from "./pages/patient/PatientDashboard";
 import ClinicDashboard from "./pages/clinic/ClinicDashboard";
+import ClinicDetailView from "./components/booking/ClinicDetailView";
+import BookingFlow from "./components/booking/BookingFlow";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +24,9 @@ const App = () => (
         <Sonner />
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/clinic/:clinicId" element={<ClinicDetailView />} />
+          <Route path="/booking/:clinicId" element={<BookingFlow />} />
+          <Route path="/my-appointments" element={<PatientDashboard />} />
           <Route path="/auth/login" element={<Login />} />
           <Route path="/auth/signup" element={<Signup />} />
           <Route path="/auth/onboarding/patient" element={<PatientOnboarding />} />

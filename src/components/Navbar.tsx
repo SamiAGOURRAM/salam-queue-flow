@@ -1,15 +1,13 @@
 import { Button } from "@/components/ui/button";
-import { Menu, X, LogOut } from "lucide-react";
+import { Menu, X, LogOut, Calendar, Building2 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
 
-interface NavbarProps {
-  onGetStarted?: () => void;
-}
-
-const Navbar = ({ onGetStarted }: NavbarProps) => {
+const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const { user, signOut } = useAuth();
+  const { user, signOut, isClinicOwner, isStaff } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b">
@@ -24,19 +22,22 @@ const Navbar = ({ onGetStarted }: NavbarProps) => {
           </div>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-8">
-            <a href="#features" className="text-sm font-medium hover:text-primary transition-colors">
-              Features
-            </a>
-            <a href="#how-it-works" className="text-sm font-medium hover:text-primary transition-colors">
-              How It Works
-            </a>
-            <a href="#pricing" className="text-sm font-medium hover:text-primary transition-colors">
-              Pricing
-            </a>
-            <a href="#contact" className="text-sm font-medium hover:text-primary transition-colors">
-              Contact
-            </a>
+          <div className="hidden md:flex items-center gap-6">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="font-medium">
+              Browse Clinics
+            </Button>
+            {user && (
+              <Button variant="ghost" size="sm" onClick={() => navigate("/my-appointments")} className="gap-2 font-medium">
+                <Calendar className="w-4 h-4" />
+                My Appointments
+              </Button>
+            )}
+            {(isClinicOwner || isStaff) && (
+              <Button variant="ghost" size="sm" onClick={() => navigate("/clinic/dashboard")} className="gap-2 font-medium">
+                <Building2 className="w-4 h-4" />
+                Clinic Dashboard
+              </Button>
+            )}
           </div>
 
           {/* Desktop CTA */}
@@ -48,10 +49,10 @@ const Navbar = ({ onGetStarted }: NavbarProps) => {
               </Button>
             ) : (
               <>
-                <Button variant="ghost" size="sm" onClick={() => window.location.href = '/auth/login'}>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/auth/login")}>
                   Sign In
                 </Button>
-                <Button size="sm" className="shadow-md" onClick={onGetStarted}>
+                <Button size="sm" className="shadow-md" onClick={() => navigate("/auth/signup")}>
                   Get Started
                 </Button>
               </>
@@ -69,19 +70,22 @@ const Navbar = ({ onGetStarted }: NavbarProps) => {
 
         {/* Mobile Navigation */}
         {isOpen && (
-          <div className="md:hidden py-4 space-y-3 border-t animate-fade-in">
-            <a href="#features" className="block py-2 text-sm font-medium hover:text-primary transition-colors">
-              Features
-            </a>
-            <a href="#how-it-works" className="block py-2 text-sm font-medium hover:text-primary transition-colors">
-              How It Works
-            </a>
-            <a href="#pricing" className="block py-2 text-sm font-medium hover:text-primary transition-colors">
-              Pricing
-            </a>
-            <a href="#contact" className="block py-2 text-sm font-medium hover:text-primary transition-colors">
-              Contact
-            </a>
+          <div className="md:hidden py-4 space-y-3 animate-in slide-in-from-top-5">
+            <Button variant="ghost" className="w-full justify-start" onClick={() => navigate("/")}>
+              Browse Clinics
+            </Button>
+            {user && (
+              <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => navigate("/my-appointments")}>
+                <Calendar className="w-4 h-4" />
+                My Appointments
+              </Button>
+            )}
+            {(isClinicOwner || isStaff) && (
+              <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => navigate("/clinic/dashboard")}>
+                <Building2 className="w-4 h-4" />
+                Clinic Dashboard
+              </Button>
+            )}
             <div className="pt-4 space-y-2">
               {user ? (
                 <Button variant="outline" className="w-full gap-2" onClick={signOut}>
@@ -90,10 +94,10 @@ const Navbar = ({ onGetStarted }: NavbarProps) => {
                 </Button>
               ) : (
                 <>
-                  <Button variant="outline" className="w-full" onClick={() => window.location.href = '/auth/login'}>
+                  <Button variant="outline" className="w-full" onClick={() => navigate("/auth/login")}>
                     Sign In
                   </Button>
-                  <Button className="w-full" onClick={onGetStarted}>
+                  <Button className="w-full" onClick={() => navigate("/auth/signup")}>
                     Get Started
                   </Button>
                 </>
