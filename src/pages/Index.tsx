@@ -13,10 +13,10 @@ const Index = () => {
     <div className="min-h-screen">
       <Navbar onGetStarted={() => navigate("/auth/signup")} />
       <main>
-        <Hero />
+        <Hero onGetStarted={() => navigate("/auth/signup")} />
         <Features />
         <HowItWorks />
-        <CTA />
+        <CTA onGetStarted={() => navigate("/auth/signup")} />
       </main>
       <Footer />
     </div>

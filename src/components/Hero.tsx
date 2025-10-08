@@ -1,10 +1,12 @@
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Calendar, Clock, Bell } from "lucide-react";
 import heroImage from "@/assets/hero-queue.jpg";
 
-const Hero = () => {
-  const navigate = useNavigate();
+interface HeroProps {
+  onGetStarted?: () => void;
+}
+
+const Hero = ({ onGetStarted }: HeroProps) => {
   return (
     <section className="relative min-h-[90vh] flex items-center overflow-hidden bg-gradient-to-br from-primary/5 via-secondary/5 to-background">
       {/* Background Pattern */}
@@ -48,7 +50,7 @@ const Hero = () => {
             
             {/* CTA Buttons */}
             <div className="flex flex-wrap gap-4 pt-4">
-              <Button size="lg" className="group shadow-lg hover:shadow-xl transition-all" onClick={() => navigate("/auth/signup")}>
+              <Button size="lg" className="group shadow-lg hover:shadow-xl transition-all" onClick={onGetStarted}>
                 Get Started Free
                 <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Button>
