@@ -40,7 +40,7 @@ export function AddWalkInDialog({ open, onOpenChange, clinicId, onSuccess }: Add
         .from("profiles")
         .select("id")
         .eq("phone_number", phone)
-        .single();
+        .maybeSingle();
 
       if (existingProfile) {
         patientId = existingProfile.id;
@@ -52,11 +52,11 @@ export function AddWalkInDialog({ open, onOpenChange, clinicId, onSuccess }: Add
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: tempEmail,
           password: tempPassword,
-          phone: phone,
           options: {
             data: {
               full_name: name,
-              phone_number: phone
+              phone_number: phone,
+              role: 'patient'
             }
           }
         });

@@ -91,28 +91,27 @@ export default function ClinicQueue() {
 
       const today = new Date().toISOString().split('T')[0];
 
-      const { data, error } = await supabase
+      // Fetch appointments
+      const { data: appointments, error: aptError } = await supabase
         .from("appointments")
-        .select(`
-          id,
-          patient_id,
-          queue_position,
-          status,
-          scheduled_time,
-          predicted_start_time,
-          appointment_type,
-          checked_in_at,
-          actual_start_time,
-          profiles:patient_id (full_name)
-        `)
+        .select("*")
         .eq("clinic_id", id)
         .eq("appointment_date", today)
         .in("status", ["scheduled", "waiting", "in_progress"])
         .order("queue_position", { ascending: true });
 
-      if (error) throw error;
+      if (aptError) throw aptError;
 
-      const formattedData: QueuePatient[] = (data || []).map((apt: any) => ({
+      // Fetch patient names separately
+      const patientIds = appointments?.map(apt => apt.patient_id) || [];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", patientIds);
+
+      const profileMap = new Map(profiles?.map(p => [p.id, p.full_name]));
+
+      const formattedData: QueuePatient[] = (appointments || []).map((apt) => ({
         id: apt.id,
         patient_id: apt.patient_id,
         queue_position: apt.queue_position,
@@ -120,7 +119,7 @@ export default function ClinicQueue() {
         scheduled_time: apt.scheduled_time,
         estimated_start_time: apt.predicted_start_time,
         appointment_type: apt.appointment_type,
-        patient_name: apt.profiles?.full_name || 'Unknown',
+        patient_name: profileMap.get(apt.patient_id) || 'Unknown',
         checked_in_at: apt.checked_in_at,
         actual_start_time: apt.actual_start_time
       }));
@@ -268,9 +267,27 @@ export default function ClinicQueue() {
             <span className="text-xl font-bold">{clinic?.name || "QueueMed"}</span>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => navigate("/clinic/dashboard")}>
-              Dashboard
-            </Button>
+            {!isStaff && (
+              <>
+                <Button variant="outline" onClick={() => navigate("/clinic/dashboard")}>
+                  Dashboard
+                </Button>
+                <Button variant="outline" onClick={() => navigate("/clinic/profile")}>
+                  Profile
+                </Button>
+                <Button variant="outline" onClick={() => navigate("/clinic/settings")}>
+                  Settings
+                </Button>
+                <Button variant="outline" onClick={() => navigate("/clinic/team")}>
+                  Team
+                </Button>
+              </>
+            )}
+            {isStaff && (
+              <Button variant="outline" onClick={() => navigate("/clinic/dashboard")}>
+                Dashboard
+              </Button>
+            )}
             <Button variant="outline" onClick={signOut}>
               Sign Out
             </Button>

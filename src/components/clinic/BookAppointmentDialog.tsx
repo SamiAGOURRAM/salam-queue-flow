@@ -51,21 +51,23 @@ export function BookAppointmentDialog({
         .from("profiles")
         .select("id")
         .eq("phone_number", phone)
-        .single();
+        .maybeSingle();
 
       let patientId: string;
 
       if (!existingProfile) {
-        // Create new user via auth (phone-based)
+        // Create new user via auth (email-based with phone in metadata)
+        const tempEmail = `${phone.replace(/\+/g, '')}@scheduled.temp`;
         const { data: authData, error: authError } = await supabase.auth.signUp({
-          phone: phone,
+          email: tempEmail,
           password: Math.random().toString(36).slice(-12), // Random password
           options: {
             data: {
               full_name: fullName,
-              role: "patient",
-            },
-          },
+              phone_number: phone,
+              role: 'patient'
+            }
+          }
         });
 
         if (authError) throw authError;
