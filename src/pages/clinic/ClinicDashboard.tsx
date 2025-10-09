@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Users, Clock, TrendingUp } from "lucide-react";
+import { Activity, Users, Clock, TrendingUp, UserPlus } from "lucide-react";
 
 export default function ClinicDashboard() {
   const { user, loading, isClinicOwner, signOut } = useAuth();
@@ -46,6 +46,10 @@ export default function ClinicDashboard() {
             <span className="text-xl font-bold">{clinic?.name || "QueueMed"}</span>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="default" onClick={() => navigate("/clinic/team")}>
+              <UserPlus className="w-4 h-4 mr-2" />
+              Team
+            </Button>
             <Button variant="default" onClick={() => navigate("/clinic/queue")}>
               Live Queue
             </Button>

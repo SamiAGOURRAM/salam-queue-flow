@@ -684,6 +684,59 @@ export type Database = {
           },
         ]
       }
+      staff_invitations: {
+        Row: {
+          accepted_at: string | null
+          clinic_id: string
+          created_at: string | null
+          expires_at: string
+          full_name: string
+          id: string
+          invitation_token: string
+          invited_by: string
+          phone_number: string
+          role: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          clinic_id: string
+          created_at?: string | null
+          expires_at?: string
+          full_name: string
+          id?: string
+          invitation_token: string
+          invited_by: string
+          phone_number: string
+          role?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          clinic_id?: string
+          created_at?: string | null
+          expires_at?: string
+          full_name?: string
+          id?: string
+          invitation_token?: string
+          invited_by?: string
+          phone_number?: string
+          role?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_invitations_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           clinic_id: string | null

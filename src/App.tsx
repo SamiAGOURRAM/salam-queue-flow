@@ -15,6 +15,8 @@ import ClinicQueue from "./pages/clinic/ClinicQueue";
 import MyQueue from "./pages/patient/MyQueue";
 import ClinicDetailView from "./components/booking/ClinicDetailView";
 import BookingFlow from "./components/booking/BookingFlow";
+import TeamManagement from "./pages/clinic/TeamManagement";
+import AcceptInvitation from "./pages/AcceptInvitation";
 
 const queryClient = new QueryClient();
 
@@ -33,10 +35,12 @@ const App = () => (
           <Route path="/auth/signup" element={<Signup />} />
           <Route path="/auth/onboarding/patient" element={<PatientOnboarding />} />
           <Route path="/auth/onboarding/clinic" element={<ClinicOnboarding />} />
+          <Route path="/accept-invitation/:token" element={<AcceptInvitation />} />
             <Route path="/patient/dashboard" element={<PatientDashboard />} />
             <Route path="/patient/queue/:appointmentId" element={<MyQueue />} />
             <Route path="/clinic/dashboard" element={<ClinicDashboard />} />
             <Route path="/clinic/queue" element={<ClinicQueue />} />
+            <Route path="/clinic/team" element={<TeamManagement />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
