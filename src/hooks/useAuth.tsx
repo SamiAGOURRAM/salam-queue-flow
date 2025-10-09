@@ -68,13 +68,17 @@ export function useAuth() {
     return userRoles.some((r) => r.role === role);
   };
 
+  const isClinicOwner = hasRole("clinic_owner");
+  const isStaff = hasRole("staff");
+
   return {
     user,
     loading,
     userRoles,
     signOut,
     hasRole,
-    isClinicOwner: hasRole("clinic_owner"),
-    isStaff: hasRole("staff"),
+    isClinicOwner,
+    isStaff,
+    isPatient: hasRole("patient"),
   };
 }

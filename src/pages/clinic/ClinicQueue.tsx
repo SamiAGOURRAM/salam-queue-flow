@@ -5,9 +5,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Activity, Users, Clock, UserPlus } from "lucide-react";
+import { Activity, Users, Clock, UserPlus, Calendar } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { AddWalkInDialog } from "@/components/clinic/AddWalkInDialog";
+import { BookAppointmentDialog } from "@/components/clinic/BookAppointmentDialog";
 
 interface QueuePatient {
   id: string;
@@ -30,6 +31,7 @@ export default function ClinicQueue() {
   const [loadingQueue, setLoadingQueue] = useState(true);
   const [processingNext, setProcessingNext] = useState(false);
   const [showAddWalkIn, setShowAddWalkIn] = useState(false);
+  const [showBookAppointment, setShowBookAppointment] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -282,10 +284,16 @@ export default function ClinicQueue() {
             <h1 className="text-3xl font-bold mb-2">Live Queue</h1>
             <p className="text-muted-foreground">Real-time queue management</p>
           </div>
-          <Button onClick={() => setShowAddWalkIn(true)} variant="outline">
-            <UserPlus className="w-4 h-4 mr-2" />
-            Add Walk-in
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => setShowBookAppointment(true)} variant="default">
+              <Calendar className="w-4 h-4 mr-2" />
+              Book Appointment
+            </Button>
+            <Button onClick={() => setShowAddWalkIn(true)} variant="outline">
+              <UserPlus className="w-4 h-4 mr-2" />
+              Add Walk-in
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-6 md:grid-cols-3 mb-8">
@@ -402,6 +410,13 @@ export default function ClinicQueue() {
       <AddWalkInDialog
         open={showAddWalkIn}
         onOpenChange={setShowAddWalkIn}
+        clinicId={clinic?.id}
+        onSuccess={fetchQueue}
+      />
+
+      <BookAppointmentDialog
+        open={showBookAppointment}
+        onOpenChange={setShowBookAppointment}
         clinicId={clinic?.id}
         onSuccess={fetchQueue}
       />

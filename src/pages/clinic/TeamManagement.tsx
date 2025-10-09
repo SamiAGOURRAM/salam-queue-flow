@@ -37,17 +37,23 @@ export default function TeamManagement() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
-  const { user, isClinicOwner } = useAuth();
+  const { user, loading: authLoading, isClinicOwner } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!user || !isClinicOwner) {
-      navigate("/");
+    if (!loading && !user) {
+      navigate("/auth/login");
       return;
     }
-    fetchTeamData();
-  }, [user, isClinicOwner, navigate]);
+    if (!loading && !isClinicOwner) {
+      navigate("/clinic/queue");
+      return;
+    }
+    if (user && isClinicOwner) {
+      fetchTeamData();
+    }
+  }, [user, loading, isClinicOwner, navigate]);
 
   const fetchTeamData = async () => {
     // Get clinic ID
