@@ -42,18 +42,18 @@ export default function TeamManagement() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       navigate("/auth/login");
       return;
     }
-    if (!loading && !isClinicOwner) {
+    if (!authLoading && !isClinicOwner) {
       navigate("/clinic/queue");
       return;
     }
     if (user && isClinicOwner) {
       fetchTeamData();
     }
-  }, [user, loading, isClinicOwner, navigate]);
+  }, [user, authLoading, isClinicOwner]);
 
   const fetchTeamData = async () => {
     // Get clinic ID

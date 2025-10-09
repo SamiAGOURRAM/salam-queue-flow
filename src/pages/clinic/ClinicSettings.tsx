@@ -51,7 +51,7 @@ export default function ClinicSettings() {
     } else if (user && isClinicOwner) {
       fetchClinic();
     }
-  }, [user, loading, isClinicOwner, navigate]);
+  }, [user, loading, isClinicOwner]);
 
   const fetchClinic = async () => {
     const { data, error } = await supabase

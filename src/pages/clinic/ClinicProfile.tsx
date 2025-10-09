@@ -30,7 +30,7 @@ export default function ClinicProfile() {
     } else if (user) {
       fetchProfile();
     }
-  }, [user, loading, isClinicOwner, navigate]);
+  }, [user, loading, isClinicOwner]);
 
   const fetchProfile = async () => {
     const { data: profileData, error: profileError } = await supabase

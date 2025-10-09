@@ -39,7 +39,7 @@ export default function ClinicQueue() {
     } else if (user && (isClinicOwner || isStaff)) {
       fetchClinicAndQueue();
     }
-  }, [user, loading, isClinicOwner, isStaff, navigate]);
+  }, [user, loading, isClinicOwner, isStaff]);
 
   useEffect(() => {
     if (!clinic?.id) return;
