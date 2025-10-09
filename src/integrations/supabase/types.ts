@@ -12,8 +12,93 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
+      absent_patients: {
+        Row: {
+          appointment_id: string
+          auto_cancelled: boolean | null
+          clinic_id: string
+          created_at: string | null
+          grace_period_ends_at: string | null
+          id: string
+          marked_absent_at: string | null
+          new_position: number | null
+          notification_sent: boolean | null
+          patient_id: string
+          returned_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          appointment_id: string
+          auto_cancelled?: boolean | null
+          clinic_id: string
+          created_at?: string | null
+          grace_period_ends_at?: string | null
+          id?: string
+          marked_absent_at?: string | null
+          new_position?: number | null
+          notification_sent?: boolean | null
+          patient_id: string
+          returned_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          appointment_id?: string
+          auto_cancelled?: boolean | null
+          clinic_id?: string
+          created_at?: string | null
+          grace_period_ends_at?: string | null
+          id?: string
+          marked_absent_at?: string | null
+          new_position?: number | null
+          notification_sent?: boolean | null
+          patient_id?: string
+          returned_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "absent_patients_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "absent_patients_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointment_metrics: {
         Row: {
           absolute_error: number | null
@@ -105,12 +190,16 @@ export type Database = {
           id: string
           is_first_visit: boolean | null
           is_holiday: boolean | null
+          is_present: boolean | null
           is_walk_in: boolean | null
           last_notification_sent_at: string | null
           last_prediction_update: string | null
           late_by_minutes: number | null
+          marked_absent_at: string | null
           notes: string | null
           notification_count: number | null
+          original_queue_position: number | null
+          override_by: string | null
           patient_arrival_time: string | null
           patient_id: string
           predicted_start_time: string | null
@@ -119,7 +208,10 @@ export type Database = {
           queue_position: number | null
           reason_for_visit: string | null
           requires_preparation: boolean | null
+          returned_at: string | null
           scheduled_time: string | null
+          skip_count: number | null
+          skip_reason: Database["public"]["Enums"]["skip_reason_type"] | null
           staff_id: string
           status: Database["public"]["Enums"]["appointment_status"] | null
           time_slot: string | null
@@ -143,12 +235,16 @@ export type Database = {
           id?: string
           is_first_visit?: boolean | null
           is_holiday?: boolean | null
+          is_present?: boolean | null
           is_walk_in?: boolean | null
           last_notification_sent_at?: string | null
           last_prediction_update?: string | null
           late_by_minutes?: number | null
+          marked_absent_at?: string | null
           notes?: string | null
           notification_count?: number | null
+          original_queue_position?: number | null
+          override_by?: string | null
           patient_arrival_time?: string | null
           patient_id: string
           predicted_start_time?: string | null
@@ -157,7 +253,10 @@ export type Database = {
           queue_position?: number | null
           reason_for_visit?: string | null
           requires_preparation?: boolean | null
+          returned_at?: string | null
           scheduled_time?: string | null
+          skip_count?: number | null
+          skip_reason?: Database["public"]["Enums"]["skip_reason_type"] | null
           staff_id: string
           status?: Database["public"]["Enums"]["appointment_status"] | null
           time_slot?: string | null
@@ -181,12 +280,16 @@ export type Database = {
           id?: string
           is_first_visit?: boolean | null
           is_holiday?: boolean | null
+          is_present?: boolean | null
           is_walk_in?: boolean | null
           last_notification_sent_at?: string | null
           last_prediction_update?: string | null
           late_by_minutes?: number | null
+          marked_absent_at?: string | null
           notes?: string | null
           notification_count?: number | null
+          original_queue_position?: number | null
+          override_by?: string | null
           patient_arrival_time?: string | null
           patient_id?: string
           predicted_start_time?: string | null
@@ -195,7 +298,10 @@ export type Database = {
           queue_position?: number | null
           reason_for_visit?: string | null
           requires_preparation?: boolean | null
+          returned_at?: string | null
           scheduled_time?: string | null
+          skip_count?: number | null
+          skip_reason?: Database["public"]["Enums"]["skip_reason_type"] | null
           staff_id?: string
           status?: Database["public"]["Enums"]["appointment_status"] | null
           time_slot?: string | null
@@ -260,6 +366,53 @@ export type Database = {
             foreignKeyName: "audit_logs_clinic_id_fkey"
             columns: ["clinic_id"]
             isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clinic_notification_budgets: {
+        Row: {
+          alert_threshold: number | null
+          clinic_id: string
+          created_at: string | null
+          current_month_sms_count: number | null
+          current_month_spend: number | null
+          last_reset_date: string | null
+          monthly_budget_amount: number | null
+          monthly_sms_limit: number | null
+          notifications_enabled: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          alert_threshold?: number | null
+          clinic_id: string
+          created_at?: string | null
+          current_month_sms_count?: number | null
+          current_month_spend?: number | null
+          last_reset_date?: string | null
+          monthly_budget_amount?: number | null
+          monthly_sms_limit?: number | null
+          notifications_enabled?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          alert_threshold?: number | null
+          clinic_id?: string
+          created_at?: string | null
+          current_month_sms_count?: number | null
+          current_month_spend?: number | null
+          last_reset_date?: string | null
+          monthly_budget_amount?: number | null
+          monthly_sms_limit?: number | null
+          notifications_enabled?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_notification_budgets_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: true
             referencedRelation: "clinics"
             referencedColumns: ["id"]
           },
@@ -425,6 +578,53 @@ export type Database = {
             columns: ["notification_id"]
             isOneToOne: false
             referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_templates: {
+        Row: {
+          clinic_id: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          is_custom: boolean | null
+          language: string
+          template_key: string
+          template_text: string
+          updated_at: string | null
+          variables: Json | null
+        }
+        Insert: {
+          clinic_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_custom?: boolean | null
+          language: string
+          template_key: string
+          template_text: string
+          updated_at?: string | null
+          variables?: Json | null
+        }
+        Update: {
+          clinic_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_custom?: boolean | null
+          language?: string
+          template_key?: string
+          template_text?: string
+          updated_at?: string | null
+          variables?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_templates_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
             referencedColumns: ["id"]
           },
         ]
@@ -628,6 +828,60 @@ export type Database = {
         }
         Relationships: []
       }
+      queue_overrides: {
+        Row: {
+          action_type: string
+          appointment_id: string
+          clinic_id: string
+          created_at: string | null
+          id: string
+          new_position: number | null
+          performed_by: string
+          previous_position: number | null
+          reason: string | null
+          skipped_patient_ids: string[] | null
+        }
+        Insert: {
+          action_type: string
+          appointment_id: string
+          clinic_id: string
+          created_at?: string | null
+          id?: string
+          new_position?: number | null
+          performed_by: string
+          previous_position?: number | null
+          reason?: string | null
+          skipped_patient_ids?: string[] | null
+        }
+        Update: {
+          action_type?: string
+          appointment_id?: string
+          clinic_id?: string
+          created_at?: string | null
+          id?: string
+          new_position?: number | null
+          performed_by?: string
+          previous_position?: number | null
+          reason?: string | null
+          skipped_patient_ids?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "queue_overrides_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "queue_overrides_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       queue_snapshots: {
         Row: {
           active_staff_count: number | null
@@ -817,6 +1071,14 @@ export type Database = {
         | "appointment_delayed"
         | "appointment_cancelled"
       practice_type: "solo_practice" | "group_clinic" | "hospital"
+      skip_reason_type:
+        | "patient_absent"
+        | "patient_present"
+        | "emergency_case"
+        | "doctor_preference"
+        | "late_arrival"
+        | "technical_issue"
+        | "other"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -942,6 +1204,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       app_role: ["super_admin", "clinic_owner", "staff", "patient"],
@@ -973,6 +1238,15 @@ export const Constants = {
         "appointment_cancelled",
       ],
       practice_type: ["solo_practice", "group_clinic", "hospital"],
+      skip_reason_type: [
+        "patient_absent",
+        "patient_present",
+        "emergency_case",
+        "doctor_preference",
+        "late_arrival",
+        "technical_issue",
+        "other",
+      ],
     },
   },
 } as const

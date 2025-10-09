@@ -26,33 +26,60 @@ export default function Signup() {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        phone,
-        options: {
-          data: {
-            full_name: fullName,
-            phone_number: phone,
-            role: userType, // Role is now handled by database trigger
+      if (userType === "patient") {
+        // For patients, create account immediately
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          phone,
+          options: {
+            data: {
+              full_name: fullName,
+              phone_number: phone,
+              role: userType,
+            },
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
           },
-        },
-      });
-
-      if (error) throw error;
-
-      if (data.user) {
-        toast({
-          title: "Account created!",
-          description: "Please complete your profile.",
         });
 
-        // Redirect to onboarding
-        if (userType === "patient") {
+        if (error) throw error;
+
+        if (data.user) {
+          if (data.user.identities && data.user.identities.length === 0) {
+            toast({
+              title: "Email already registered",
+              description: "Please sign in with your existing account.",
+              variant: "destructive",
+            });
+            return;
+          }
+
+          toast({
+            title: "Account created!",
+            description: "Please complete your profile.",
+          });
+
           navigate("/auth/onboarding/patient");
-        } else {
-          navigate("/auth/onboarding/clinic");
         }
+      } else {
+        // For clinic owners, store data and go to clinic setup WITHOUT creating account yet
+        const signupData = {
+          email,
+          password,
+          phone,
+          fullName,
+          userType,
+        };
+        
+        // Store in sessionStorage (temporary)
+        sessionStorage.setItem('clinicOwnerSignup', JSON.stringify(signupData));
+        
+        toast({
+          title: "Next step",
+          description: "Please provide your clinic information.",
+        });
+
+        navigate("/auth/onboarding/clinic");
       }
     } catch (error: any) {
       toast({

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,8 +9,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 
+interface SignupData {
+  email: string;
+  password: string;
+  phone: string;
+  fullName: string;
+  userType: string;
+}
+
 export default function ClinicOnboarding() {
   const [step, setStep] = useState(1);
+  const [signupData, setSignupData] = useState<SignupData | null>(null);
   const [clinicData, setClinicData] = useState({
     name: "",
     name_ar: "",
@@ -26,62 +35,140 @@ export default function ClinicOnboarding() {
   const { user } = useAuth();
   const { toast } = useToast();
 
+  // Load signup data from sessionStorage
+  useEffect(() => {
+    const storedData = sessionStorage.getItem('clinicOwnerSignup');
+    if (storedData) {
+      const data: SignupData = JSON.parse(storedData);
+      setSignupData(data);
+      
+      // Pre-fill clinic data from signup form
+      setClinicData(prev => ({
+        ...prev,
+        phone: data.phone,
+        email: data.email,
+      }));
+    } else if (!user) {
+      // No signup data and not logged in - redirect to signup
+      toast({
+        title: "Session expired",
+        description: "Please start the signup process again.",
+        variant: "destructive",
+      });
+      navigate("/auth/signup");
+    }
+  }, [user, navigate, toast]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
 
     setLoading(true);
     try {
+      let currentUser = user;
+
+      // If no user exists, create account first (from stored signup data)
+      if (!currentUser && signupData) {
+        console.log("Creating account with clinic setup...");
+        
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: signupData.email,
+          password: signupData.password,
+          phone: signupData.phone,
+          options: {
+            data: {
+              full_name: signupData.fullName,
+              phone_number: signupData.phone,
+              role: "clinic_owner",
+            },
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
+        });
+
+        if (authError) throw authError;
+        if (!authData.user) throw new Error("Failed to create account");
+
+        currentUser = authData.user;
+        console.log("Account created:", currentUser.id);
+
+        // Clear stored signup data
+        sessionStorage.removeItem('clinicOwnerSignup');
+      }
+
+      if (!currentUser) {
+        toast({
+          title: "Not authenticated",
+          description: "Please sign in first.",
+          variant: "destructive",
+        });
+        navigate("/auth/login");
+        return;
+      }
+
+      console.log("Creating clinic for user:", currentUser.id);
+      console.log("Clinic data:", clinicData);
+
       // Create clinic
       const { data: clinic, error: clinicError } = await supabase
         .from("clinics")
         .insert({
           name: clinicData.name,
-          name_ar: clinicData.name_ar,
+          name_ar: clinicData.name_ar || clinicData.name,
           specialty: clinicData.specialty,
           address: clinicData.address,
           city: clinicData.city,
           phone: clinicData.phone,
-          email: clinicData.email,
+          email: clinicData.email || currentUser.email,
           practice_type: clinicData.practice_type as any,
-          owner_id: user.id,
+          owner_id: currentUser.id,
         } as any)
         .select()
         .single();
 
-      if (clinicError) throw clinicError;
+      if (clinicError) {
+        console.error("Clinic creation error:", clinicError);
+        throw clinicError;
+      }
 
-      // Create staff entry for owner
+      console.log("Clinic created:", clinic);
+
+      // Create staff entry for owner (might be handled by trigger)
       const { error: staffError } = await supabase
         .from("clinic_staff")
         .insert({
           clinic_id: clinic.id,
-          user_id: user.id,
+          user_id: currentUser.id,
           role: "doctor",
           specialization: clinicData.specialty,
         });
 
-      if (staffError) throw staffError;
+      if (staffError) {
+        console.error("Staff creation error:", staffError);
+        console.log("Staff entry might already exist from trigger");
+      }
 
-      // Update user role with clinic_id
+      // Update user role with clinic_id (might be handled by trigger)
       const { error: roleError } = await supabase
         .from("user_roles")
         .update({ clinic_id: clinic.id })
-        .eq("user_id", user.id)
+        .eq("user_id", currentUser.id)
         .eq("role", "clinic_owner");
 
-      if (roleError) throw roleError;
+      if (roleError) {
+        console.error("Role update error:", roleError);
+        console.log("Role might already be set from trigger");
+      }
 
       toast({
-        title: "Clinic created!",
-        description: "Your clinic has been set up successfully.",
+        title: "Success!",
+        description: "Your account and clinic have been created successfully.",
       });
 
       navigate("/clinic/dashboard");
     } catch (error: any) {
+      console.error("Onboarding error:", error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to complete setup. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -178,6 +265,7 @@ export default function ClinicOnboarding() {
                   value={clinicData.phone}
                   onChange={(e) => setClinicData({ ...clinicData, phone: e.target.value })}
                   required
+                  placeholder={signupData?.phone || "+212..."}
                 />
               </div>
             </div>
@@ -189,12 +277,29 @@ export default function ClinicOnboarding() {
                 type="email"
                 value={clinicData.email}
                 onChange={(e) => setClinicData({ ...clinicData, email: e.target.value })}
+                placeholder={signupData?.email || "clinic@example.com"}
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating clinic..." : "Complete Setup"}
-            </Button>
+            <div className="flex gap-3">
+              {signupData && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate("/auth/signup")}
+                  className="flex-1"
+                >
+                  Back
+                </Button>
+              )}
+              <Button 
+                type="submit" 
+                className={signupData ? "flex-1" : "w-full"} 
+                disabled={loading}
+              >
+                {loading ? "Creating account and clinic..." : "Complete Setup"}
+              </Button>
+            </div>
           </CardContent>
         </form>
       </Card>
