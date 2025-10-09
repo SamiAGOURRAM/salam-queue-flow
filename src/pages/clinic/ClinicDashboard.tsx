@@ -60,6 +60,9 @@ export default function ClinicDashboard() {
               <UserPlus className="w-4 h-4 mr-2" />
               Team
             </Button>
+            <Button variant="outline" onClick={() => navigate("/clinic/calendar")}>
+              Calendar
+            </Button>
             <Button variant="default" onClick={() => navigate("/clinic/queue")}>
               Live Queue
             </Button>

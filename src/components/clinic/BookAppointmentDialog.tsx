@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ interface BookAppointmentDialogProps {
   onOpenChange: (open: boolean) => void;
   clinicId: string;
   onSuccess: () => void;
+  preselectedDate?: Date;
 }
 
 export function BookAppointmentDialog({
@@ -25,14 +26,22 @@ export function BookAppointmentDialog({
   onOpenChange,
   clinicId,
   onSuccess,
+  preselectedDate,
 }: BookAppointmentDialogProps) {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-  const [date, setDate] = useState<Date>();
+  const [date, setDate] = useState<Date | undefined>(preselectedDate);
   const [time, setTime] = useState("");
   const [appointmentType, setAppointmentType] = useState("consultation");
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Update date when preselectedDate changes
+  useEffect(() => {
+    if (preselectedDate) {
+      setDate(preselectedDate);
+    }
+  }, [preselectedDate]);
 
   const handleSubmit = async () => {
     if (!fullName || !phone || !date || !time) {

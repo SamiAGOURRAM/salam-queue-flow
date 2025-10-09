@@ -12,6 +12,7 @@ import ClinicOnboarding from "./pages/auth/onboarding/ClinicOnboarding";
 import PatientDashboard from "./pages/patient/PatientDashboard";
 import ClinicDashboard from "./pages/clinic/ClinicDashboard";
 import ClinicQueue from "./pages/clinic/ClinicQueue";
+import ClinicCalendar from "./pages/clinic/ClinicCalendar";
 import MyQueue from "./pages/patient/MyQueue";
 import ClinicDetailView from "./components/booking/ClinicDetailView";
 import BookingFlow from "./components/booking/BookingFlow";
@@ -42,6 +43,7 @@ const App = () => (
             <Route path="/patient/queue/:appointmentId" element={<MyQueue />} />
             <Route path="/clinic/dashboard" element={<ClinicDashboard />} />
             <Route path="/clinic/queue" element={<ClinicQueue />} />
+            <Route path="/clinic/calendar" element={<ClinicCalendar />} />
             <Route path="/clinic/team" element={<TeamManagement />} />
           <Route path="/clinic/settings" element={<ClinicSettings />} />
           <Route path="/clinic/profile" element={<ClinicProfile />} />

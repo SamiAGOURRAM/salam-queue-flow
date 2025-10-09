@@ -42,6 +42,12 @@ export default function ClinicSettings() {
   const [avgDuration, setAvgDuration] = useState(15);
   const [bufferTime, setBufferTime] = useState(5);
   const [maxQueueSize, setMaxQueueSize] = useState(50);
+  const [appointmentTypes, setAppointmentTypes] = useState([
+    { name: "consultation", duration: 15, label: "Consultation" },
+    { name: "follow_up", duration: 10, label: "Follow-up" },
+    { name: "procedure", duration: 30, label: "Procedure" },
+    { name: "emergency", duration: 20, label: "Emergency" },
+  ]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -91,6 +97,12 @@ export default function ClinicSettings() {
         insurance: false,
         online: false,
       });
+      setAppointmentTypes(settings.appointment_types || [
+        { name: "consultation", duration: 15, label: "Consultation" },
+        { name: "follow_up", duration: 10, label: "Follow-up" },
+        { name: "procedure", duration: 30, label: "Procedure" },
+        { name: "emergency", duration: 20, label: "Emergency" },
+      ]);
     }
   };
 
@@ -138,6 +150,7 @@ export default function ClinicSettings() {
         buffer_time: bufferTime,
         max_queue_size: maxQueueSize,
         payment_methods: paymentMethods,
+        appointment_types: appointmentTypes,
       };
 
       const { error } = await supabase
@@ -224,9 +237,10 @@ export default function ClinicSettings() {
         </div>
 
         <Tabs defaultValue="basic" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="basic">Basic Info</TabsTrigger>
             <TabsTrigger value="schedule">Schedule</TabsTrigger>
+            <TabsTrigger value="appointments">Appointments</TabsTrigger>
             <TabsTrigger value="payment">Payment</TabsTrigger>
           </TabsList>
 
@@ -420,6 +434,54 @@ export default function ClinicSettings() {
                 <Button onClick={handleSaveSchedule} disabled={saving} className="w-full">
                   <Save className="w-4 h-4 mr-2" />
                   {saving ? "Saving..." : "Save Schedule Settings"}
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="appointments">
+            <Card>
+              <CardHeader>
+                <CardTitle>Appointment Types</CardTitle>
+                <CardDescription>Configure the types of appointments you offer and their typical duration</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {appointmentTypes.map((type, index) => (
+                  <div key={type.name} className="flex items-center gap-4 p-4 border rounded-lg">
+                    <div className="flex-1">
+                      <Label htmlFor={`type-label-${index}`}>Label</Label>
+                      <Input
+                        id={`type-label-${index}`}
+                        value={type.label}
+                        onChange={(e) => {
+                          const updated = [...appointmentTypes];
+                          updated[index].label = e.target.value;
+                          setAppointmentTypes(updated);
+                        }}
+                        placeholder="Consultation"
+                      />
+                    </div>
+                    <div className="w-32">
+                      <Label htmlFor={`type-duration-${index}`}>Duration (min)</Label>
+                      <Input
+                        id={`type-duration-${index}`}
+                        type="number"
+                        value={type.duration}
+                        onChange={(e) => {
+                          const updated = [...appointmentTypes];
+                          updated[index].duration = parseInt(e.target.value) || 15;
+                          setAppointmentTypes(updated);
+                        }}
+                        min="5"
+                        max="240"
+                      />
+                    </div>
+                  </div>
+                ))}
+
+                <Button onClick={handleSaveSchedule} disabled={saving} className="w-full">
+                  <Save className="w-4 h-4 mr-2" />
+                  {saving ? "Saving..." : "Save Appointment Types"}
                 </Button>
               </CardContent>
             </Card>

@@ -272,6 +272,9 @@ export default function ClinicQueue() {
                 <Button variant="outline" onClick={() => navigate("/clinic/dashboard")}>
                   Dashboard
                 </Button>
+                <Button variant="outline" onClick={() => navigate("/clinic/calendar")}>
+                  Calendar
+                </Button>
                 <Button variant="outline" onClick={() => navigate("/clinic/profile")}>
                   Profile
                 </Button>
@@ -282,11 +285,6 @@ export default function ClinicQueue() {
                   Team
                 </Button>
               </>
-            )}
-            {isStaff && (
-              <Button variant="outline" onClick={() => navigate("/clinic/dashboard")}>
-                Dashboard
-              </Button>
             )}
             <Button variant="outline" onClick={signOut}>
               Sign Out
