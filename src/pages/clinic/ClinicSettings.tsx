@@ -85,6 +85,12 @@ export default function ClinicSettings() {
       setAvgDuration(settings.average_appointment_duration || 15);
       setBufferTime(settings.buffer_time || 5);
       setMaxQueueSize(settings.max_queue_size || 50);
+      setPaymentMethods(settings.payment_methods || {
+        cash: true,
+        card: false,
+        insurance: false,
+        online: false,
+      });
     }
   };
 
@@ -131,6 +137,7 @@ export default function ClinicSettings() {
         average_appointment_duration: avgDuration,
         buffer_time: bufferTime,
         max_queue_size: maxQueueSize,
+        payment_methods: paymentMethods,
       };
 
       const { error } = await supabase
@@ -165,6 +172,13 @@ export default function ClinicSettings() {
     }));
   };
 
+  const [paymentMethods, setPaymentMethods] = useState({
+    cash: true,
+    card: false,
+    insurance: false,
+    online: false,
+  });
+
   const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
   if (loading) {
@@ -184,6 +198,9 @@ export default function ClinicSettings() {
             <span className="text-xl font-bold">{clinic?.name || "QueueMed"}</span>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => navigate("/clinic/profile")}>
+              Profile
+            </Button>
             <Button variant="outline" onClick={() => navigate("/clinic/dashboard")}>
               Dashboard
             </Button>
@@ -207,9 +224,10 @@ export default function ClinicSettings() {
         </div>
 
         <Tabs defaultValue="basic" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="basic">Basic Information</TabsTrigger>
-            <TabsTrigger value="schedule">Schedule & Hours</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="basic">Basic Info</TabsTrigger>
+            <TabsTrigger value="schedule">Schedule</TabsTrigger>
+            <TabsTrigger value="payment">Payment</TabsTrigger>
           </TabsList>
 
           <TabsContent value="basic">
@@ -402,6 +420,73 @@ export default function ClinicSettings() {
                 <Button onClick={handleSaveSchedule} disabled={saving} className="w-full">
                   <Save className="w-4 h-4 mr-2" />
                   {saving ? "Saving..." : "Save Schedule Settings"}
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="payment">
+            <Card>
+              <CardHeader>
+                <CardTitle>Payment Methods</CardTitle>
+                <CardDescription>Select which payment methods you accept</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <Label>Cash</Label>
+                    <p className="text-sm text-muted-foreground">Accept cash payments</p>
+                  </div>
+                  <Switch
+                    checked={paymentMethods.cash}
+                    onCheckedChange={(checked) =>
+                      setPaymentMethods({ ...paymentMethods, cash: checked })
+                    }
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <Label>Credit/Debit Card</Label>
+                    <p className="text-sm text-muted-foreground">Accept card payments</p>
+                  </div>
+                  <Switch
+                    checked={paymentMethods.card}
+                    onCheckedChange={(checked) =>
+                      setPaymentMethods({ ...paymentMethods, card: checked })
+                    }
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <Label>Insurance</Label>
+                    <p className="text-sm text-muted-foreground">Accept insurance coverage</p>
+                  </div>
+                  <Switch
+                    checked={paymentMethods.insurance}
+                    onCheckedChange={(checked) =>
+                      setPaymentMethods({ ...paymentMethods, insurance: checked })
+                    }
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <Label>Online Payment</Label>
+                    <p className="text-sm text-muted-foreground">Accept online/digital payments</p>
+                  </div>
+                  <Switch
+                    checked={paymentMethods.online}
+                    onCheckedChange={(checked) =>
+                      setPaymentMethods({ ...paymentMethods, online: checked })
+                    }
+                  />
+                </div>
+
+                <Button onClick={handleSaveSchedule} disabled={saving} className="w-full">
+                  <Save className="w-4 h-4 mr-2" />
+                  {saving ? "Saving..." : "Save Payment Settings"}
                 </Button>
               </CardContent>
             </Card>

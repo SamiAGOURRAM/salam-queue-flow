@@ -49,6 +49,9 @@ export default function ClinicDashboard() {
             <span className="text-xl font-bold">{clinic?.name || "QueueMed"}</span>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => navigate("/clinic/profile")}>
+              Profile
+            </Button>
             <Button variant="outline" onClick={() => navigate("/clinic/settings")}>
               <Settings className="w-4 h-4 mr-2" />
               Settings
