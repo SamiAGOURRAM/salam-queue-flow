@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Calendar, Clock, Activity } from "lucide-react";
 
 export default function PatientDashboard() {
-  const { user, loading, isPatient, signOut } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {

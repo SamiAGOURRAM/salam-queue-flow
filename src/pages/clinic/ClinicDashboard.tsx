@@ -45,9 +45,14 @@ export default function ClinicDashboard() {
             <Activity className="w-6 h-6 text-primary" />
             <span className="text-xl font-bold">{clinic?.name || "QueueMed"}</span>
           </div>
-          <Button variant="outline" onClick={signOut}>
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="default" onClick={() => navigate("/clinic/queue")}>
+              Live Queue
+            </Button>
+            <Button variant="outline" onClick={signOut}>
+              Sign Out
+            </Button>
+          </div>
         </div>
       </header>
 
