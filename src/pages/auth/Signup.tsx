@@ -34,6 +34,7 @@ export default function Signup() {
           data: {
             full_name: fullName,
             phone_number: phone,
+            role: userType, // Role is now handled by database trigger
           },
         },
       });
@@ -41,15 +42,6 @@ export default function Signup() {
       if (error) throw error;
 
       if (data.user) {
-        // Create user role
-        const { error: roleError } = await supabase.from("user_roles").insert({
-          user_id: data.user.id,
-          role: userType,
-          clinic_id: null,
-        });
-
-        if (roleError) throw roleError;
-
         toast({
           title: "Account created!",
           description: "Please complete your profile.",
