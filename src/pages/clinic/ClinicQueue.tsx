@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Activity, UserPlus, Calendar } from "lucide-react";
+import { Activity, UserPlus, Calendar, Settings, Users, User as UserIcon, LogOut } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { AddWalkInDialog } from "@/components/clinic/AddWalkInDialog";
 import { BookAppointmentDialog } from "@/components/clinic/BookAppointmentDialog";
@@ -54,59 +54,122 @@ export default function ClinicQueue() {
   }, [user, loading, isClinicOwner, isStaff, navigate, fetchClinic]);
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Activity className="w-6 h-6 text-primary" />
-            <span className="text-xl font-bold">{clinic?.name || "QueueMed"}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {!isStaff && (
-              <>
-                <Button variant="outline" onClick={() => navigate("/clinic/dashboard")}>
-                  Dashboard
-                </Button>
-                <Button variant="outline" onClick={() => navigate("/clinic/calendar")}>
-                  Calendar
-                </Button>
-                <Button variant="outline" onClick={() => navigate("/clinic/profile")}>
-                  Profile
-                </Button>
-                <Button variant="outline" onClick={() => navigate("/clinic/settings")}>
-                  Settings
-                </Button>
-                <Button variant="outline" onClick={() => navigate("/clinic/team")}>
-                  Team
-                </Button>
-              </>
-            )}
-            <Button variant="outline" onClick={signOut}>
-              Sign Out
-            </Button>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+      {/* Professional Header */}
+      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            {/* Left: Logo & Clinic Name */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10">
+                <Activity className="w-6 h-6 text-primary" />
+                <span className="text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                  {clinic?.name || "QueueMed"}
+                </span>
+              </div>
+            </div>
+
+            {/* Right: Navigation */}
+            <nav className="flex items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => navigate("/clinic/dashboard")}
+                className="font-medium"
+              >
+                Dashboard
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => navigate("/clinic/calendar")}
+              >
+                <Calendar className="w-4 h-4 mr-2" />
+                Calendar
+              </Button>
+              {!isStaff && (
+                <>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => navigate("/clinic/profile")}
+                  >
+                    <UserIcon className="w-4 h-4 mr-2" />
+                    Profile
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => navigate("/clinic/settings")}
+                  >
+                    <Settings className="w-4 h-4 mr-2" />
+                    Settings
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => navigate("/clinic/team")}
+                  >
+                    <Users className="w-4 h-4 mr-2" />
+                    Team
+                  </Button>
+                </>
+              )}
+              <div className="h-6 w-px bg-border mx-2" />
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={signOut}
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign Out
+              </Button>
+            </nav>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8 flex items-center justify-between">
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-6">
+        {/* Action Bar - Floating above queue */}
+        <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Live Queue</h1>
-            <p className="text-muted-foreground">Real-time queue management</p>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/60 bg-clip-text text-transparent">
+              Live Queue
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              {new Date().toLocaleDateString("en-US", { 
+                weekday: "long", 
+                year: "numeric", 
+                month: "long", 
+                day: "numeric" 
+              })}
+            </p>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={() => setShowBookAppointment(true)} variant="default">
-              <Calendar className="w-4 h-4 mr-2" />
+          
+          {/* Quick Actions */}
+          <div className="flex gap-3">
+            <Button 
+              onClick={() => setShowBookAppointment(true)} 
+              size="lg"
+              className="shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all"
+            >
+              <Calendar className="w-5 h-5 mr-2" />
               Book Appointment
             </Button>
-            <Button onClick={() => setShowAddWalkIn(true)} variant="outline">
-              <UserPlus className="w-4 h-4 mr-2" />
+            <Button 
+              onClick={() => setShowAddWalkIn(true)} 
+              variant="outline"
+              size="lg"
+              className="shadow-sm hover:shadow-md transition-all"
+            >
+              <UserPlus className="w-5 h-5 mr-2" />
               Add Walk-in
             </Button>
           </div>
         </div>
 
-        {/* Enhanced Queue Manager Component */}
+        {/* Enhanced Queue Manager - This is now the main dashboard */}
         {clinic?.id && user?.id && (
           <EnhancedQueueManager 
             clinicId={clinic.id} 
