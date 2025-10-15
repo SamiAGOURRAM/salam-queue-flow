@@ -28,14 +28,23 @@ export default function Signup() {
     try {
       if (userType === "patient") {
         // For patients, create account immediately
+        // Validate phone number is provided
+        if (!phone || !phone.trim()) {
+          toast({
+            title: "Phone number required",
+            description: "Please provide a valid phone number.",
+            variant: "destructive",
+          });
+          return;
+        }
+        
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          phone,
           options: {
             data: {
               full_name: fullName,
-              phone_number: phone,
+              phone_number: phone.trim(),
               role: userType,
             },
             emailRedirectTo: `${window.location.origin}/auth/callback`,

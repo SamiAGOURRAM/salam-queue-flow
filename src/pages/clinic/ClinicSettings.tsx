@@ -52,12 +52,12 @@ export default function ClinicSettings() {
   useEffect(() => {
     if (!loading && !user) {
       navigate("/auth/login");
-    } else if (!loading && !isClinicOwner) {
-      navigate("/clinic/queue");
-    } else if (user && isClinicOwner) {
+      return;
+    }
+    if (user) {
       fetchClinic();
     }
-  }, [user, loading, isClinicOwner]);
+  }, [user, loading, navigate]);
 
   const fetchClinic = async () => {
     const { data, error } = await supabase
@@ -203,129 +203,146 @@ export default function ClinicSettings() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Activity className="w-6 h-6 text-primary" />
-            <span className="text-xl font-bold">{clinic?.name || "QueueMed"}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => navigate("/clinic/profile")}>
-              Profile
-            </Button>
-            <Button variant="outline" onClick={() => navigate("/clinic/dashboard")}>
-              Dashboard
-            </Button>
-            <Button variant="outline" onClick={() => navigate("/clinic/queue")}>
-              Live Queue
-            </Button>
-            <Button variant="outline" onClick={signOut}>
-              Sign Out
-            </Button>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
+      {/* Modern Header */}
+      <header className="sticky top-0 z-50 border-b bg-white/80 backdrop-blur-md shadow-sm">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 shadow-lg shadow-blue-500/30">
+                <Activity className="w-6 h-6 text-white" />
+                <span className="text-xl font-bold text-white">{clinic?.name || "QueueMed"}</span>
+              </div>
+              <div className="hidden md:block h-8 w-px bg-gray-200" />
+              <h1 className="hidden md:block text-lg font-semibold text-gray-700">Settings</h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => navigate("/clinic/profile")} className="border-2">
+                Profile
+              </Button>
+              <Button variant="outline" onClick={() => navigate("/clinic/queue")} className="border-2">
+                Queue
+              </Button>
+              <Button variant="ghost" onClick={signOut} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                Sign Out
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-5xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
-            <Settings className="w-8 h-8" />
+      <main className="container mx-auto px-6 py-8 max-w-5xl">
+        <div className="mb-8 space-y-2">
+          <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+              <Settings className="w-6 h-6 text-white" />
+            </div>
             Clinic Settings
-          </h1>
-          <p className="text-muted-foreground">Manage your clinic information and working hours</p>
+          </h2>
+          <p className="text-base text-gray-500">Configure your clinic information and preferences</p>
         </div>
 
         <Tabs defaultValue="basic" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="basic">Basic Info</TabsTrigger>
-            <TabsTrigger value="schedule">Schedule</TabsTrigger>
-            <TabsTrigger value="appointments">Appointments</TabsTrigger>
-            <TabsTrigger value="payment">Payment</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4 h-12 bg-white shadow-sm border-2 p-1">
+            <TabsTrigger value="basic" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white">Basic Info</TabsTrigger>
+            <TabsTrigger value="schedule" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white">Schedule</TabsTrigger>
+            <TabsTrigger value="appointments" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white">Appointments</TabsTrigger>
+            <TabsTrigger value="payment" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white">Payment</TabsTrigger>
           </TabsList>
 
           <TabsContent value="basic">
-            <Card>
-              <CardHeader>
-                <CardTitle>Clinic Information</CardTitle>
-                <CardDescription>Update your clinic's basic details</CardDescription>
+            <Card className="shadow-lg border-0 bg-white">
+              <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30">
+                <CardTitle className="text-xl">Clinic Information</CardTitle>
+                <CardDescription className="text-base">Update your clinic's basic details</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+              <CardContent className="pt-6 space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Clinic Name (English)</Label>
+                    <Label htmlFor="name" className="text-sm font-medium">Clinic Name (English)</Label>
                     <Input
                       id="name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Medical Center"
+                      className="h-11"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="nameAr">Clinic Name (Arabic)</Label>
+                    <Label htmlFor="nameAr" className="text-sm font-medium">Clinic Name (Arabic)</Label>
                     <Input
                       id="nameAr"
                       value={nameAr}
                       onChange={(e) => setNameAr(e.target.value)}
                       placeholder="المركز الطبي"
+                      className="h-11"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="specialty">Specialty</Label>
+                    <Label htmlFor="specialty" className="text-sm font-medium">Specialty</Label>
                     <Input
                       id="specialty"
                       value={specialty}
                       onChange={(e) => setSpecialty(e.target.value)}
                       placeholder="General Practice"
+                      className="h-11"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone</Label>
+                    <Label htmlFor="phone" className="text-sm font-medium">Phone</Label>
                     <Input
                       id="phone"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="+212 XXX XXX XXX"
+                      className="h-11"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email" className="text-sm font-medium">Email</Label>
                   <Input
                     id="email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="clinic@example.com"
+                    className="h-11"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="address">Address</Label>
+                    <Label htmlFor="address" className="text-sm font-medium">Address</Label>
                     <Input
                       id="address"
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
                       placeholder="123 Medical Street"
+                      className="h-11"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="city">City</Label>
+                    <Label htmlFor="city" className="text-sm font-medium">City</Label>
                     <Input
                       id="city"
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
                       placeholder="Casablanca"
+                      className="h-11"
                     />
                   </div>
                 </div>
 
-                <Button onClick={handleSaveBasicInfo} disabled={saving} className="w-full">
+                <Button 
+                  onClick={handleSaveBasicInfo} 
+                  disabled={saving} 
+                  className="w-full h-11 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg"
+                >
                   <Save className="w-4 h-4 mr-2" />
                   {saving ? "Saving..." : "Save Basic Information"}
                 </Button>
@@ -334,15 +351,15 @@ export default function ClinicSettings() {
           </TabsContent>
 
           <TabsContent value="schedule" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+            <Card className="shadow-lg border-0 bg-white">
+              <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30">
+                <CardTitle className="text-xl flex items-center gap-2">
                   <Clock className="w-5 h-5" />
                   Working Hours
                 </CardTitle>
-                <CardDescription>Set your clinic's operating hours for each day</CardDescription>
+                <CardDescription className="text-base">Set your clinic's operating hours for each day</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="pt-6 space-y-3">
                 {days.map((day) => (
                   <div key={day} className="flex items-center gap-4 p-4 border rounded-lg">
                     <div className="w-32">
@@ -379,14 +396,14 @@ export default function ClinicSettings() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Appointment Settings</CardTitle>
-                <CardDescription>Configure appointment timing and queue limits</CardDescription>
+            <Card className="shadow-lg border-0 bg-white">
+              <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30">
+                <CardTitle className="text-xl">Appointment Settings</CardTitle>
+                <CardDescription className="text-base">Configure appointment timing and queue limits</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="pt-6 space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="avgDuration">Average Appointment Duration (minutes)</Label>
+                  <Label htmlFor="avgDuration" className="text-sm font-medium">Average Appointment Duration (minutes)</Label>
                   <Input
                     id="avgDuration"
                     type="number"
@@ -394,11 +411,12 @@ export default function ClinicSettings() {
                     onChange={(e) => setAvgDuration(parseInt(e.target.value))}
                     min="5"
                     max="120"
+                    className="h-11"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="bufferTime">Buffer Time Between Appointments (minutes)</Label>
+                  <Label htmlFor="bufferTime" className="text-sm font-medium">Buffer Time Between Appointments (minutes)</Label>
                   <Input
                     id="bufferTime"
                     type="number"
@@ -406,11 +424,12 @@ export default function ClinicSettings() {
                     onChange={(e) => setBufferTime(parseInt(e.target.value))}
                     min="0"
                     max="30"
+                    className="h-11"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="maxQueue">Maximum Queue Size</Label>
+                  <Label htmlFor="maxQueue" className="text-sm font-medium">Maximum Queue Size</Label>
                   <Input
                     id="maxQueue"
                     type="number"
@@ -418,6 +437,7 @@ export default function ClinicSettings() {
                     onChange={(e) => setMaxQueueSize(parseInt(e.target.value))}
                     min="10"
                     max="200"
+                    className="h-11"
                   />
                 </div>
 
@@ -431,7 +451,11 @@ export default function ClinicSettings() {
                   <Switch checked={allowWalkIns} onCheckedChange={setAllowWalkIns} />
                 </div>
 
-                <Button onClick={handleSaveSchedule} disabled={saving} className="w-full">
+                <Button 
+                  onClick={handleSaveSchedule} 
+                  disabled={saving} 
+                  className="w-full h-11 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg"
+                >
                   <Save className="w-4 h-4 mr-2" />
                   {saving ? "Saving..." : "Save Schedule Settings"}
                 </Button>
@@ -440,12 +464,12 @@ export default function ClinicSettings() {
           </TabsContent>
 
           <TabsContent value="appointments">
-            <Card>
-              <CardHeader>
-                <CardTitle>Appointment Types</CardTitle>
-                <CardDescription>Configure the types of appointments you offer and their typical duration</CardDescription>
+            <Card className="shadow-lg border-0 bg-white">
+              <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30">
+                <CardTitle className="text-xl">Appointment Types</CardTitle>
+                <CardDescription className="text-base">Configure the types of appointments you offer and their typical duration</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="pt-6 space-y-6">
                 {appointmentTypes.map((type, index) => (
                   <div key={type.name} className="flex items-center gap-4 p-4 border rounded-lg">
                     <div className="flex-1">
@@ -479,7 +503,11 @@ export default function ClinicSettings() {
                   </div>
                 ))}
 
-                <Button onClick={handleSaveSchedule} disabled={saving} className="w-full">
+                <Button 
+                  onClick={handleSaveSchedule} 
+                  disabled={saving} 
+                  className="w-full h-11 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg"
+                >
                   <Save className="w-4 h-4 mr-2" />
                   {saving ? "Saving..." : "Save Appointment Types"}
                 </Button>
@@ -488,12 +516,12 @@ export default function ClinicSettings() {
           </TabsContent>
 
           <TabsContent value="payment">
-            <Card>
-              <CardHeader>
-                <CardTitle>Payment Methods</CardTitle>
-                <CardDescription>Select which payment methods you accept</CardDescription>
+            <Card className="shadow-lg border-0 bg-white">
+              <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30">
+                <CardTitle className="text-xl">Payment Methods</CardTitle>
+                <CardDescription className="text-base">Select which payment methods you accept</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="pt-6 space-y-3">
                 <div className="flex items-center justify-between p-4 border rounded-lg">
                   <div>
                     <Label>Cash</Label>
@@ -546,7 +574,11 @@ export default function ClinicSettings() {
                   />
                 </div>
 
-                <Button onClick={handleSaveSchedule} disabled={saving} className="w-full">
+                <Button 
+                  onClick={handleSaveSchedule} 
+                  disabled={saving} 
+                  className="w-full h-11 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg mt-3"
+                >
                   <Save className="w-4 h-4 mr-2" />
                   {saving ? "Saving..." : "Save Payment Settings"}
                 </Button>

@@ -71,13 +71,16 @@ export default function ClinicOnboarding() {
         console.log("Creating account with clinic setup...");
         console.log("Signup data:", { email: signupData.email, phone: signupData.phone, fullName: signupData.fullName });
         
-        // Ensure phone is not empty string (use a placeholder if needed)
-        const phoneNumber = signupData.phone?.trim() || `+212${Date.now().toString().slice(-9)}`;
+        // Validate phone number
+        if (!signupData.phone || !signupData.phone.trim()) {
+          throw new Error("Phone number is required. Please go back and provide a phone number.");
+        }
+        
+        const phoneNumber = signupData.phone.trim();
         
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: signupData.email,
           password: signupData.password,
-          phone: phoneNumber,
           options: {
             data: {
               full_name: signupData.fullName,
