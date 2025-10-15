@@ -1,9 +1,12 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+/**
+ * Enhanced Queue Manager - Refactored with Service Layer
+ * Manages the clinic queue with real-time updates
+ */
+
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
 import { 
   UserX, 
   PhoneCall, 
@@ -12,508 +15,445 @@ import {
   ChevronRight,
   Users,
   CheckCircle,
-  User
+  User,
+  RefreshCw
 } from "lucide-react";
+import { useQueueService } from "@/hooks/useQueueService";
+import { AppointmentStatus, QueueEntry } from "@/services/queue";
+import { formatDistanceToNow } from "date-fns";
+import { ar } from "date-fns/locale";
 
-interface QueuePatient {
-  id: string;
-  patient_id: string;
-  patient_name: string;
-  phone_number: string;
-  queue_position: number | null;
-  status: string;
-  predicted_start_time: string | null;
-  is_present: boolean;
-  marked_absent_at: string | null;
-  appointment_type: string;
-  actual_start_time: string | null;
-  skip_count: number;
+interface EnhancedQueueManagerProps {
+  clinicId: string;
+  userId: string;
 }
 
-interface AbsentPatient extends QueuePatient {
-  grace_period_ends_at?: string;
-  new_position?: number;
-}
-
-export function EnhancedQueueManager({ clinicId, userId }: { clinicId: string; userId: string }) {
-  const [activeQueue, setActiveQueue] = useState<QueuePatient[]>([]);
-  const [absentPatients, setAbsentPatients] = useState<AbsentPatient[]>([]);
-  const [currentPatient, setCurrentPatient] = useState<QueuePatient | null>(null);
+export function EnhancedQueueManager({ clinicId, userId }: EnhancedQueueManagerProps) {
+  const today = new Date();
   const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
 
-  useEffect(() => {
-    loadQueue();
-    
-    // Subscribe to real-time updates
-    const subscription = supabase
-      .channel(`queue:${clinicId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'appointments',
-          filter: `clinic_id=eq.${clinicId}`
-        },
-        () => {
-          console.log('Queue updated - reloading');
-          loadQueue();
-        }
-      )
-      .subscribe();
+  // Use our new service layer hook
+  const {
+    queue,
+    summary,
+    isLoading,
+    error,
+    refreshQueue,
+    callNextPatient,
+    markPatientAbsent,
+    markPatientReturned,
+    completeAppointment,
+  } = useQueueService({
+    clinicId,
+    date: today,
+    autoRefresh: true, // Auto-refresh on events
+  });
 
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [clinicId]);
+  // Separate queue into categories
+  const currentPatient = queue.find(p => p.status === AppointmentStatus.IN_PROGRESS);
+  const waitingPatients = queue.filter(p => 
+    p.status === AppointmentStatus.WAITING || 
+    p.status === AppointmentStatus.SCHEDULED
+  );
+  const absentPatients = queue.filter(p => 
+    p.markedAbsentAt && !p.returnedAt
+  );
 
-  const loadQueue = async () => {
-    const today = new Date().toISOString().split('T')[0];
-    
-    try {
-      // Load active queue
-      const { data: active, error: activeError } = await supabase
-        .from('appointments')
-        .select(`
-          id,
-          patient_id,
-          queue_position,
-          status,
-          predicted_start_time,
-          is_present,
-          marked_absent_at,
-          appointment_type,
-          actual_start_time,
-          skip_count,
-          profiles:patient_id(full_name, phone_number)
-        `)
-        .eq('clinic_id', clinicId)
-        .eq('appointment_date', today)
-        .in('status', ['scheduled', 'waiting', 'in_progress'])
-        .order('queue_position', { ascending: true, nullsFirst: false });
-
-      if (activeError) {
-        console.error('Error loading active queue:', activeError);
-      }
-
-      // Load absent patients with grace period info
-      const { data: absent, error: absentError } = await supabase
-        .from('absent_patients')
-        .select(`
-          id,
-          appointment_id,
-          marked_absent_at,
-          returned_at,
-          new_position,
-          grace_period_ends_at,
-          appointments!inner(
-            id,
-            patient_id,
-            queue_position,
-            status,
-            appointment_type,
-            skip_count,
-            profiles:patient_id(full_name, phone_number)
-          )
-        `)
-        .eq('clinic_id', clinicId)
-        .is('returned_at', null)
-        .gte('grace_period_ends_at', new Date().toISOString());
-
-      if (absentError) {
-        console.error('Error loading absent patients:', absentError);
-      }
-
-      if (active) {
-        const formattedActive = active
-          .filter((a: any) => a.profiles)
-          .map((a: any) => ({
-            id: a.id,
-            patient_id: a.patient_id,
-            patient_name: a.profiles?.full_name || 'Unknown',
-            phone_number: a.profiles?.phone_number || '',
-            queue_position: a.queue_position,
-            status: a.status,
-            predicted_start_time: a.predicted_start_time,
-            is_present: a.is_present || false,
-            marked_absent_at: a.marked_absent_at,
-            appointment_type: a.appointment_type,
-            actual_start_time: a.actual_start_time,
-            skip_count: a.skip_count || 0
-          }));
-
-        setActiveQueue(formattedActive.filter(p => p.status !== 'in_progress'));
-        setCurrentPatient(formattedActive.find(p => p.status === 'in_progress') || null);
-      }
-
-      if (absent) {
-        const formattedAbsent = absent
-          .filter((a: any) => a.appointments?.profiles)
-          .map((a: any) => ({
-            id: a.appointments.id,
-            patient_id: a.appointments.patient_id,
-            patient_name: a.appointments.profiles?.full_name || 'Unknown',
-            phone_number: a.appointments.profiles?.phone_number || '',
-            queue_position: a.appointments.queue_position,
-            status: a.appointments.status,
-            predicted_start_time: null,
-            is_present: false,
-            marked_absent_at: a.marked_absent_at,
-            appointment_type: a.appointments.appointment_type,
-            actual_start_time: null,
-            skip_count: a.appointments.skip_count || 0,
-            grace_period_ends_at: a.grace_period_ends_at,
-            new_position: a.new_position
-          }));
-
-        setAbsentPatients(formattedAbsent);
-      }
-    } catch (error) {
-      console.error('Error in loadQueue:', error);
-    }
-  };
+  // ============================================
+  // HANDLERS
+  // ============================================
 
   const handleNextPatient = async () => {
-    if (activeQueue.length === 0) {
-      toast({
-        title: "قائمة الانتظار فارغة",
-        description: "لا يوجد مرضى في قائمة الانتظار",
-        variant: "destructive"
-      });
-      return;
+    if (waitingPatients.length === 0) {
+      return; // Toast handled by hook
     }
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('smart-queue-manager', {
-        body: {
-          clinic_id: clinicId,
-          action: 'next',
-          performed_by: userId
-        }
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "✅ نجح",
-        description: data.message || 'تم استدعاء المريض التالي',
-      });
-      
-      loadQueue();
-    } catch (error: any) {
-      console.error('Next patient error:', error);
-      toast({
-        title: "خطأ",
-        description: error.message || "فشل في معالجة المريض التالي",
-        variant: "destructive"
-      });
+      await callNextPatient(userId);
+    } catch (error) {
+      console.error('Failed to call next patient:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleMarkAbsent = async (appointmentId: string, patientName: string) => {
+  const handleMarkAbsent = async (appointmentId: string) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('smart-queue-manager', {
-        body: {
-          clinic_id: clinicId,
-          action: 'mark_absent',
-          appointment_id: appointmentId,
-          performed_by: userId
-        }
+      await markPatientAbsent({
+        appointmentId,
+        performedBy: userId,
+        gracePeriodMinutes: 15,
+        reason: 'Patient not present when called',
       });
-
-      if (error) throw error;
-
-      toast({
-        title: "تم وضع علامة غائب",
-        description: `${patientName} - تم إرسال إشعار SMS`,
-      });
-      
-      loadQueue();
-    } catch (error: any) {
-      console.error('Mark absent error:', error);
-      toast({
-        title: "خطأ",
-        description: error.message || "فشل في وضع علامة الغياب",
-        variant: "destructive"
-      });
+    } catch (error) {
+      console.error('Failed to mark patient absent:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCallPresent = async (appointmentId: string, patientName: string) => {
+  const handleCallPresent = async (appointmentId: string) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('smart-queue-manager', {
-        body: {
-          clinic_id: clinicId,
-          action: 'call_present',
-          appointment_id: appointmentId,
-          reason: 'Patient present in waiting room',
-          performed_by: userId
-        }
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "تم استدعاء المريض",
-        description: `${patientName} - تم إشعار المرضى المتخطين`,
-      });
+      // First check if patient is in absent list, if so mark them as returned
+      const patient = queue.find(p => p.id === appointmentId);
+      if (patient?.markedAbsentAt && !patient.returnedAt) {
+        await markPatientReturned(appointmentId, userId);
+      }
       
-      loadQueue();
-    } catch (error: any) {
-      console.error('Call present error:', error);
-      toast({
-        title: "خطأ",
-        description: error.message || "فشل في استدعاء المريض",
-        variant: "destructive"
-      });
+      // Then call them
+      await callNextPatient(userId);
+    } catch (error) {
+      console.error('Failed to call present patient:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLateArrival = async (appointmentId: string, patientName: string) => {
+  const handleCompleteAppointment = async () => {
+    if (!currentPatient) return;
+
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('smart-queue-manager', {
-        body: {
-          clinic_id: clinicId,
-          action: 'late_arrival',
-          appointment_id: appointmentId,
-          performed_by: userId
-        }
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "تمت إعادة الإدراج في القائمة",
-        description: `${patientName} - ${data.message}`,
-      });
-      
-      loadQueue();
-    } catch (error: any) {
-      console.error('Late arrival error:', error);
-      toast({
-        title: "خطأ",
-        description: error.message || "فشل في إعادة الإدراج",
-        variant: "destructive"
-      });
+      await completeAppointment(currentPatient.id, userId);
+    } catch (error) {
+      console.error('Failed to complete appointment:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const formatTime = (isoString: string | null) => {
-    if (!isoString) return '--:--';
-    return new Date(isoString).toLocaleTimeString('ar-MA', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+  // ============================================
+  // RENDER HELPERS
+  // ============================================
+
+  const getStatusBadge = (status: AppointmentStatus) => {
+    const statusConfig = {
+      [AppointmentStatus.SCHEDULED]: { label: 'مجدول', variant: 'secondary' as const },
+      [AppointmentStatus.WAITING]: { label: 'منتظر', variant: 'default' as const },
+      [AppointmentStatus.IN_PROGRESS]: { label: 'جاري', variant: 'default' as const },
+      [AppointmentStatus.COMPLETED]: { label: 'مكتمل', variant: 'outline' as const },
+      [AppointmentStatus.CANCELLED]: { label: 'ملغى', variant: 'destructive' as const },
+      [AppointmentStatus.NO_SHOW]: { label: 'لم يحضر', variant: 'destructive' as const },
+      [AppointmentStatus.RESCHEDULED]: { label: 'معاد جدولته', variant: 'secondary' as const },
+    };
+
+    const config = statusConfig[status];
+    return <Badge variant={config.variant}>{config.label}</Badge>;
+  };
+
+  const formatWaitTime = (entry: QueueEntry) => {
+    if (!entry.checkedInAt) return '-';
+    
+    return formatDistanceToNow(entry.checkedInAt, { 
+      addSuffix: true, 
+      locale: ar 
     });
   };
 
-  const getGraceTimeRemaining = (graceEndsAt?: string) => {
-    if (!graceEndsAt) return 0;
-    const remaining = Math.max(0, (new Date(graceEndsAt).getTime() - Date.now()) / 60000);
-    return Math.ceil(remaining);
-  };
+  // ============================================
+  // LOADING & ERROR STATES
+  // ============================================
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Current Patient Card */}
-      <Card className="lg:col-span-3 bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-2">
-                المريض الحالي في الاستشارة
-              </h3>
-              {currentPatient ? (
-                <div className="mt-2">
-                  <p className="text-2xl font-bold flex items-center gap-2">
-                    <User className="h-6 w-6 text-primary" />
-                    {currentPatient.patient_name}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    بدأ في {formatTime(currentPatient.actual_start_time)}
-                  </p>
-                </div>
-              ) : (
-                <p className="text-xl font-medium text-muted-foreground mt-2">
-                  لا يوجد مريض في الاستشارة
-                </p>
-              )}
-            </div>
-            
-            <Button
-              size="lg"
-              onClick={handleNextPatient}
-              disabled={loading || activeQueue.length === 0}
-              className="bg-primary hover:bg-primary/90 text-lg px-8 py-6"
-            >
-              <ChevronRight className="mr-2 h-6 w-6" />
-              التالي - Next
-            </Button>
-          </div>
+  if (isLoading && queue.length === 0) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <RefreshCw className="h-8 w-8 animate-spin text-gray-400" />
+        <p className="mr-3 text-gray-600">جاري تحميل قائمة الانتظار...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="border-red-200 bg-red-50">
+        <CardHeader>
+          <CardTitle className="flex items-center text-red-700">
+            <AlertCircle className="ml-2 h-5 w-5" />
+            خطأ في تحميل البيانات
+          </CardTitle>
+          <CardDescription className="text-red-600">
+            {error.message}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={refreshQueue} variant="outline">
+            <RefreshCw className="ml-2 h-4 w-4" />
+            إعادة المحاولة
+          </Button>
         </CardContent>
       </Card>
+    );
+  }
 
-      {/* Active Queue */}
-      <div className="lg:col-span-2 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">قائمة الانتظار النشطة</h2>
-          <Badge variant="outline" className="text-base">
-            <Users className="mr-1 h-4 w-4" />
-            {activeQueue.length} في الانتظار
-          </Badge>
-        </div>
+  // ============================================
+  // MAIN RENDER
+  // ============================================
 
-        {activeQueue.length === 0 ? (
-          <Card className="p-12 text-center">
-            <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <p className="text-muted-foreground">قائمة الانتظار فارغة</p>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {activeQueue.map((patient, index) => (
-              <Card key={patient.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex-1 flex items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-lg">
-                        {patient.queue_position || '?'}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-lg">{patient.patient_name}</p>
-                          {patient.skip_count > 0 && (
-                            <Badge variant="secondary" className="text-xs">
-                              تم التخطي {patient.skip_count}x
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                          <span>{patient.appointment_type}</span>
-                          {patient.predicted_start_time && (
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {formatTime(patient.predicted_start_time)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
+  return (
+    <div className="space-y-6" dir="rtl">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">
+              في قائمة الانتظار
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center">
+              <Users className="h-8 w-8 text-blue-500 ml-3" />
+              <span className="text-3xl font-bold">{summary?.waiting || 0}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">
+              جاري الفحص
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center">
+              <User className="h-8 w-8 text-green-500 ml-3" />
+              <span className="text-3xl font-bold">{summary?.inProgress || 0}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">
+              غائبون
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center">
+              <UserX className="h-8 w-8 text-orange-500 ml-3" />
+              <span className="text-3xl font-bold">{absentPatients.length}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">
+              مكتمل
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center">
+              <CheckCircle className="h-8 w-8 text-gray-400 ml-3" />
+              <span className="text-3xl font-bold">{summary?.completed || 0}</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Current Patient */}
+      {currentPatient && (
+        <Card className="border-green-200 bg-green-50">
+          <CardHeader>
+            <CardTitle className="flex items-center text-green-700">
+              <User className="ml-2 h-5 w-5" />
+              المريض الحالي
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4 space-x-reverse">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-200 text-lg font-bold text-green-700">
+                  {currentPatient.queuePosition}
+                </div>
+                <div>
+                  <p className="font-semibold text-lg">
+                    {currentPatient.patient?.fullName || 'Unknown'}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {currentPatient.patient?.phoneNumber || 'No phone'}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    بدأ: {formatWaitTime(currentPatient)}
+                  </p>
+                </div>
+              </div>
+              
+              <Button 
+                onClick={handleCompleteAppointment}
+                disabled={loading}
+                size="lg"
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <CheckCircle className="ml-2 h-5 w-5" />
+                إنهاء الفحص
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Waiting Queue */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center">
+              <Users className="ml-2 h-5 w-5" />
+              قائمة الانتظار ({waitingPatients.length})
+            </CardTitle>
+            
+            <Button
+              onClick={handleNextPatient}
+              disabled={loading || waitingPatients.length === 0}
+              size="lg"
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <ChevronRight className="ml-2 h-5 w-5" />
+              المريض التالي
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {waitingPatients.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Users className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+              <p>لا يوجد مرضى في قائمة الانتظار</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {waitingPatients.map((patient, index) => (
+                <div
+                  key={patient.id}
+                  className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
+                    index === 0
+                      ? 'border-blue-300 bg-blue-50'
+                      : 'border-gray-200 bg-white hover:border-blue-200'
+                  }`}
+                >
+                  <div className="flex items-center space-x-4 space-x-reverse flex-1">
+                    <div
+                      className={`flex h-10 w-10 items-center justify-center rounded-full text-lg font-bold ${
+                        index === 0
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-200 text-gray-700'
+                      }`}
+                    >
+                      {patient.queuePosition}
                     </div>
-
-                    <div className="flex items-center gap-2">
-                      {index === 0 ? (
-                        <Badge className="bg-green-500 hover:bg-green-600 text-white">
-                          <CheckCircle className="mr-1 h-3 w-3" />
-                          التالي
-                        </Badge>
-                      ) : patient.is_present ? (
-                        <Badge variant="secondary">حاضر</Badge>
-                      ) : (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleCallPresent(patient.id, patient.patient_name)}
-                            disabled={loading}
-                            title="استدعاء هذا المريض (تجاوز الدور)"
-                            className="gap-1"
-                          >
-                            <PhoneCall className="h-4 w-4" />
-                            <span className="hidden sm:inline">استدعاء</span>
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleMarkAbsent(patient.id, patient.patient_name)}
-                            disabled={loading}
-                            className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 gap-1"
-                            title="وضع علامة غائب"
-                          >
-                            <UserX className="h-4 w-4" />
-                            <span className="hidden sm:inline">غائب</span>
-                          </Button>
-                        </>
+                    
+                    <div className="flex-1">
+                      <p className="font-semibold">
+                        {patient.patient?.fullName || 'Unknown'}
+                      </p>
+                      <div className="flex items-center space-x-3 space-x-reverse text-sm text-gray-600">
+                        <span>{patient.patient?.phoneNumber || 'No phone'}</span>
+                        {patient.isPresent && (
+                          <Badge variant="outline" className="text-green-600 border-green-600">
+                            ✓ حاضر
+                          </Badge>
+                        )}
+                        {patient.skipCount > 0 && (
+                          <Badge variant="outline" className="text-orange-600 border-orange-600">
+                            تم التخطي {patient.skipCount}×
+                          </Badge>
+                        )}
+                      </div>
+                      {patient.checkedInAt && (
+                        <p className="text-xs text-gray-500">
+                          <Clock className="inline h-3 w-3 ml-1" />
+                          وقت الانتظار: {formatWaitTime(patient)}
+                        </p>
                       )}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
 
-      {/* Absent Patients List */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">المرضى الغائبون</h2>
-          <Badge variant="outline" className="text-orange-600 border-orange-600">
-            <AlertCircle className="mr-1 h-3 w-3" />
-            {absentPatients.length} غائب
-          </Badge>
-        </div>
+                  <div className="flex space-x-2 space-x-reverse">
+                    <Button
+                      onClick={() => handleCallPresent(patient.id)}
+                      disabled={loading}
+                      size="sm"
+                      variant="outline"
+                      className="border-blue-500 text-blue-600 hover:bg-blue-50"
+                    >
+                      <PhoneCall className="ml-2 h-4 w-4" />
+                      استدعاء
+                    </Button>
+                    
+                    <Button
+                      onClick={() => handleMarkAbsent(patient.id)}
+                      disabled={loading}
+                      size="sm"
+                      variant="outline"
+                      className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                    >
+                      <UserX className="ml-2 h-4 w-4" />
+                      غائب
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-        {absentPatients.length === 0 ? (
-          <Card className="p-8 text-center text-muted-foreground">
-            <CheckCircle className="h-8 w-8 mx-auto mb-2 opacity-50 text-green-500" />
-            <p>لا يوجد مرضى غائبون</p>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {absentPatients.map((patient) => {
-              const graceMinutes = getGraceTimeRemaining(patient.grace_period_ends_at);
-              
-              return (
-                <Card key={patient.id} className="border-orange-200 bg-orange-50/50">
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-medium">{patient.patient_name}</p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {patient.phone_number}
-                          </p>
-                        </div>
-                        <Badge variant="outline" className="text-xs">
-                          <Clock className="mr-1 h-3 w-3" />
-                          {formatTime(patient.marked_absent_at)}
-                        </Badge>
-                      </div>
-                      
-                      {graceMinutes > 0 && (
-                        <div className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded">
-                          فترة سماح: {graceMinutes} دقيقة متبقية
-                        </div>
-                      )}
-                      
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleLateArrival(patient.id, patient.patient_name)}
-                        disabled={loading}
-                        className="w-full bg-white hover:bg-orange-50"
-                      >
-                        وصل متأخراً - إضافة للقائمة
-                      </Button>
+      {/* Absent Patients */}
+      {absentPatients.length > 0 && (
+        <Card className="border-orange-200">
+          <CardHeader>
+            <CardTitle className="flex items-center text-orange-700">
+              <UserX className="ml-2 h-5 w-5" />
+              المرضى الغائبون ({absentPatients.length})
+            </CardTitle>
+            <CardDescription>
+              سيتم إعادتهم إلى نهاية القائمة عند العودة
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {absentPatients.map((patient) => (
+                <div
+                  key={patient.id}
+                  className="flex items-center justify-between p-4 rounded-lg border-2 border-orange-200 bg-orange-50"
+                >
+                  <div className="flex items-center space-x-4 space-x-reverse flex-1">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-200 text-lg font-bold text-orange-700">
+                      {patient.queuePosition}
                     </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                    
+                    <div>
+                      <p className="font-semibold">
+                        {patient.patient?.fullName || 'Unknown'}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {patient.patient?.phoneNumber || 'No phone'}
+                      </p>
+                      {patient.markedAbsentAt && (
+                        <p className="text-xs text-orange-600">
+                          <AlertCircle className="inline h-3 w-3 ml-1" />
+                          غائب منذ: {formatWaitTime(patient)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={() => markPatientReturned(patient.id, userId)}
+                    disabled={loading}
+                    size="sm"
+                    className="bg-orange-600 hover:bg-orange-700"
+                  >
+                    <CheckCircle className="ml-2 h-4 w-4" />
+                    عاد
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

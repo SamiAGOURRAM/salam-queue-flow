@@ -6,6 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { QueueService } from "@/services/queue/QueueService";
+import { AppointmentType } from "@/services/queue/models/QueueModels";
+import { logger } from "@/services/shared/logging/Logger";
 
 interface AddWalkInDialogProps {
   open: boolean;
@@ -14,10 +17,12 @@ interface AddWalkInDialogProps {
   onSuccess: () => void;
 }
 
+const queueService = new QueueService();
+
 export function AddWalkInDialog({ open, onOpenChange, clinicId, onSuccess }: AddWalkInDialogProps) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [appointmentType, setAppointmentType] = useState("consultation");
+  const [appointmentType, setAppointmentType] = useState<AppointmentType>(AppointmentType.CONSULTATION);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,6 +39,8 @@ export function AddWalkInDialog({ open, onOpenChange, clinicId, onSuccess }: Add
     setLoading(true);
 
     try {
+      logger.info('Adding walk-in patient', { name, phone, clinicId });
+
       // Check if patient exists
       let patientId;
       const { data: existingProfile } = await supabase
@@ -44,10 +51,13 @@ export function AddWalkInDialog({ open, onOpenChange, clinicId, onSuccess }: Add
 
       if (existingProfile) {
         patientId = existingProfile.id;
+        logger.debug('Using existing patient', { patientId });
       } else {
         // Create temporary user account for walk-in
         const tempEmail = `${phone.replace(/\+/g, '')}@walkin.temp`;
         const tempPassword = Math.random().toString(36).slice(-16);
+        
+        logger.debug('Creating new patient account', { tempEmail });
         
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: tempEmail,
@@ -65,6 +75,10 @@ export function AddWalkInDialog({ open, onOpenChange, clinicId, onSuccess }: Add
         if (!authData.user) throw new Error("Failed to create user");
         
         patientId = authData.user.id;
+        logger.info('New patient created', { patientId });
+
+        // Wait for triggers to complete
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       // Get available staff
@@ -80,49 +94,35 @@ export function AddWalkInDialog({ open, onOpenChange, clinicId, onSuccess }: Add
         throw new Error("No available staff");
       }
 
-      // Get current max queue position
-      const today = new Date().toISOString().split('T')[0];
-      const { data: lastPosition } = await supabase
-        .from("appointments")
-        .select("queue_position")
-        .eq("clinic_id", clinicId)
-        .eq("appointment_date", today)
-        .order("queue_position", { ascending: false })
-        .limit(1)
-        .single();
+      // Use QueueService to add to queue
+      const entry = await queueService.addToQueue({
+        clinicId,
+        patientId,
+        staffId: staffData.user_id,
+        appointmentDate: new Date(),
+        appointmentType,
+      });
 
-      const newPosition = (lastPosition?.queue_position || 0) + 1;
-
-      // Create appointment
-      const { error: appointmentError } = await supabase
-        .from("appointments")
-        .insert({
-          clinic_id: clinicId,
-          patient_id: patientId,
-          staff_id: staffData.user_id,
-          appointment_date: today,
-          appointment_type: appointmentType as "consultation" | "follow_up" | "emergency",
-          is_walk_in: true,
-          status: "waiting",
-          queue_position: newPosition,
-          checked_in_at: new Date().toISOString(),
-          booking_method: "receptionist"
-        });
-
-      if (appointmentError) throw appointmentError;
+      // Check in immediately (walk-in patients are already present)
+      await queueService.checkInPatient(entry.id);
 
       toast({
         title: "Success",
-        description: `${name} added to queue at position ${newPosition}`,
+        description: `${name} added to queue at position ${entry.queuePosition}`,
+      });
+
+      logger.info('Walk-in patient added successfully', { 
+        appointmentId: entry.id, 
+        position: entry.queuePosition 
       });
 
       setName("");
       setPhone("");
-      setAppointmentType("consultation");
+      setAppointmentType(AppointmentType.CONSULTATION);
       onOpenChange(false);
       onSuccess();
     } catch (error) {
-      console.error("Error adding walk-in:", error);
+      logger.error("Error adding walk-in", error as Error, { name, phone });
       toast({
         title: "Error",
         description: "Failed to add walk-in patient",
@@ -135,58 +135,59 @@ export function AddWalkInDialog({ open, onOpenChange, clinicId, onSuccess }: Add
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add Walk-in Patient</DialogTitle>
-          <DialogDescription>
-            Register a patient without prior booking
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="name">Patient Name</Label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Full name"
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="phone">Phone Number</Label>
-            <Input
-              id="phone"
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+212..."
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="type">Appointment Type</Label>
-            <Select value={appointmentType} onValueChange={setAppointmentType}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="consultation">Consultation</SelectItem>
-                <SelectItem value="follow_up">Follow Up</SelectItem>
-                <SelectItem value="emergency">Emergency</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex gap-2 justify-end">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Adding..." : "Add to Queue"}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
+      <DialogHeader>
+        <DialogTitle>Add Walk-in Patient</DialogTitle>
+        <DialogDescription>
+          Register a patient without prior booking
+        </DialogDescription>
+      </DialogHeader>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <Label htmlFor="name">Patient Name</Label>
+          <Input
+            id="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Full name"
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor="phone">Phone Number</Label>
+          <Input
+            id="phone"
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+212..."
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor="type">Appointment Type</Label>
+          <Select 
+            value={appointmentType} 
+            onValueChange={(value) => setAppointmentType(value as AppointmentType)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={AppointmentType.CONSULTATION}>Consultation</SelectItem>
+              <SelectItem value={AppointmentType.FOLLOW_UP}>Follow Up</SelectItem>
+              <SelectItem value={AppointmentType.EMERGENCY}>Emergency</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex gap-2 justify-end">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={loading}>
+            {loading ? "Adding..." : "Add to Queue"}
+          </Button>
+        </div>
+      </form>
     </Dialog>
   );
 }

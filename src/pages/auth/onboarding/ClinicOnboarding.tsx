@@ -69,26 +69,39 @@ export default function ClinicOnboarding() {
       // If no user exists, create account first (from stored signup data)
       if (!currentUser && signupData) {
         console.log("Creating account with clinic setup...");
+        console.log("Signup data:", { email: signupData.email, phone: signupData.phone, fullName: signupData.fullName });
+        
+        // Ensure phone is not empty string (use a placeholder if needed)
+        const phoneNumber = signupData.phone?.trim() || `+212${Date.now().toString().slice(-9)}`;
         
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: signupData.email,
           password: signupData.password,
-          phone: signupData.phone,
+          phone: phoneNumber,
           options: {
             data: {
               full_name: signupData.fullName,
-              phone_number: signupData.phone,
+              phone_number: phoneNumber,
               role: "clinic_owner",
             },
             emailRedirectTo: `${window.location.origin}/auth/callback`,
           },
         });
 
-        if (authError) throw authError;
-        if (!authData.user) throw new Error("Failed to create account");
+        if (authError) {
+          console.error("Auth signup error:", authError);
+          throw new Error(`Failed to create account: ${authError.message}`);
+        }
+        
+        if (!authData.user) {
+          throw new Error("Failed to create account - no user returned");
+        }
 
         currentUser = authData.user;
-        console.log("Account created:", currentUser.id);
+        console.log("Account created successfully:", currentUser.id);
+
+        // Wait a moment for database triggers to complete
+        await new Promise(resolve => setTimeout(resolve, 1500));
 
         // Clear stored signup data
         sessionStorage.removeItem('clinicOwnerSignup');
@@ -125,8 +138,13 @@ export default function ClinicOnboarding() {
         .single();
 
       if (clinicError) {
-        console.error("Clinic creation error:", clinicError);
-        throw clinicError;
+        console.error("Clinic creation error details:", {
+          message: clinicError.message,
+          details: clinicError.details,
+          hint: clinicError.hint,
+          code: clinicError.code,
+        });
+        throw new Error(`Failed to create clinic: ${clinicError.message}`);
       }
 
       console.log("Clinic created:", clinic);
