@@ -48,6 +48,9 @@ interface UseQueueServiceReturn {
 export function useQueueService(options: UseQueueServiceOptions): UseQueueServiceReturn {
   const { clinicId, date, autoRefresh = true, refreshInterval } = options;
   
+  // Convert date to timestamp to avoid re-render issues with Date objects
+  const dateTimestamp = date.getTime();
+  
   const [queue, setQueue] = useState<QueueEntry[]>([]);
   const [summary, setSummary] = useState<QueueSummary | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -65,9 +68,17 @@ export function useQueueService(options: UseQueueServiceOptions): UseQueueServic
       setIsLoading(true);
       setError(null);
 
+      // Create start and end of day from the provided date
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+
       const filters: QueueFilters = {
         clinicId,
-        date,
+        startDate: startOfDay.toISOString(),
+        endDate: endOfDay.toISOString(),
         status: [
           AppointmentStatus.SCHEDULED,
           AppointmentStatus.WAITING,
@@ -99,7 +110,7 @@ export function useQueueService(options: UseQueueServiceOptions): UseQueueServic
     } finally {
       setIsLoading(false);
     }
-  }, [clinicId, date, toast]);
+  }, [clinicId, dateTimestamp, toast]);
 
   // ============================================
   // QUEUE ACTIONS
@@ -327,7 +338,7 @@ export function useQueueService(options: UseQueueServiceOptions): UseQueueServic
       // Cleanup subscriptions
       unsubscribers.forEach(unsubscribe => unsubscribe());
     };
-  }, [autoRefresh, refreshQueue]);
+  }, [autoRefresh]); // Remove refreshQueue from dependencies
 
   // ============================================
   // POLLING (Optional)
@@ -344,7 +355,7 @@ export function useQueueService(options: UseQueueServiceOptions): UseQueueServic
     return () => {
       clearInterval(intervalId);
     };
-  }, [refreshInterval, refreshQueue]);
+  }, [refreshInterval]); // Remove refreshQueue from dependencies
 
   // ============================================
   // INITIAL LOAD
@@ -352,7 +363,8 @@ export function useQueueService(options: UseQueueServiceOptions): UseQueueServic
 
   useEffect(() => {
     refreshQueue();
-  }, [refreshQueue]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clinicId, dateTimestamp]); // Only reload when clinic or date changes
 
   // ============================================
   // RETURN

@@ -72,9 +72,17 @@ export class QueueService {
   async getQueueSummary(clinicId: string, date: Date): Promise<QueueSummary> {
     logger.info('Calculating queue summary', { clinicId, date });
 
+    // Create start and end of day from the provided date
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
     const queue = await this.repository.getQueueByDate({
       clinicId,
-      date,
+      startDate: startOfDay.toISOString(),
+      endDate: endOfDay.toISOString(),
       includeCompleted: true,
       includeAbsent: true,
     });
@@ -172,10 +180,18 @@ export class QueueService {
   async callNextPatient(dto: CallNextPatientDTO): Promise<QueueEntry> {
     logger.info('Calling next patient', { dto });
 
+    // Create start and end of day from the provided date
+    const startOfDay = new Date(dto.date);
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    const endOfDay = new Date(dto.date);
+    endOfDay.setHours(23, 59, 59, 999);
+
     // Get current queue
     const queue = await this.repository.getQueueByDate({
       clinicId: dto.clinicId,
-      date: dto.date,
+      startDate: startOfDay.toISOString(),
+      endDate: endOfDay.toISOString(),
       status: [AppointmentStatus.WAITING, AppointmentStatus.SCHEDULED],
     });
 

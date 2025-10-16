@@ -35,7 +35,8 @@ interface EnhancedQueueManagerProps {
 }
 
 export function EnhancedQueueManager({ clinicId, userId }: EnhancedQueueManagerProps) {
-  const today = new Date();
+  // Memoize today's date to prevent re-renders
+  const [today] = useState(() => new Date());
   const [loading, setLoading] = useState(false);
 
   // Use service layer hook

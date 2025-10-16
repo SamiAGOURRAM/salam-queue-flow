@@ -57,7 +57,7 @@ BEGIN
     v_role,
     NULL
   )
-  ON CONFLICT (user_id, role) DO NOTHING;
+  ON CONFLICT (user_id, role, clinic_id) DO NOTHING;
   
   RETURN NEW;
 EXCEPTION

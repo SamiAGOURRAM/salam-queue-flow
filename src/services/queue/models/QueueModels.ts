@@ -259,7 +259,8 @@ export interface ReorderQueueDTO {
  */
 export interface QueueFilters {
   clinicId: string;
-  date: Date;
+  startDate: string;
+  endDate: string;
   status?: AppointmentStatus[];
   includeAbsent?: boolean;
   includeCompleted?: boolean;

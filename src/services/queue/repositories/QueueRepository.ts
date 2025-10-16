@@ -38,7 +38,8 @@ export class QueueRepository {
         .from('appointments')
         .select(`
           *,
-          patient:profiles!appointments_patient_id_fkey(id, full_name, phone_number, email),
+          patient:profiles!appointments_patient_fkey(id, full_name, phone_number, email),
+          guest_patient:guest_patients(id, full_name, phone_number),
           clinic:clinics(id, name)
         `)
         .eq('clinic_id', filters.clinicId)
@@ -87,7 +88,8 @@ export class QueueRepository {
         .from('appointments')
         .select(`
           *,
-          patient:profiles!appointments_patient_id_fkey(id, full_name, phone_number, email),
+          patient:profiles!appointments_patient_fkey(id, full_name, phone_number, email),
+          guest_patient:guest_patients(id, full_name, phone_number),
           clinic:clinics(id, name)
         `)
         .eq('id', id)
@@ -127,7 +129,8 @@ export class QueueRepository {
         } as any)
         .select(`
           *,
-          patient:profiles!appointments_patient_id_fkey(id, full_name, phone_number, email),
+          patient:profiles!appointments_patient_fkey(id, full_name, phone_number, email),
+          guest_patient:guest_patients(id, full_name, phone_number),
           clinic:clinics(id, name)
         `)
         .single();
@@ -173,7 +176,8 @@ export class QueueRepository {
         .eq('id', id)
         .select(`
           *,
-          patient:profiles!appointments_patient_id_fkey(id, full_name, phone_number, email),
+          patient:profiles!appointments_patient_fkey(id, full_name, phone_number, email),
+          guest_patient:guest_patients(id, full_name, phone_number),
           clinic:clinics(id, name)
         `)
         .single();
@@ -388,7 +392,7 @@ export class QueueRepository {
         .select(`
           *,
           appointment:appointments(*),
-          created_by_user:profiles!queue_overrides_created_by_fkey(id, full_name)
+          created_by_user:profiles!queue_overrides_performed_by_fkey(id, full_name)
         `)
         .eq('clinic_id', clinicId)
         .gte('created_at', startDate)
@@ -441,7 +445,7 @@ export class QueueRepository {
         .select(`
           *,
           appointment:appointments(*),
-          created_by_user:profiles!queue_overrides_created_by_fkey(id, full_name)
+          created_by_user:profiles!queue_overrides_performed_by_fkey(id, full_name)
         `)
         .single();
 
@@ -463,10 +467,25 @@ export class QueueRepository {
   // ============================================
 
   private mapToQueueEntry(data: any): QueueEntry {
+    // Determine patient info from either registered patient or guest
+    const patientInfo = data.is_guest && data.guest_patient ? {
+      id: data.guest_patient.id,
+      fullName: data.guest_patient.full_name,
+      phoneNumber: data.guest_patient.phone_number,
+      email: undefined,
+      dateOfBirth: undefined,
+    } : data.patient ? {
+      id: data.patient.id,
+      fullName: data.patient.full_name,
+      phoneNumber: data.patient.phone_number,
+      email: data.patient.email,
+      dateOfBirth: data.patient.date_of_birth ? new Date(data.patient.date_of_birth) : undefined,
+    } : undefined;
+
     return {
       id: data.id,
       clinicId: data.clinic_id,
-      patientId: data.patient_id,
+      patientId: data.patient_id || data.guest_patient_id,
       staffId: data.staff_id,
       appointmentDate: new Date(data.appointment_date),
       scheduledTime: data.scheduled_time,
@@ -485,13 +504,7 @@ export class QueueRepository {
       actualEndTime: data.actual_end_time ? new Date(data.actual_end_time) : undefined,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
-      patient: data.patient ? {
-        id: data.patient.id,
-        fullName: data.patient.full_name,
-        phoneNumber: data.patient.phone_number,
-        email: data.patient.email,
-        dateOfBirth: data.patient.date_of_birth ? new Date(data.patient.date_of_birth) : undefined,
-      } : undefined,
+      patient: patientInfo,
     };
   }
 
