@@ -1,13 +1,13 @@
 /**
- * Enhanced Queue Manager - Professional A-Grade UI
- * Industry-leading queue visualization inspired by Stripe, Linear, and modern SaaS
+ * Enhanced Queue Manager - Clean & Elegant
+ * Focused on essential features and smooth workflow
  */
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
   UserX, 
   PhoneCall, 
@@ -16,17 +16,15 @@ import {
   ChevronRight,
   Users,
   CheckCircle,
-  User,
   RefreshCw,
   Play,
   UserCheck,
-  Timer,
-  ArrowRight,
-  AlertTriangle
+  AlertTriangle,
+  RotateCcw
 } from "lucide-react";
 import { useQueueService } from "@/hooks/useQueueService";
-import { AppointmentStatus, QueueEntry } from "@/services/queue";
-import { formatDistanceToNow, format } from "date-fns";
+import { AppointmentStatus, QueueEntry, SkipReason } from "@/services/queue";
+import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 
 interface EnhancedQueueManagerProps {
@@ -35,11 +33,9 @@ interface EnhancedQueueManagerProps {
 }
 
 export function EnhancedQueueManager({ clinicId, userId }: EnhancedQueueManagerProps) {
-  // Memoize today's date to prevent re-renders
   const [today] = useState(() => new Date());
   const [loading, setLoading] = useState(false);
 
-  // Use service layer hook
   const {
     queue,
     summary,
@@ -56,15 +52,36 @@ export function EnhancedQueueManager({ clinicId, userId }: EnhancedQueueManagerP
     autoRefresh: true,
   });
 
-  // Organize queue
+  // Organize queue - EXACTLY like QueueService.getQueueSummary()
   const currentPatient = queue.find(p => p.status === AppointmentStatus.IN_PROGRESS);
+  
   const waitingPatients = queue.filter(p => 
-    p.status === AppointmentStatus.WAITING || 
-    p.status === AppointmentStatus.SCHEDULED
+    (p.status === AppointmentStatus.WAITING || p.status === AppointmentStatus.SCHEDULED) &&
+    p.skipReason !== SkipReason.PATIENT_ABSENT
   );
+  
+  // Use EXACT same logic as summary: absent = skipReason === PATIENT_ABSENT && !returnedAt
   const absentPatients = queue.filter(p => 
-    p.markedAbsentAt && !p.returnedAt
+    p.skipReason === SkipReason.PATIENT_ABSENT && !p.returnedAt
   );
+
+  const displayedQueueCount = waitingPatients.length;
+
+  // Debug log
+  console.log('Queue data:', {
+    total: queue.length,
+    waiting: waitingPatients.length,
+    absent: absentPatients.length,
+    summaryAbsent: summary?.absent,
+    allPatients: queue.map(p => ({
+      id: p.id,
+      name: p.patient?.fullName,
+      status: p.status,
+      skipReason: p.skipReason,
+      markedAbsentAt: p.markedAbsentAt,
+      returnedAt: p.returnedAt
+    }))
+  });
 
   // ============================================
   // HANDLERS
@@ -98,20 +115,6 @@ export function EnhancedQueueManager({ clinicId, userId }: EnhancedQueueManagerP
     }
   };
 
-  const handleCallPresent = async (appointmentId: string) => {
-    setLoading(true);
-    try {
-      const absent = absentPatients.find(p => p.id === appointmentId);
-      if (absent) {
-        await markPatientReturned(appointmentId, userId);
-      }
-    } catch (error) {
-      console.error('Failed to mark returned:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleCompleteAppointment = async () => {
     if (!currentPatient) return;
     setLoading(true);
@@ -119,6 +122,17 @@ export function EnhancedQueueManager({ clinicId, userId }: EnhancedQueueManagerP
       await completeAppointment(currentPatient.id, userId);
     } catch (error) {
       console.error('Failed to complete:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReturnToQueue = async (appointmentId: string) => {
+    setLoading(true);
+    try {
+      await markPatientReturned(appointmentId, userId);
+    } catch (error) {
+      console.error('Failed to return patient to queue:', error);
     } finally {
       setLoading(false);
     }
@@ -133,13 +147,14 @@ export function EnhancedQueueManager({ clinicId, userId }: EnhancedQueueManagerP
     return formatDistanceToNow(entry.checkedInAt, { addSuffix: true });
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case AppointmentStatus.IN_PROGRESS: return "text-green-600 bg-green-50 border-green-200";
-      case AppointmentStatus.WAITING: return "text-blue-600 bg-blue-50 border-blue-200";
-      case AppointmentStatus.SCHEDULED: return "text-purple-600 bg-purple-50 border-purple-200";
-      default: return "text-gray-600 bg-gray-50 border-gray-200";
-    }
+  const getInitials = (name?: string) => {
+    if (!name) return "?";
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const getPositionDisplay = (position?: number | null) => {
+    if (!position && position !== 0) return "—";
+    return position.toString().padStart(3, '0');
   };
 
   // ============================================
@@ -178,316 +193,350 @@ export function EnhancedQueueManager({ clinicId, userId }: EnhancedQueueManagerP
   }
 
   // ============================================
-  // MAIN RENDER - A-GRADE PROFESSIONAL UI
+  // MAIN RENDER
   // ============================================
 
   return (
-    <div className="space-y-6">
-      {/* Stats Overview - Modern, Clean, Professional */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-blue-500 hover:shadow-lg transition-all duration-200">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Waiting</p>
-                <p className="text-3xl font-bold text-blue-600">{summary?.waiting || 0}</p>
-                <p className="text-xs text-muted-foreground">patients in queue</p>
-              </div>
-              <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                <Users className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-green-500 hover:shadow-lg transition-all duration-200">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">In Progress</p>
-                <p className="text-3xl font-bold text-green-600">{summary?.inProgress || 0}</p>
-                <p className="text-xs text-muted-foreground">being served</p>
-              </div>
-              <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-                <User className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-orange-500 hover:shadow-lg transition-all duration-200">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Absent</p>
-                <p className="text-3xl font-bold text-orange-600">{absentPatients.length}</p>
-                <p className="text-xs text-muted-foreground">not present</p>
-              </div>
-              <div className="h-12 w-12 rounded-full bg-orange-100 flex items-center justify-center">
-                <UserX className="h-6 w-6 text-orange-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-gray-400 hover:shadow-lg transition-all duration-200">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Completed</p>
-                <p className="text-3xl font-bold text-gray-600">{summary?.completed || 0}</p>
-                <p className="text-xs text-muted-foreground">today</p>
-              </div>
-              <div className="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center">
-                <CheckCircle className="h-6 w-6 text-gray-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Current Patient - Prominent, Clear, Action-Focused */}
-      {currentPatient && (
-        <Card className="border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 shadow-lg">
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-green-500 flex items-center justify-center shadow-md">
-                  <Play className="h-5 w-5 text-white" />
-                </div>
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-7xl mx-auto p-6 space-y-6">
+        
+        {/* Header Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-lg text-green-900">Currently Serving</CardTitle>
-                  <CardDescription className="text-green-700">
-                    Position #{currentPatient.queuePosition}
-                  </CardDescription>
+                  <p className="text-sm text-slate-600">Waiting</p>
+                  <p className="text-3xl font-bold text-orange-600">{summary?.waiting || 0}</p>
                 </div>
+                <Users className="h-10 w-10 text-orange-200" />
               </div>
-              <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 px-3 py-1">
-                In Progress
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="space-y-3 flex-1">
-                <div className="flex items-center gap-3">
-                  <div className="h-14 w-14 rounded-full bg-green-200 flex items-center justify-center text-xl font-bold text-green-700">
-                    {currentPatient.queuePosition}
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-semibold text-green-900">
-                      {currentPatient.patient?.fullName || 'Patient'}
-                    </h3>
-                    <p className="text-sm text-green-700">
-                      {currentPatient.patient?.phoneNumber || 'No phone number'}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1 text-xs text-green-600">
-                      <Timer className="h-3 w-3" />
-                      <span>Started {formatWaitTime(currentPatient)}</span>
-                    </div>
-                  </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-600">In Progress</p>
+                  <p className="text-3xl font-bold text-green-600">{summary?.inProgress || 0}</p>
                 </div>
+                <Play className="h-10 w-10 text-green-200" />
               </div>
-              
-              <Button 
-                onClick={handleCompleteAppointment}
-                disabled={loading}
-                size="lg"
-                className="bg-green-600 hover:bg-green-700 shadow-md hover:shadow-lg transition-all duration-200"
-              >
-                <CheckCircle className="mr-2 h-5 w-5" />
-                Complete Visit
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
 
-      {/* Waiting Queue - Clean, Scannable, Interactive */}
-      <Card className="shadow-sm">
-        <CardHeader className="bg-gradient-to-r from-background to-primary/5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                <Users className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <CardTitle className="text-xl">Queue</CardTitle>
-                <CardDescription>
-                  {waitingPatients.length} patient{waitingPatients.length !== 1 ? 's' : ''} waiting
-                </CardDescription>
-              </div>
-            </div>
-            
-            <Button
-              onClick={handleNextPatient}
-              disabled={loading || waitingPatients.length === 0 || !!currentPatient}
-              size="lg"
-              className="shadow-md hover:shadow-lg transition-all duration-200"
-            >
-              <ChevronRight className="mr-2 h-5 w-5" />
-              Call Next Patient
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6">
-          {waitingPatients.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="h-20 w-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                <Users className="h-10 w-10 text-gray-300" />
-              </div>
-              <p className="text-lg font-medium text-muted-foreground mb-1">No patients waiting</p>
-              <p className="text-sm text-muted-foreground">Queue is empty</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {waitingPatients.map((patient, index) => (
-                <div
-                  key={patient.id}
-                  className={cn(
-                    "group relative flex items-center justify-between p-5 rounded-xl border-2 transition-all duration-200",
-                    index === 0 && !currentPatient
-                      ? "border-blue-300 bg-gradient-to-r from-blue-50 to-cyan-50 shadow-md hover:shadow-lg"
-                      : "border-gray-200 bg-white hover:border-blue-200 hover:shadow-md"
-                  )}
-                >
-                  {/* Position Indicator */}
-                  <div className="flex items-center gap-4 flex-1">
-                    <div
-                      className={cn(
-                        "flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold transition-all duration-200",
-                        index === 0 && !currentPatient
-                          ? "bg-blue-500 text-white shadow-md group-hover:scale-110"
-                          : "bg-gray-100 text-gray-700 group-hover:bg-blue-100 group-hover:text-blue-700"
-                      )}
-                    >
-                      {patient.queuePosition}
-                    </div>
-                    
-                    {/* Patient Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4 className="font-semibold text-lg truncate">
-                          {patient.patient?.fullName || 'Patient'}
-                        </h4>
-                        {index === 0 && !currentPatient && (
-                          <Badge className="bg-blue-500 text-white">Next</Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                        <span>{patient.patient?.phoneNumber || 'No phone'}</span>
-                        {patient.isPresent && (
-                          <Badge variant="outline" className="text-green-600 border-green-600 text-xs">
-                            <UserCheck className="mr-1 h-3 w-3" />
-                            Checked In
-                          </Badge>
-                        )}
-                        {patient.skipCount > 0 && (
-                          <Badge variant="outline" className="text-orange-600 border-orange-600 text-xs">
-                            <AlertTriangle className="mr-1 h-3 w-3" />
-                            Skipped {patient.skipCount}×
-                          </Badge>
-                        )}
-                      </div>
-                      {patient.checkedInAt && (
-                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          Waiting {formatWaitTime(patient)}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                    <Button
-                      onClick={() => handleCallPresent(patient.id)}
-                      disabled={loading}
-                      size="sm"
-                      variant="outline"
-                      className="border-blue-300 text-blue-600 hover:bg-blue-50"
-                    >
-                      <PhoneCall className="mr-2 h-4 w-4" />
-                      Call
-                    </Button>
-                    
-                    <Button
-                      onClick={() => handleMarkAbsent(patient.id)}
-                      disabled={loading}
-                      size="sm"
-                      variant="outline"
-                      className="border-orange-300 text-orange-600 hover:bg-orange-50"
-                    >
-                      <UserX className="mr-2 h-4 w-4" />
-                      Absent
-                    </Button>
-                  </div>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-600">Absent</p>
+                  <p className="text-3xl font-bold text-red-600">{summary?.absent || 0}</p>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <UserX className="h-10 w-10 text-red-200" />
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* Absent Patients - Collapsible, Non-Intrusive */}
-      {absentPatients.length > 0 && (
-        <Card className="border-orange-200 bg-orange-50/30">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
-                <UserX className="h-5 w-5 text-orange-600" />
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-600">Completed</p>
+                  <p className="text-3xl font-bold text-slate-600">{summary?.completed || 0}</p>
+                </div>
+                <CheckCircle className="h-10 w-10 text-slate-200" />
               </div>
-              <div>
-                <CardTitle className="text-lg text-orange-900">Absent Patients</CardTitle>
-                <CardDescription className="text-orange-700">
-                  {absentPatients.length} patient{absentPatients.length !== 1 ? 's' : ''} marked absent
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {absentPatients.map((patient) => (
-                <div
-                  key={patient.id}
-                  className="flex items-center justify-between p-4 rounded-lg border-2 border-orange-200 bg-white hover:border-orange-300 transition-all duration-200"
-                >
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-200 text-lg font-bold text-orange-700">
-                      {patient.queuePosition}
-                    </div>
-                    
-                    <div>
-                      <h4 className="font-semibold">
-                        {patient.patient?.fullName || 'Patient'}
-                      </h4>
-                      <p className="text-sm text-muted-foreground">
-                        {patient.patient?.phoneNumber || 'No phone'}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main Content - 2 Columns */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Left - Current Patient & Queue */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Current Patient */}
+            {currentPatient ? (
+              <Card className="border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg text-green-900">Currently Serving</CardTitle>
+                    <Badge className="bg-green-600 text-white">
+                      <Play className="h-3 w-3 mr-1" />
+                      In Progress
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-4 mb-4">
+                    <Avatar className="h-16 w-16 border-4 border-white shadow-lg">
+                      <AvatarFallback className="bg-gradient-to-br from-green-400 to-emerald-500 text-white text-xl font-bold">
+                        {getInitials(currentPatient.patient?.fullName)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <h3 className="text-2xl font-bold text-green-900">
+                        {currentPatient.patient?.fullName || 'Patient'}
+                      </h3>
+                      <p className="text-green-700">
+                        Position #{getPositionDisplay(currentPatient.queuePosition)}
                       </p>
-                      {patient.markedAbsentAt && (
-                        <p className="text-xs text-orange-600 mt-1 flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          Absent since {formatWaitTime(patient)}
-                        </p>
-                      )}
+                      <p className="text-sm text-green-600 flex items-center gap-1 mt-1">
+                        <Clock className="h-3 w-3" />
+                        {formatWaitTime(currentPatient)}
+                      </p>
                     </div>
                   </div>
 
-                  <Button
-                    onClick={() => markPatientReturned(patient.id, userId)}
+                  <div className="grid grid-cols-2 gap-3 text-sm text-green-900 mb-4">
+                    <div>
+                      <p className="text-green-700 text-xs">Phone</p>
+                      <p className="font-mono">{currentPatient.patient?.phoneNumber || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-green-700 text-xs">Email</p>
+                      <p className="truncate">{currentPatient.patient?.email || 'N/A'}</p>
+                    </div>
+                  </div>
+
+                  <Button 
+                    onClick={handleCompleteAppointment}
                     disabled={loading}
-                    size="sm"
-                    className="bg-orange-600 hover:bg-orange-700"
+                    size="lg"
+                    className="w-full bg-green-600 hover:bg-green-700"
                   >
-                    <ArrowRight className="mr-2 h-4 w-4" />
-                    Return to Queue
+                    <CheckCircle className="mr-2 h-5 w-5" />
+                    Complete Appointment
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="py-16 text-center">
+                  <div className="h-16 w-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
+                    <Users className="h-8 w-8 text-slate-300" />
+                  </div>
+                  <p className="text-slate-600 font-medium">No patient being served</p>
+                  <p className="text-sm text-slate-500 mt-1">Call next patient to start</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Waiting Queue */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Waiting Queue</CardTitle>
+                    <CardDescription>
+                      {displayedQueueCount} patient{displayedQueueCount !== 1 ? 's' : ''} waiting
+                    </CardDescription>
+                  </div>
+                  <Button
+                    onClick={handleNextPatient}
+                    disabled={loading || waitingPatients.length === 0 || !!currentPatient}
+                    size="lg"
+                  >
+                    <ChevronRight className="mr-2 h-5 w-5" />
+                    Call Next
                   </Button>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              </CardHeader>
+              <CardContent>
+                {waitingPatients.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-slate-500">No patients waiting</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {waitingPatients.map((patient, index) => (
+                      <div
+                        key={patient.id}
+                        className={cn(
+                          "flex items-center gap-3 p-4 rounded-lg border-2 transition-all",
+                          index === 0 && !currentPatient
+                            ? "border-orange-300 bg-orange-50"
+                            : "border-slate-200 hover:border-slate-300"
+                        )}
+                      >
+                        <div className={cn(
+                          "h-12 w-12 rounded-full flex items-center justify-center font-bold shadow-sm",
+                          index === 0 && !currentPatient
+                            ? "bg-orange-500 text-white"
+                            : "bg-slate-100 text-slate-700"
+                        )}>
+                          {getPositionDisplay(patient.queuePosition)}
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-semibold truncate">
+                              {patient.patient?.fullName || 'Patient'}
+                            </p>
+                            {index === 0 && !currentPatient && (
+                              <Badge className="bg-orange-500 text-white text-xs">Next</Badge>
+                            )}
+                            {patient.isPresent && (
+                              <Badge variant="outline" className="text-green-600 border-green-600 text-xs">
+                                <UserCheck className="mr-1 h-3 w-3" />
+                                Checked In
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-slate-500">
+                            {patient.patient?.phoneNumber || 'No phone'}
+                          </p>
+                          {patient.checkedInAt && (
+                            <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                              <Clock className="h-3 w-3" />
+                              Waiting {formatWaitTime(patient)}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => handleMarkAbsent(patient.id)}
+                            disabled={loading}
+                            size="sm"
+                            variant="outline"
+                            className="border-red-300 text-red-600 hover:bg-red-50"
+                          >
+                            <UserX className="mr-1 h-4 w-4" />
+                            Absent
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right - Absent Patients (Always visible) */}
+          <div className="lg:sticky lg:top-6 lg:self-start">
+            <Card className={cn(
+              "border-2 transition-all",
+              absentPatients.length > 0 ? "border-red-300 shadow-md" : "border-slate-200"
+            )}>
+              <CardHeader className={cn(
+                "pb-4",
+                absentPatients.length > 0 ? "bg-red-50/50" : "bg-slate-50/50"
+              )}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={cn(
+                      "h-10 w-10 rounded-full flex items-center justify-center",
+                      absentPatients.length > 0 ? "bg-red-100" : "bg-slate-100"
+                    )}>
+                      <UserX className={cn(
+                        "h-5 w-5",
+                        absentPatients.length > 0 ? "text-red-600" : "text-slate-400"
+                      )} />
+                    </div>
+                    <div>
+                      <CardTitle className={cn(
+                        "text-base",
+                        absentPatients.length > 0 ? "text-red-900" : "text-slate-600"
+                      )}>
+                        Absent Patients
+                      </CardTitle>
+                      <CardDescription className={cn(
+                        "text-xs",
+                        absentPatients.length > 0 ? "text-red-700" : "text-slate-500"
+                      )}>
+                        {absentPatients.length > 0 
+                          ? `${absentPatients.length} patient${absentPatients.length !== 1 ? 's' : ''}`
+                          : 'No absences'
+                        }
+                      </CardDescription>
+                    </div>
+                  </div>
+                  {absentPatients.length > 0 && (
+                    <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300">
+                      {absentPatients.length}
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="max-h-[600px] overflow-y-auto">
+                {absentPatients.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="h-16 w-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                      <UserCheck className="h-8 w-8 text-slate-300" />
+                    </div>
+                    <p className="text-sm text-slate-500 font-medium">All patients present</p>
+                    <p className="text-xs text-slate-400 mt-1">No absences recorded</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {absentPatients.map((patient) => (
+                      <div
+                        key={patient.id}
+                        className="group relative p-4 rounded-lg border-2 border-red-200 bg-gradient-to-br from-red-50 to-orange-50 hover:shadow-md transition-all"
+                      >
+                        {/* Position Badge */}
+                        <div className="absolute -top-2 -left-2">
+                          <div className="h-8 w-8 rounded-full bg-red-500 flex items-center justify-center text-white text-xs font-bold shadow-md">
+                            {getPositionDisplay(patient.queuePosition)}
+                          </div>
+                        </div>
+
+                        {/* Patient Info */}
+                        <div className="space-y-3 pt-2">
+                          <div>
+                            <p className="font-bold text-red-900 truncate pr-6">
+                              {patient.patient?.fullName || 'Patient'}
+                            </p>
+                            <p className="text-xs text-red-700 mt-1">
+                              {patient.patient?.phoneNumber || 'No phone'}
+                            </p>
+                          </div>
+
+                          {/* Absence Info */}
+                          <div className="flex items-center gap-2 text-xs text-red-600 bg-white/60 rounded px-2 py-1.5">
+                            <AlertCircle className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate">
+                              {patient.markedAbsentAt ? (
+                                <>Absent {formatDistanceToNow(patient.markedAbsentAt, { addSuffix: true })}</>
+                              ) : (
+                                'Recently marked absent'
+                              )}
+                            </span>
+                          </div>
+
+                          {/* Return Button */}
+                          <Button
+                            onClick={() => handleReturnToQueue(patient.id)}
+                            disabled={loading}
+                            size="sm"
+                            className="w-full bg-orange-500 hover:bg-orange-600 text-white shadow-sm"
+                          >
+                            <RotateCcw className="mr-2 h-3.5 w-3.5" />
+                            Return to Queue
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Helper Text */}
+            {absentPatients.length > 0 && (
+              <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                <p className="text-xs text-orange-800 flex items-center gap-2">
+                  <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span>Patients will be added to the end of the queue when returned</span>
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

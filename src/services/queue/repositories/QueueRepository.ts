@@ -62,6 +62,11 @@ export class QueueRepository {
         }
       }
 
+      // Exclude absent patients unless explicitly requested
+      if (!filters.includeAbsent) {
+        query = query.or('skip_reason.is.null,skip_reason.neq.patient_absent');
+      }
+
       const { data, error } = await query;
 
       if (error) {
@@ -162,17 +167,24 @@ export class QueueRepository {
     try {
       logger.debug('Updating queue entry', { id, ...dto });
 
+      // Build update object with only defined fields
+      const updateObj: Record<string, any> = {};
+      
+      if (dto.status !== undefined) updateObj.status = dto.status;
+      if (dto.queuePosition !== undefined) updateObj.queue_position = dto.queuePosition;
+      if (dto.isPresent !== undefined) updateObj.is_present = dto.isPresent;
+      if (dto.skipReason !== undefined) updateObj.skip_reason = dto.skipReason;
+      if (dto.scheduledTime !== undefined) updateObj.scheduled_time = dto.scheduledTime;
+      if (dto.appointmentType !== undefined) updateObj.appointment_type = dto.appointmentType;
+      if (dto.markedAbsentAt !== undefined) updateObj.marked_absent_at = dto.markedAbsentAt;
+      if (dto.returnedAt !== undefined) updateObj.returned_at = dto.returnedAt;
+      
+      // Always set updated_at to now()
+      updateObj.updated_at = new Date().toISOString();
+
       const { data, error } = await supabase
         .from('appointments')
-        .update({
-          status: dto.status,
-          queue_position: dto.queuePosition,
-          checked_in_at: dto.checkedInAt,
-          called_at: dto.calledAt,
-          service_started_at: dto.serviceStartedAt,
-          service_completed_at: dto.serviceCompletedAt,
-          notes: dto.notes,
-        } as any)
+        .update(updateObj)
         .eq('id', id)
         .select(`
           *,
@@ -275,7 +287,7 @@ export class QueueRepository {
         .select(`
           *,
           appointment:appointments(*),
-          patient:profiles!absent_patients_patient_id_fkey(id, full_name, phone_number)
+          patient:profiles(id, full_name, phone_number)
         `)
         .eq('clinic_id', clinicId)
         .gte('marked_absent_at', startDate)
@@ -301,30 +313,47 @@ export class QueueRepository {
   async createAbsentPatient(
     appointmentId: string,
     clinicId: string,
-    patientId: string,
+    patientId: string | null,
     markedBy: string,
-    reason?: string
+    reason?: string,
+    isGuest?: boolean,
+    guestPatientId?: string
   ): Promise<AbsentPatient> {
     try {
       logger.debug('Creating absent patient record', {
         appointmentId,
         clinicId,
         patientId,
+        isGuest,
+        guestPatientId,
       });
+
+      // Build insert object based on patient type
+      const insertData: any = {
+        appointment_id: appointmentId,
+        clinic_id: clinicId,
+      };
+
+      // Handle guest vs registered patient
+      if (isGuest && guestPatientId) {
+        insertData.guest_patient_id = guestPatientId;
+        insertData.is_guest = true;
+        insertData.patient_id = null;
+      } else if (patientId) {
+        insertData.patient_id = patientId;
+        insertData.is_guest = false;
+        insertData.guest_patient_id = null;
+      } else {
+        throw new Error('Either patientId or (isGuest + guestPatientId) must be provided');
+      }
 
       const { data, error } = await supabase
         .from('absent_patients')
-        .insert({
-          appointment_id: appointmentId,
-          clinic_id: clinicId,
-          patient_id: patientId,
-          marked_by: markedBy,
-          reason,
-        } as any)
+        .insert(insertData)
         .select(`
           *,
           appointment:appointments(*),
-          patient:profiles!absent_patients_patient_id_fkey(id, full_name, phone_number)
+          patient:profiles(id, full_name, phone_number)
         `)
         .single();
 
@@ -430,31 +459,96 @@ export class QueueRepository {
         appointmentId,
         action,
       });
+      
+      // Make sure we're using a valid profile ID which is now required due to FK constraint
+      let validPerformedBy = createdBy;
+      
+      // Check if this is a valid profile ID for the current user
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', createdBy)
+        .single();
+        
+      if (profileError || !profileData) {
+        // If the direct profile check fails, try to get the current user's profile
+        const { data: currentUserProfile, error: currentUserError } = await supabase.auth.getUser();
+        
+        if (currentUserError || !currentUserProfile) {
+          logger.error('Failed to get current user for queue override', currentUserError || new Error('No current user'), { createdBy });
+          throw new DatabaseError('Cannot get current user profile', currentUserError || new Error('No current user'));
+        }
+        
+        logger.debug('Using current user profile instead of provided ID', {
+          providedId: createdBy,
+          currentUserId: currentUserProfile.user.id
+        });
+        
+        // Use the current user's ID instead
+        validPerformedBy = currentUserProfile.user.id;
+      } else {
+        validPerformedBy = profileData.id;
+      }
+
+      logger.debug('Inserting queue override with data', {
+        clinic_id: clinicId,
+        appointment_id: appointmentId,
+        action_type: action,
+        performed_by: validPerformedBy,
+        previous_position: previousPosition,
+        new_position: newPosition,
+      });
 
       const { data, error } = await supabase
         .from('queue_overrides')
         .insert({
           clinic_id: clinicId,
           appointment_id: appointmentId,
-          action,
-          created_by: createdBy,
-          reason,
-          previous_position: previousPosition,
-          new_position: newPosition,
+          action_type: action,
+          performed_by: validPerformedBy, // Use the verified profile ID
+          reason: reason || null,
+          previous_position: previousPosition ?? null,
+          new_position: newPosition ?? null,
         } as any)
-        .select(`
-          *,
-          appointment:appointments(*),
-          created_by_user:profiles!queue_overrides_performed_by_fkey(id, full_name)
-        `)
+        .select('*')
         .single();
 
       if (error || !data) {
-        logger.error('Failed to create queue override', error, { clinicId, appointmentId });
+        logger.error('Failed to create queue override', error, { 
+          clinicId, 
+          appointmentId,
+          insertData: {
+            clinic_id: clinicId,
+            appointment_id: appointmentId,
+            action_type: action,
+            performed_by: validPerformedBy,
+            reason,
+            previous_position: previousPosition,
+            new_position: newPosition,
+          },
+          errorDetails: error ? {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+          } : 'No data returned'
+        });
         throw new DatabaseError('Failed to create queue override', error);
       }
 
-      return this.mapToQueueOverride(data);
+      // Return basic override data without relations
+      return {
+        id: data.id,
+        clinicId: data.clinic_id,
+        appointmentId: data.appointment_id,
+        skippedPatientIds: data.skipped_patient_ids || [],
+        actionType: data.action_type as QueueActionType,
+        performedBy: data.performed_by,
+        reason: data.reason,
+        previousPosition: data.previous_position,
+        newPosition: data.new_position,
+        createdAt: new Date(data.created_at),
+      };
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error creating queue override', error as Error, { clinicId, appointmentId });
@@ -504,6 +598,8 @@ export class QueueRepository {
       actualEndTime: data.actual_end_time ? new Date(data.actual_end_time) : undefined,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
+      isGuest: data.is_guest || false,
+      guestPatientId: data.guest_patient_id,
       patient: patientInfo,
     };
   }

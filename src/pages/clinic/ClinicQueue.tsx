@@ -28,6 +28,7 @@ export default function ClinicQueue() {
   const [clinic, setClinic] = useState<any>(null);
   const [showAddWalkIn, setShowAddWalkIn] = useState(false);
   const [showBookAppointment, setShowBookAppointment] = useState(false);
+  const [queueRefreshKey, setQueueRefreshKey] = useState(0);
 
   const fetchClinic = useCallback(async () => {
     try {
@@ -185,6 +186,7 @@ export default function ClinicQueue() {
         {/* Enhanced Queue Manager - This is now the main dashboard */}
         {clinic?.id && user?.id && (
           <EnhancedQueueManager 
+            key={queueRefreshKey}
             clinicId={clinic.id} 
             userId={user.id}
           />
@@ -197,6 +199,8 @@ export default function ClinicQueue() {
         clinicId={clinic?.id}
         onSuccess={() => {
           setShowAddWalkIn(false);
+          // Force queue refresh by changing the key
+          setQueueRefreshKey(prev => prev + 1);
           toast({
             title: "Success",
             description: "Walk-in patient added to queue",
@@ -210,6 +214,8 @@ export default function ClinicQueue() {
         clinicId={clinic?.id}
         onSuccess={() => {
           setShowBookAppointment(false);
+          // Force queue refresh by changing the key
+          setQueueRefreshKey(prev => prev + 1);
           toast({
             title: "Success", 
             description: "Appointment booked successfully",

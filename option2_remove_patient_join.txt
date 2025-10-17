@@ -1,0 +1,8 @@
+-- Alternative: Remove the patient JOIN from absent_patients queries
+-- Use this if you don't want to change the FK constraint
+
+-- The code would change from:
+-- patient:profiles(id, full_name, phone_number)
+-- to just not loading patient info, or loading it separately
+
+-- This is just documentation, the actual fix is in Option 1

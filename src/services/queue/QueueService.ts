@@ -91,15 +91,15 @@ export class QueueService {
       clinicId,
       date,
       totalAppointments: queue.length,
-      waiting: queue.filter(e => e.status === AppointmentStatus.WAITING).length,
+      waiting: queue.filter(e => e.status === AppointmentStatus.WAITING && e.skipReason !== SkipReason.PATIENT_ABSENT).length,
       inProgress: queue.filter(e => e.status === AppointmentStatus.IN_PROGRESS).length,
       completed: queue.filter(e => e.status === AppointmentStatus.COMPLETED).length,
-      absent: queue.filter(e => e.markedAbsentAt && !e.returnedAt).length,
+      absent: queue.filter(e => e.skipReason === SkipReason.PATIENT_ABSENT && !e.returnedAt).length,
       noShow: queue.filter(e => e.status === AppointmentStatus.NO_SHOW).length,
       averageWaitTime: this.calculateAverageWaitTime(queue),
       currentQueueLength: queue.filter(e => 
-        e.status === AppointmentStatus.WAITING || 
-        e.status === AppointmentStatus.SCHEDULED
+        (e.status === AppointmentStatus.WAITING || e.status === AppointmentStatus.SCHEDULED) &&
+        e.skipReason !== SkipReason.PATIENT_ABSENT
       ).length,
     };
 
@@ -221,6 +221,7 @@ export class QueueService {
       nextPatient.id,
       QueueActionType.CALL_PRESENT,
       dto.performedBy,
+      undefined, // reason
       nextPatient.queuePosition,
       nextPatient.queuePosition
     );
@@ -258,14 +259,18 @@ export class QueueService {
     const updatedEntry = await this.repository.updateQueueEntry(entry.id, {
       isPresent: false,
       skipReason: SkipReason.PATIENT_ABSENT,
+      markedAbsentAt: new Date().toISOString(),
     });
 
     // Create absent patient record
     await this.repository.createAbsentPatient(
       entry.id,
       entry.clinicId,
-      entry.patientId,
-      dto.gracePeriodMinutes || 15
+      entry.patientId, // May be null for guests
+      dto.performedBy,
+      dto.reason,
+      entry.isGuest, // Pass guest flag
+      entry.guestPatientId // Pass guest patient ID if present
     );
 
     // Create audit record
@@ -274,9 +279,9 @@ export class QueueService {
       entry.id,
       QueueActionType.MARK_ABSENT,
       dto.performedBy,
-      entry.queuePosition,
-      undefined,
-      dto.reason
+      dto.reason,          // reason (string)
+      entry.queuePosition, // previousPosition (number)
+      undefined            // newPosition (number)
     );
 
     // Calculate grace period
@@ -337,9 +342,9 @@ export class QueueService {
       entry.id,
       QueueActionType.LATE_ARRIVAL,
       performedBy,
-      entry.queuePosition,
-      newPosition,
-      'Patient returned after being marked absent'
+      'Patient returned after being marked absent', // reason (string)
+      entry.queuePosition,  // previousPosition (number)
+      newPosition           // newPosition (number)
     );
 
     // Publish event
@@ -418,9 +423,9 @@ export class QueueService {
       entry.id,
       QueueActionType.REORDER,
       dto.performedBy,
-      previousPosition,
-      dto.newPosition,
-      dto.reason
+      dto.reason,       // reason (string)
+      previousPosition, // previousPosition (number)
+      dto.newPosition   // newPosition (number)
     );
 
     // Publish event

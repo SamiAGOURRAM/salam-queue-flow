@@ -60,7 +60,7 @@ export default function ClinicTeam() {
             .from("clinic_staff")
             .select(`
               *,
-              profile:profiles(id, full_name, email, phone_number)
+              profile:profiles!user_id(id, full_name, email, phone_number)
             `)
             .eq("clinic_id", clinicData.id);
 

@@ -85,6 +85,10 @@ export interface QueueEntry {
   createdAt: Date;
   updatedAt: Date;
   
+  // Guest patient support
+  isGuest?: boolean;
+  guestPatientId?: string;
+  
   // Relations (optional - populated on demand)
   patient?: Patient;
   estimatedWaitTime?: number; // in minutes
@@ -222,6 +226,8 @@ export interface UpdateQueueEntryDTO {
   skipReason?: SkipReason;
   scheduledTime?: string;
   appointmentType?: AppointmentType;
+  markedAbsentAt?: string;
+  returnedAt?: string;
 }
 
 /**
