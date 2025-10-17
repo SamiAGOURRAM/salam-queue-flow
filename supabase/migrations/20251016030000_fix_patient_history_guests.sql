@@ -28,44 +28,78 @@ WHERE guest_patient_id IS NOT NULL AND is_guest = true;
 
 -- Update the trigger function to handle guests
 CREATE OR REPLACE FUNCTION update_patient_history() 
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  existing_record RECORD;
 BEGIN
   -- Only update history if appointment is completed
   IF NEW.status = 'completed' THEN
     IF NEW.is_guest = true AND NEW.guest_patient_id IS NOT NULL THEN
       -- Handle guest patient
-      INSERT INTO public.patient_clinic_history (
-        guest_patient_id, 
-        clinic_id, 
-        total_visits,
-        is_guest
-      )
-      VALUES (NEW.guest_patient_id, NEW.clinic_id, 1, true)
-      ON CONFLICT (guest_patient_id, clinic_id) 
-      WHERE is_guest = true
-      DO UPDATE SET
-        total_visits = patient_clinic_history.total_visits + 1,
-        completed_visits = patient_clinic_history.completed_visits + 1,
-        last_visit_date = CURRENT_DATE,
-        last_appointment_id = NEW.id,
-        updated_at = NOW();
+      -- Check if record exists
+      SELECT * INTO existing_record
+      FROM patient_clinic_history
+      WHERE guest_patient_id = NEW.guest_patient_id 
+        AND clinic_id = NEW.clinic_id
+        AND is_guest = true;
+      
+      IF FOUND THEN
+        -- Update existing record
+        UPDATE patient_clinic_history
+        SET total_visits = total_visits + 1,
+            completed_visits = completed_visits + 1,
+            last_visit_date = CURRENT_DATE,
+            last_appointment_id = NEW.id,
+            updated_at = NOW()
+        WHERE guest_patient_id = NEW.guest_patient_id 
+          AND clinic_id = NEW.clinic_id
+          AND is_guest = true;
+      ELSE
+        -- Insert new record
+        INSERT INTO patient_clinic_history (
+          guest_patient_id, 
+          clinic_id, 
+          total_visits,
+          completed_visits,
+          is_guest
+        )
+        VALUES (NEW.guest_patient_id, NEW.clinic_id, 1, 1, true);
+      END IF;
+      
     ELSIF NEW.patient_id IS NOT NULL THEN
       -- Handle registered patient
-      INSERT INTO public.patient_clinic_history (
-        patient_id, 
-        clinic_id, 
-        total_visits,
-        is_guest
-      )
-      VALUES (NEW.patient_id, NEW.clinic_id, 1, false)
-      ON CONFLICT (patient_id, clinic_id) 
-      WHERE is_guest = false
-      DO UPDATE SET
-        total_visits = patient_clinic_history.total_visits + 1,
-        completed_visits = patient_clinic_history.completed_visits + 1,
-        last_visit_date = CURRENT_DATE,
-        last_appointment_id = NEW.id,
-        updated_at = NOW();
+      -- Check if record exists
+      SELECT * INTO existing_record
+      FROM patient_clinic_history
+      WHERE patient_id = NEW.patient_id 
+        AND clinic_id = NEW.clinic_id
+        AND (is_guest = false OR is_guest IS NULL);
+      
+      IF FOUND THEN
+        -- Update existing record
+        UPDATE patient_clinic_history
+        SET total_visits = total_visits + 1,
+            completed_visits = completed_visits + 1,
+            last_visit_date = CURRENT_DATE,
+            last_appointment_id = NEW.id,
+            updated_at = NOW()
+        WHERE patient_id = NEW.patient_id 
+          AND clinic_id = NEW.clinic_id
+          AND (is_guest = false OR is_guest IS NULL);
+      ELSE
+        -- Insert new record
+        INSERT INTO patient_clinic_history (
+          patient_id, 
+          clinic_id, 
+          total_visits,
+          completed_visits,
+          is_guest
+        )
+        VALUES (NEW.patient_id, NEW.clinic_id, 1, 1, false);
+      END IF;
     END IF;
   END IF;
 
