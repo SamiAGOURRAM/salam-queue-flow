@@ -6,8 +6,35 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, MapPin, Phone, Clock, Calendar } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Search, MapPin, Phone, Clock, Calendar, CreditCard, Wallet, Building2, Globe, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+interface ClinicSettings {
+  buffer_time?: number;
+  working_hours?: {
+    [key: string]: {
+      open?: string;
+      close?: string;
+      closed?: boolean;
+    };
+  };
+  allow_walk_ins?: boolean;
+  max_queue_size?: number;
+  payment_methods?: {
+    cash?: boolean;
+    card?: boolean;
+    online?: boolean;
+    insurance?: boolean;
+  };
+  appointment_types?: Array<{
+    name: string;
+    label: string;
+    duration: number;
+  }>;
+  requires_appointment?: boolean;
+  average_appointment_duration?: number;
+}
 
 interface Clinic {
   id: string;
@@ -18,6 +45,7 @@ interface Clinic {
   address: string;
   phone: string;
   logo_url: string | null;
+  settings: ClinicSettings | null;
 }
 
 const ClinicDirectory = () => {
@@ -43,7 +71,7 @@ const ClinicDirectory = () => {
         .order("name");
 
       if (error) throw error;
-      setClinics(data || []);
+      setClinics((data as Clinic[]) ?? []);
     } catch (error) {
       console.error("Error fetching clinics:", error);
       toast({
@@ -54,6 +82,31 @@ const ClinicDirectory = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getTodaySchedule = (clinic: Clinic) => {
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const today = days[new Date().getDay()];
+    const schedule = clinic.settings?.working_hours?.[today];
+    
+    if (!schedule || schedule.closed) {
+      return { isOpen: false, hours: "Closed" };
+    }
+    
+    return { 
+      isOpen: true, 
+      hours: `${schedule.open} - ${schedule.close}` 
+    };
+  };
+
+  const getPaymentMethods = (clinic: Clinic) => {
+    const methods = clinic.settings?.payment_methods || {};
+    return [
+      { name: "Cash", icon: Wallet, enabled: methods.cash },
+      { name: "Card", icon: CreditCard, enabled: methods.card },
+      { name: "Insurance", icon: Building2, enabled: methods.insurance },
+      { name: "Online", icon: Globe, enabled: methods.online },
+    ].filter(m => m.enabled);
   };
 
   const filteredClinics = clinics.filter((clinic) => {
@@ -79,7 +132,7 @@ const ClinicDirectory = () => {
           <Skeleton className="h-12 w-full" />
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Skeleton key={i} className="h-64" />
+              <Skeleton key={i} className="h-96" />
             ))}
           </div>
         </div>
@@ -163,48 +216,105 @@ const ClinicDirectory = () => {
           </Card>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredClinics.map((clinic) => (
-              <Card
-                key={clinic.id}
-                className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer overflow-hidden"
-                onClick={() => navigate(`/clinic/${clinic.id}`)}
-              >
-                <div className="h-32 bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
-                  {clinic.logo_url ? (
-                    <img src={clinic.logo_url} alt={clinic.name} className="h-20 object-contain" />
-                  ) : (
-                    <div className="text-4xl font-bold text-primary/30">{clinic.name.charAt(0)}</div>
-                  )}
-                </div>
+            {filteredClinics.map((clinic) => {
+              const todaySchedule = getTodaySchedule(clinic);
+              const paymentMethods = getPaymentMethods(clinic);
+              const allowWalkIns = clinic.settings?.allow_walk_ins;
+              const avgDuration = clinic.settings?.average_appointment_duration;
 
-                <div className="p-6 space-y-4">
-                  <div>
-                    <h3 className="text-xl font-semibold mb-1 group-hover:text-primary transition-colors">
-                      {clinic.name}
-                    </h3>
-                    <p className="text-sm text-primary font-medium">{clinic.specialty}</p>
-                  </div>
-
-                  <div className="space-y-2 text-sm text-muted-foreground">
-                    <div className="flex items-start gap-2">
-                      <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                      <span>{clinic.address}, {clinic.city}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 flex-shrink-0" />
-                      <span>{clinic.phone}</span>
+              return (
+                <Card
+                  key={clinic.id}
+                  className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer overflow-hidden border-0"
+                  onClick={() => navigate(`/clinic/${clinic.id}`)}
+                >
+                  {/* Logo Section */}
+                  <div className="h-32 bg-gradient-to-br from-blue-600 to-cyan-600 flex items-center justify-center relative">
+                    {clinic.logo_url ? (
+                      <img src={clinic.logo_url} alt={clinic.name} className="h-20 object-contain" />
+                    ) : (
+                      <div className="text-5xl font-bold text-white">{clinic.name.charAt(0)}</div>
+                    )}
+                    
+                    {/* Open/Closed Badge */}
+                    <div className="absolute top-3 right-3">
+                      <Badge 
+                        variant={todaySchedule.isOpen ? "default" : "secondary"}
+                        className={todaySchedule.isOpen ? "bg-green-500 hover:bg-green-600" : ""}
+                      >
+                        {todaySchedule.isOpen ? "Open Today" : "Closed"}
+                      </Badge>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 pt-2">
-                    <Button className="flex-1 gap-2">
+                  <div className="p-6 space-y-4">
+                    {/* Clinic Name & Specialty */}
+                    <div>
+                      <h3 className="text-xl font-semibold mb-1 group-hover:text-primary transition-colors">
+                        {clinic.name}
+                      </h3>
+                      <p className="text-sm text-primary font-medium">{clinic.specialty}</p>
+                    </div>
+
+                    {/* Contact Info */}
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      <div className="flex items-start gap-2">
+                        <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                        <span>{clinic.address}, {clinic.city}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 flex-shrink-0" />
+                        <span>{clinic.phone}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 flex-shrink-0" />
+                        <span className="font-medium">{todaySchedule.hours}</span>
+                      </div>
+                    </div>
+
+                    {/* Payment Methods */}
+                    {paymentMethods.length > 0 && (
+                      <div className="pt-2 border-t">
+                        <p className="text-xs font-medium text-muted-foreground mb-2">Payment Methods</p>
+                        <div className="flex flex-wrap gap-2">
+                          {paymentMethods.map((method) => (
+                            <div
+                              key={method.name}
+                              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium"
+                            >
+                              <method.icon className="h-3 w-3" />
+                              <span>{method.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Additional Info */}
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground pt-2 border-t">
+                      {allowWalkIns && (
+                        <div className="flex items-center gap-1">
+                          <Check className="h-3 w-3 text-green-500" />
+                          <span>Walk-ins</span>
+                        </div>
+                      )}
+                      {avgDuration && (
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          <span>~{avgDuration} min</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Book Button */}
+                    <Button className="w-full gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700">
                       <Calendar className="h-4 w-4" />
-                      Book Now
+                      Book Appointment
                     </Button>
                   </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>

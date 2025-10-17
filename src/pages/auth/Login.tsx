@@ -37,7 +37,7 @@ export default function Login() {
           .single();
 
         if (roles?.role === "patient") {
-          navigate("/patient/dashboard");
+          navigate("/");
         } else if (roles?.role === "clinic_owner") {
           navigate("/clinic/dashboard");
         } else if (roles?.role === "staff") {

@@ -5,8 +5,50 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, MapPin, Phone, Mail, Clock, Calendar, User } from "lucide-react";
+import { 
+  ArrowLeft, 
+  MapPin, 
+  Phone, 
+  Mail, 
+  Clock, 
+  Calendar, 
+  User,
+  CreditCard,
+  Wallet,
+  Building2,
+  Globe,
+  Check,
+  X,
+  Timer,
+  Users
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+interface ClinicSettings {
+  buffer_time?: number;
+  working_hours?: {
+    [key: string]: {
+      open?: string;
+      close?: string;
+      closed?: boolean;
+    };
+  };
+  allow_walk_ins?: boolean;
+  max_queue_size?: number;
+  payment_methods?: {
+    cash?: boolean;
+    card?: boolean;
+    online?: boolean;
+    insurance?: boolean;
+  };
+  appointment_types?: Array<{
+    name: string;
+    label: string;
+    duration: number;
+  }>;
+  requires_appointment?: boolean;
+  average_appointment_duration?: number;
+}
 
 interface Clinic {
   id: string;
@@ -97,6 +139,35 @@ const ClinicDetailView = () => {
     }
   };
 
+  const getTodaySchedule = () => {
+    if (!clinic?.settings?.working_hours) return { isOpen: false, hours: "Closed" };
+    
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const today = days[new Date().getDay()];
+    const schedule = clinic.settings.working_hours[today];
+    
+    if (!schedule || schedule.closed) {
+      return { isOpen: false, hours: "Closed" };
+    }
+    
+    return { 
+      isOpen: true, 
+      hours: `${schedule.open} - ${schedule.close}` 
+    };
+  };
+
+  const getPaymentMethods = () => {
+    if (!clinic?.settings?.payment_methods) return [];
+    
+    const methods = clinic.settings.payment_methods;
+    return [
+      { name: "Cash", icon: Wallet, enabled: methods.cash },
+      { name: "Card", icon: CreditCard, enabled: methods.card },
+      { name: "Insurance", icon: Building2, enabled: methods.insurance },
+      { name: "Online Payment", icon: Globe, enabled: methods.online },
+    ];
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -118,97 +189,261 @@ const ClinicDetailView = () => {
     );
   }
 
+  const todaySchedule = getTodaySchedule();
+  const paymentMethods = getPaymentMethods();
+  const appointmentTypes = clinic.settings?.appointment_types || [];
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 pt-16">
       <div className="container mx-auto px-4 py-8">
         {/* Back Button */}
-        <Button variant="ghost" onClick={() => navigate("/")} className="mb-6 gap-2">
+        <Button 
+          variant="ghost" 
+          onClick={() => navigate("/")} 
+          className="mb-6 gap-2 hover:gap-3 transition-all"
+        >
           <ArrowLeft className="h-4 w-4" />
           Back to Clinics
         </Button>
 
-        {/* Clinic Header */}
-        <Card className="p-8 mb-6">
-          <div className="flex flex-col md:flex-row gap-6">
-            <div className="w-32 h-32 bg-gradient-to-br from-primary/10 to-primary/5 rounded-lg flex items-center justify-center flex-shrink-0">
-              {clinic.logo_url ? (
-                <img src={clinic.logo_url} alt={clinic.name} className="h-24 object-contain" />
-              ) : (
-                <div className="text-5xl font-bold text-primary/30">{clinic.name.charAt(0)}</div>
-              )}
+        {/* Hero Section - Clinic Header */}
+        <Card className="overflow-hidden border-0 shadow-xl mb-6">
+          <div className="h-32 bg-gradient-to-br from-blue-600 to-cyan-600 relative">
+            <div className="absolute top-4 right-4">
+              <Badge 
+                variant={todaySchedule.isOpen ? "default" : "secondary"}
+                className={`${todaySchedule.isOpen ? "bg-green-500 hover:bg-green-600" : ""} text-sm px-3 py-1`}
+              >
+                {todaySchedule.isOpen ? "Open Now" : "Closed"}
+              </Badge>
             </div>
+          </div>
 
-            <div className="flex-1 space-y-4">
-              <div>
-                <h1 className="text-3xl font-bold mb-2">{clinic.name}</h1>
-                <Badge variant="secondary" className="text-sm">{clinic.specialty}</Badge>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-3 text-sm">
-                <div className="flex items-start gap-2">
-                  <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                  <span>{clinic.address}, {clinic.city}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span>{clinic.phone}</span>
-                </div>
-                {clinic.email && (
-                  <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span>{clinic.email}</span>
-                  </div>
+          <div className="p-8">
+            <div className="flex flex-col md:flex-row gap-6 -mt-16">
+              {/* Logo */}
+              <div className="w-32 h-32 bg-white rounded-xl shadow-lg flex items-center justify-center flex-shrink-0 border-4 border-background">
+                {clinic.logo_url ? (
+                  <img src={clinic.logo_url} alt={clinic.name} className="h-20 object-contain" />
+                ) : (
+                  <div className="text-5xl font-bold text-primary">{clinic.name.charAt(0)}</div>
                 )}
               </div>
 
-              <Button size="lg" onClick={() => navigate(`/booking/${clinic.id}`)} className="gap-2">
-                <Calendar className="h-5 w-5" />
-                Book Appointment
-              </Button>
+              {/* Clinic Info */}
+              <div className="flex-1 space-y-4 mt-4 md:mt-0">
+                <div>
+                  <h1 className="text-4xl font-bold mb-2">{clinic.name}</h1>
+                  <Badge className="text-sm bg-gradient-to-r from-blue-600 to-cyan-600">
+                    {clinic.specialty}
+                  </Badge>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-3 text-sm">
+                  <div className="flex items-start gap-2">
+                    <MapPin className="h-5 w-5 mt-0.5 text-blue-600 flex-shrink-0" />
+                    <span className="font-medium">{clinic.address}, {clinic.city}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                    <span className="font-medium">{clinic.phone}</span>
+                  </div>
+                  {clinic.email && (
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                      <span className="font-medium">{clinic.email}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                    <span className="font-medium">Today: {todaySchedule.hours}</span>
+                  </div>
+                </div>
+
+                <Button 
+                  size="lg" 
+                  onClick={() => navigate(`/booking/${clinic.id}`)} 
+                  className="gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg"
+                >
+                  <Calendar className="h-5 w-5" />
+                  Book Appointment
+                </Button>
+              </div>
             </div>
           </div>
         </Card>
 
-        {/* Working Hours */}
-        {clinic.settings?.working_hours && (
-          <Card className="p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Working Hours
-            </h2>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {Object.entries(clinic.settings.working_hours).map(([day, hours]: [string, any]) => (
-                <div key={day} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
-                  <span className="font-medium capitalize">{day}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {hours.closed ? "Closed" : `${hours.open} - ${hours.close}`}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Left Column */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Payment Methods */}
+            <Card className="p-6 border-0 shadow-lg">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-blue-600" />
+                Payment Methods
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {paymentMethods.map((method) => (
+                  <div
+                    key={method.name}
+                    className={`p-4 rounded-lg border-2 flex flex-col items-center gap-2 transition-all ${
+                      method.enabled
+                        ? "border-blue-200 bg-blue-50 dark:bg-blue-950/20"
+                        : "border-gray-200 bg-gray-50 dark:bg-gray-900/20 opacity-50"
+                    }`}
+                  >
+                    <method.icon className={`h-6 w-6 ${method.enabled ? "text-blue-600" : "text-gray-400"}`} />
+                    <span className="text-xs font-medium text-center">{method.name}</span>
+                    {method.enabled ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <X className="h-4 w-4 text-gray-400" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Card>
 
-        {/* Staff Members */}
-        {staff.length > 0 && (
-          <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Our Team
-            </h2>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {staff.map((member) => (
-                <div key={member.id} className="p-4 bg-muted/50 rounded-lg space-y-2">
-                  <h3 className="font-semibold">{member.profiles?.full_name || "Staff Member"}</h3>
-                  <p className="text-sm text-primary">{member.role}</p>
-                  {member.specialization && (
-                    <p className="text-sm text-muted-foreground">{member.specialization}</p>
-                  )}
+            {/* Appointment Types */}
+            {appointmentTypes.length > 0 && (
+              <Card className="p-6 border-0 shadow-lg">
+                <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                  <Timer className="h-5 w-5 text-blue-600" />
+                  Available Services
+                </h2>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {appointmentTypes.map((type) => (
+                    <div
+                      key={type.name}
+                      className="p-4 rounded-lg bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border border-blue-100 dark:border-blue-900"
+                    >
+                      <h3 className="font-semibold text-lg mb-1">{type.label}</h3>
+                      <p className="text-sm text-muted-foreground flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {type.duration} minutes
+                      </p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </Card>
-        )}
+              </Card>
+            )}
+
+            {/* Working Hours */}
+            {clinic.settings?.working_hours && (
+              <Card className="p-6 border-0 shadow-lg">
+                <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-blue-600" />
+                  Working Hours
+                </h2>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {Object.entries(clinic.settings.working_hours).map(([day, hours]: [string, any]) => {
+                    const isToday = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][new Date().getDay()] === day;
+                    return (
+                      <div 
+                        key={day} 
+                        className={`flex justify-between items-center p-3 rounded-lg transition-all ${
+                          isToday 
+                            ? "bg-gradient-to-r from-blue-100 to-cyan-100 dark:from-blue-950/40 dark:to-cyan-950/40 border border-blue-200 dark:border-blue-800" 
+                            : "bg-muted/50"
+                        }`}
+                      >
+                        <span className={`font-medium capitalize ${isToday ? "text-blue-700 dark:text-blue-400" : ""}`}>
+                          {day}
+                          {isToday && " (Today)"}
+                        </span>
+                        <span className={`text-sm ${hours.closed ? "text-red-500" : "text-muted-foreground font-medium"}`}>
+                          {hours.closed ? "Closed" : `${hours.open} - ${hours.close}`}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            )}
+          </div>
+
+          {/* Right Column */}
+          <div className="space-y-6">
+            {/* Clinic Features */}
+            <Card className="p-6 border-0 shadow-lg">
+              <h2 className="text-xl font-semibold mb-4">Clinic Info</h2>
+              <div className="space-y-3">
+                {clinic.settings?.allow_walk_ins !== undefined && (
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                    {clinic.settings.allow_walk_ins ? (
+                      <Check className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <X className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+                    )}
+                    <div>
+                      <p className="font-medium">Walk-in Patients</p>
+                      <p className="text-sm text-muted-foreground">
+                        {clinic.settings.allow_walk_ins ? "Accepted" : "Not accepted"}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {clinic.settings?.average_appointment_duration && (
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                    <Clock className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium">Avg. Appointment</p>
+                      <p className="text-sm text-muted-foreground">
+                        ~{clinic.settings.average_appointment_duration} minutes
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {clinic.settings?.max_queue_size && (
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                    <Users className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium">Max Queue Size</p>
+                      <p className="text-sm text-muted-foreground">
+                        {clinic.settings.max_queue_size} patients
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {clinic.settings?.buffer_time && (
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                    <Timer className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium">Buffer Time</p>
+                      <p className="text-sm text-muted-foreground">
+                        {clinic.settings.buffer_time} minutes between appointments
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* Staff Members */}
+            {staff.length > 0 && (
+              <Card className="p-6 border-0 shadow-lg">
+                <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                  <User className="h-5 w-5 text-blue-600" />
+                  Our Team
+                </h2>
+                <div className="space-y-3">
+                  {staff.map((member) => (
+                    <div key={member.id} className="p-4 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 rounded-lg border border-blue-100 dark:border-blue-900">
+                      <h3 className="font-semibold">{member.profiles?.full_name || "Staff Member"}</h3>
+                      <p className="text-sm text-blue-600 font-medium">{member.role}</p>
+                      {member.specialization && (
+                        <p className="text-sm text-muted-foreground mt-1">{member.specialization}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
