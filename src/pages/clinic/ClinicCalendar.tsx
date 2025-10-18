@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
-import { Activity, Calendar as CalendarIcon, Plus, Clock } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, Clock } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { BookAppointmentDialog } from "@/components/clinic/BookAppointmentDialog";
@@ -21,8 +20,7 @@ interface Appointment {
 }
 
 export default function ClinicCalendar() {
-  const { user, loading, isClinicOwner, isStaff, signOut } = useAuth();
-  const navigate = useNavigate();
+  const { user, isClinicOwner, isStaff } = useAuth();
   const [clinic, setClinic] = useState<any>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -30,12 +28,10 @@ export default function ClinicCalendar() {
   const [showBookAppointment, setShowBookAppointment] = useState(false);
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate("/auth/login");
-    } else if (user && (isClinicOwner || isStaff)) {
+    if (user && (isClinicOwner || isStaff)) {
       fetchClinicAndAppointments();
     }
-  }, [user, loading, isClinicOwner, isStaff]);
+  }, [user, isClinicOwner, isStaff]);
 
   useEffect(() => {
     if (clinic?.id && selectedDate) {
@@ -44,14 +40,29 @@ export default function ClinicCalendar() {
   }, [selectedDate, clinic?.id]);
 
   const fetchClinicAndAppointments = async () => {
-    const { data: clinicData } = await supabase
-      .from("clinics")
-      .select("*")
-      .eq("owner_id", user?.id)
-      .single();
+    try {
+      let query = supabase.from("clinics").select("*");
 
-    if (clinicData) {
-      setClinic(clinicData);
+      if (isClinicOwner) {
+        query = query.eq("owner_id", user?.id);
+      } else if (isStaff) {
+        const { data: staffData } = await supabase
+          .from("clinic_staff")
+          .select("clinic_id")
+          .eq("user_id", user?.id)
+          .single();
+
+        if (staffData) {
+          query = query.eq("id", staffData.clinic_id);
+        }
+      }
+
+      const { data } = await query.single();
+      if (data) {
+        setClinic(data);
+      }
+    } catch (error) {
+      console.error("Error fetching clinic:", error);
     }
   };
 
@@ -124,132 +135,95 @@ export default function ClinicCalendar() {
   const workingHours = getWorkingHours();
   const isClosed = workingHours?.closed;
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Activity className="w-6 h-6 text-primary" />
-            <span className="text-xl font-bold">{clinic?.name || "QueueMed"}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {!isStaff && (
-              <>
-                <Button variant="outline" onClick={() => navigate("/clinic/dashboard")}>
-                  Dashboard
-                </Button>
-                <Button variant="outline" onClick={() => navigate("/clinic/profile")}>
-                  Profile
-                </Button>
-                <Button variant="outline" onClick={() => navigate("/clinic/settings")}>
-                  Settings
-                </Button>
-                <Button variant="outline" onClick={() => navigate("/clinic/team")}>
-                  Team
-                </Button>
-              </>
-            )}
-            <Button variant="outline" onClick={() => navigate("/clinic/queue")}>
-              Live Queue
-            </Button>
-            <Button variant="outline" onClick={signOut}>
-              Sign Out
-            </Button>
-          </div>
-        </div>
-      </header>
+    <div className="space-y-8">
+      {/* Page Header */}
+      <div>
+        <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
+          <CalendarIcon className="w-8 h-8" />
+          Schedule Calendar
+        </h1>
+        <p className="text-muted-foreground">View and manage appointments by date</p>
+      </div>
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
-            <CalendarIcon className="w-8 h-8" />
-            Schedule Calendar
-          </h1>
-          <p className="text-muted-foreground">View and manage appointments by date</p>
-        </div>
+      {/* Calendar Grid */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-1 border-0 shadow-lg">
+          <CardHeader>
+            <CardTitle>Select Date</CardTitle>
+            <CardDescription>Choose a date to view appointments</CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => date && setSelectedDate(date)}
+              className="rounded-md border"
+            />
+          </CardContent>
+        </Card>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          <Card className="lg:col-span-1">
-            <CardHeader>
-              <CardTitle>Select Date</CardTitle>
-              <CardDescription>Choose a date to view appointments</CardDescription>
-            </CardHeader>
-            <CardContent className="flex justify-center">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={(date) => date && setSelectedDate(date)}
-                className="rounded-md border"
-              />
-            </CardContent>
-          </Card>
-
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Appointments for {format(selectedDate, 'MMMM d, yyyy')}</CardTitle>
-                  <CardDescription>
-                    {isClosed ? (
-                      <span className="text-destructive">Clinic closed on this day</span>
-                    ) : workingHours ? (
-                      <span>Working hours: {workingHours.open} - {workingHours.close}</span>
-                    ) : (
-                      <span>No working hours configured</span>
-                    )}
-                  </CardDescription>
-                </div>
-                <Button onClick={() => setShowBookAppointment(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Book Appointment
-                </Button>
+        <Card className="lg:col-span-2 border-0 shadow-lg">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Appointments for {format(selectedDate, 'MMMM d, yyyy')}</CardTitle>
+                <CardDescription>
+                  {isClosed ? (
+                    <span className="text-destructive">Clinic closed on this day</span>
+                  ) : workingHours ? (
+                    <span>Working hours: {workingHours.open} - {workingHours.close}</span>
+                  ) : (
+                    <span>No working hours configured</span>
+                  )}
+                </CardDescription>
               </div>
-            </CardHeader>
-            <CardContent>
-              {loadingAppointments ? (
-                <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
-                </div>
-              ) : appointments.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>No appointments scheduled for this day</p>
-                  <p className="text-sm mt-2">Click "Book Appointment" to add one</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {appointments.map((apt) => (
-                    <div key={apt.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium">{apt.scheduled_time}</span>
-                          <span className="text-muted-foreground">-</span>
-                          <span className="font-medium">{apt.patient_name}</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground capitalize">
-                          {apt.appointment_type.replace('_', ' ')}
-                        </p>
+              <Button 
+                onClick={() => setShowBookAppointment(true)}
+                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Book Appointment
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loadingAppointments ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+              </div>
+            ) : appointments.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No appointments scheduled for this day</p>
+                <p className="text-sm mt-2">Click "Book Appointment" to add one</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {appointments.map((apt) => (
+                  <div key={apt.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium">{apt.scheduled_time}</span>
+                        <span className="text-muted-foreground">-</span>
+                        <span className="font-medium">{apt.patient_name}</span>
                       </div>
-                      <div>
-                        {getStatusBadge(apt.status)}
-                      </div>
+                      <p className="text-sm text-muted-foreground capitalize">
+                        {apt.appointment_type.replace('_', ' ')}
+                      </p>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </main>
+                    <div>
+                      {getStatusBadge(apt.status)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
+      {/* Dialog */}
       <BookAppointmentDialog
         open={showBookAppointment}
         onOpenChange={setShowBookAppointment}

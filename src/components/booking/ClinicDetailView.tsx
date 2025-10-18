@@ -194,7 +194,7 @@ const ClinicDetailView = () => {
   const appointmentTypes = clinic.settings?.appointment_types || [];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 pt-16">
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 ">
       <div className="container mx-auto px-4 py-8">
         {/* Back Button */}
         <Button 
@@ -207,71 +207,72 @@ const ClinicDetailView = () => {
         </Button>
 
         {/* Hero Section - Clinic Header */}
-        <Card className="overflow-hidden border-0 shadow-xl mb-6">
-          <div className="h-32 bg-gradient-to-br from-blue-600 to-cyan-600 relative">
-            <div className="absolute top-4 right-4">
-              <Badge 
-                variant={todaySchedule.isOpen ? "default" : "secondary"}
-                className={`${todaySchedule.isOpen ? "bg-green-500 hover:bg-green-600" : ""} text-sm px-3 py-1`}
-              >
-                {todaySchedule.isOpen ? "Open Now" : "Closed"}
-              </Badge>
-            </div>
+{/* Hero Section - Clinic Header */}
+<Card className="overflow-hidden border-0 shadow-xl mb-6">
+  <div className="h-12 bg-gradient-to-br from-blue-600 to-cyan-600 relative">
+    <div className="absolute top-2 right-4">
+      <Badge 
+        variant={todaySchedule.isOpen ? "default" : "secondary"}
+        className={`${todaySchedule.isOpen ? "bg-green-500 hover:bg-green-600" : ""} text-sm px-3 py-1`}
+      >
+        {todaySchedule.isOpen ? "Open Now" : "Closed"}
+      </Badge>
+    </div>
+  </div>
+
+  <div className="p-4 pt-4">
+    <div className="flex flex-col md:flex-row gap-6">
+      {/* Logo */}
+      <div className="w-20 h-20 bg-white rounded-xl shadow-lg flex items-center justify-center flex-shrink-0 border-4 border-background">
+        {clinic.logo_url ? (
+          <img src={clinic.logo_url} alt={clinic.name} className="h-14 object-contain" />
+        ) : (
+          <div className="text-3xl font-bold text-primary">{clinic.name.charAt(0)}</div>
+        )}
+      </div>
+
+      {/* Clinic Info */}
+      <div className="flex-1 space-y-4">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-bold mb-2">{clinic.name}</h1>
+          <Badge className="text-sm bg-gradient-to-r from-blue-600 to-cyan-600">
+            {clinic.specialty}
+          </Badge>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-3 text-sm">
+          <div className="flex items-start gap-2">
+            <MapPin className="h-5 w-5 mt-0.5 text-blue-600 flex-shrink-0" />
+            <span className="font-medium">{clinic.address}, {clinic.city}</span>
           </div>
-
-          <div className="p-8">
-            <div className="flex flex-col md:flex-row gap-6 -mt-16">
-              {/* Logo */}
-              <div className="w-32 h-32 bg-white rounded-xl shadow-lg flex items-center justify-center flex-shrink-0 border-4 border-background">
-                {clinic.logo_url ? (
-                  <img src={clinic.logo_url} alt={clinic.name} className="h-20 object-contain" />
-                ) : (
-                  <div className="text-5xl font-bold text-primary">{clinic.name.charAt(0)}</div>
-                )}
-              </div>
-
-              {/* Clinic Info */}
-              <div className="flex-1 space-y-4 mt-4 md:mt-0">
-                <div>
-                  <h1 className="text-4xl font-bold mb-2">{clinic.name}</h1>
-                  <Badge className="text-sm bg-gradient-to-r from-blue-600 to-cyan-600">
-                    {clinic.specialty}
-                  </Badge>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-3 text-sm">
-                  <div className="flex items-start gap-2">
-                    <MapPin className="h-5 w-5 mt-0.5 text-blue-600 flex-shrink-0" />
-                    <span className="font-medium">{clinic.address}, {clinic.city}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-5 w-5 text-blue-600 flex-shrink-0" />
-                    <span className="font-medium">{clinic.phone}</span>
-                  </div>
-                  {clinic.email && (
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-5 w-5 text-blue-600 flex-shrink-0" />
-                      <span className="font-medium">{clinic.email}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-blue-600 flex-shrink-0" />
-                    <span className="font-medium">Today: {todaySchedule.hours}</span>
-                  </div>
-                </div>
-
-                <Button 
-                  size="lg" 
-                  onClick={() => navigate(`/booking/${clinic.id}`)} 
-                  className="gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg"
-                >
-                  <Calendar className="h-5 w-5" />
-                  Book Appointment
-                </Button>
-              </div>
-            </div>
+          <div className="flex items-center gap-2">
+            <Phone className="h-5 w-5 text-blue-600 flex-shrink-0" />
+            <span className="font-medium">{clinic.phone}</span>
           </div>
-        </Card>
+          {clinic.email && (
+            <div className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-blue-600 flex-shrink-0" />
+              <span className="font-medium">{clinic.email}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <Clock className="h-5 w-5 text-blue-600 flex-shrink-0" />
+            <span className="font-medium">Today: {todaySchedule.hours}</span>
+          </div>
+        </div>
+
+        <Button 
+          size="lg" 
+          onClick={() => navigate(`/booking/${clinic.id}`)} 
+          className="gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg"
+        >
+          <Calendar className="h-5 w-5" />
+          Book Appointment
+        </Button>
+      </div>
+    </div>
+  </div>
+</Card>
 
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Left Column */}

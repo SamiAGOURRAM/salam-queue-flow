@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,11 +15,71 @@ interface AddWalkInDialogProps {
   onSuccess: () => void;
 }
 
+interface AppointmentType {
+  name: string;
+  label: string;
+  duration: number;
+}
+
+interface ClinicSettings {
+  appointment_types?: AppointmentType[];
+}
+
 export function AddWalkInDialog({ open, onOpenChange, clinicId, onSuccess }: AddWalkInDialogProps) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [appointmentType, setAppointmentType] = useState("consultation");
+  const [appointmentType, setAppointmentType] = useState("");
   const [loading, setLoading] = useState(false);
+  const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
+
+  // Fetch clinic settings when dialog opens
+  useEffect(() => {
+    if (open && clinicId) {
+      fetchClinicSettings();
+    }
+  }, [open, clinicId]);
+
+  const fetchClinicSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("clinics")
+        .select("settings")
+        .eq("id", clinicId)
+        .single();
+
+      if (error) throw error;
+
+      const settings = data?.settings as ClinicSettings;
+      
+      // Get appointment types from settings or use defaults
+      const types = settings?.appointment_types && settings.appointment_types.length > 0
+        ? settings.appointment_types
+        : [
+            { name: "consultation", label: "Consultation", duration: 15 },
+            { name: "follow_up", label: "Follow-up", duration: 10 },
+            { name: "emergency", label: "Emergency", duration: 30 },
+            { name: "vaccination", label: "Vaccination", duration: 15 },
+            { name: "test", label: "Test", duration: 20 },
+          ];
+
+      setAppointmentTypes(types);
+      
+      // Set first type as default if not already set
+      if (!appointmentType && types.length > 0) {
+        setAppointmentType(types[0].name);
+      }
+    } catch (error) {
+      logger.error("Error fetching clinic settings", error);
+      // Use default types on error
+      const defaultTypes = [
+        { name: "consultation", label: "Consultation", duration: 15 },
+        { name: "follow_up", label: "Follow-up", duration: 10 },
+        { name: "emergency", label: "Emergency", duration: 30 },
+      ];
+      setAppointmentTypes(defaultTypes);
+      setAppointmentType(defaultTypes[0].name);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,7 +253,7 @@ export function AddWalkInDialog({ open, onOpenChange, clinicId, onSuccess }: Add
       // Reset form
       setName("");
       setPhone("");
-      setAppointmentType("consultation");
+      setAppointmentType(appointmentTypes.length > 0 ? appointmentTypes[0].name : "");
       
       onSuccess();
       onOpenChange(false);
@@ -242,16 +302,25 @@ export function AddWalkInDialog({ open, onOpenChange, clinicId, onSuccess }: Add
           </div>
           <div>
             <Label htmlFor="type">Appointment Type</Label>
-            <Select value={appointmentType} onValueChange={setAppointmentType} disabled={loading}>
+            <Select 
+              value={appointmentType} 
+              onValueChange={setAppointmentType} 
+              disabled={loading || appointmentTypes.length === 0}
+            >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Select type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="consultation">Consultation</SelectItem>
-                <SelectItem value="follow_up">Follow-up</SelectItem>
-                <SelectItem value="emergency">Emergency</SelectItem>
-                <SelectItem value="vaccination">Vaccination</SelectItem>
-                <SelectItem value="test">Test</SelectItem>
+                {appointmentTypes.map((type) => (
+                  <SelectItem key={type.name} value={type.name}>
+                    <div className="flex items-center justify-between w-full">
+                      <span>{type.label}</span>
+                      <span className="text-xs text-muted-foreground ml-4">
+                        ({type.duration} min)
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

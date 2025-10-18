@@ -203,33 +203,7 @@ export default function ClinicSettings() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
-      {/* Modern Header */}
-      <header className="sticky top-0 z-50 border-b bg-white/80 backdrop-blur-md shadow-sm">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 shadow-lg shadow-blue-500/30">
-                <Activity className="w-6 h-6 text-white" />
-                <span className="text-xl font-bold text-white">{clinic?.name || "QueueMed"}</span>
-              </div>
-              <div className="hidden md:block h-8 w-px bg-gray-200" />
-              <h1 className="hidden md:block text-lg font-semibold text-gray-700">Settings</h1>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => navigate("/clinic/profile")} className="border-2">
-                Profile
-              </Button>
-              <Button variant="outline" onClick={() => navigate("/clinic/queue")} className="border-2">
-                Queue
-              </Button>
-              <Button variant="ghost" onClick={signOut} className="text-red-600 hover:text-red-700 hover:bg-red-50">
-                Sign Out
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="space-y-8">
 
       <main className="container mx-auto px-6 py-8 max-w-5xl">
         <div className="mb-8 space-y-2">

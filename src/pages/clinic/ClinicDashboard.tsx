@@ -2,25 +2,20 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Users, Clock, TrendingUp, UserPlus, Settings } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Activity, Users, Clock, TrendingUp, Calendar, UserPlus, ArrowRight, Sparkles } from "lucide-react";
 
 export default function ClinicDashboard() {
-  const { user, loading, isClinicOwner, signOut } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [clinic, setClinic] = useState<any>(null);
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate("/auth/login");
-    } else if (!loading && !isClinicOwner) {
-      // Redirect staff to queue page
-      navigate("/clinic/queue");
-    } else if (user && isClinicOwner) {
+    if (user) {
       fetchClinic();
     }
-  }, [user, loading, isClinicOwner]);
+  }, [user]);
 
   const fetchClinic = async () => {
     const { data } = await supabase
@@ -32,114 +27,252 @@ export default function ClinicDashboard() {
     setClinic(data);
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Activity className="w-6 h-6 text-primary" />
-            <span className="text-xl font-bold">{clinic?.name || "QueueMed"}</span>
+    <div className="space-y-8">
+      {/* Hero Section */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-cyan-600 to-blue-700 p-8 text-white shadow-2xl">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-cyan-400/10 rounded-full -ml-48 -mb-48 blur-3xl"></div>
+        
+        <div className="relative z-10">
+          <div className="flex items-start justify-between mb-6">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles className="w-5 h-5" />
+                <span className="text-sm font-medium text-blue-100">Welcome back!</span>
+              </div>
+              <h1 className="text-4xl font-bold mb-2">{clinic?.name || "Your Clinic"}</h1>
+              <p className="text-xl text-blue-100">
+                {clinic?.practice_type === "solo_practice" ? "Solo Practice" : "Group Clinic"} • {clinic?.specialty}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => navigate("/clinic/profile")}>
-              Profile
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8">
+            <Button
+              onClick={() => navigate("/clinic/queue")}
+              size="lg"
+              className="bg-white/20 backdrop-blur-sm hover:bg-white/30 border-2 border-white/30 text-white h-auto py-4 justify-start"
+            >
+              <Activity className="w-5 h-5 mr-3" />
+              <div className="text-left">
+                <div className="font-semibold">Manage Queue</div>
+                <div className="text-xs text-blue-100">View live patient queue</div>
+              </div>
             </Button>
-            <Button variant="outline" onClick={() => navigate("/clinic/settings")}>
-              <Settings className="w-4 h-4 mr-2" />
-              Settings
+            
+            <Button
+              onClick={() => navigate("/clinic/calendar")}
+              size="lg"
+              className="bg-white/20 backdrop-blur-sm hover:bg-white/30 border-2 border-white/30 text-white h-auto py-4 justify-start"
+            >
+              <Calendar className="w-5 h-5 mr-3" />
+              <div className="text-left">
+                <div className="font-semibold">View Calendar</div>
+                <div className="text-xs text-blue-100">Schedule appointments</div>
+              </div>
             </Button>
-            <Button variant="outline" onClick={() => navigate("/clinic/team")}>
-              <UserPlus className="w-4 h-4 mr-2" />
-              Team
-            </Button>
-            <Button variant="outline" onClick={() => navigate("/clinic/calendar")}>
-              Calendar
-            </Button>
-            <Button variant="default" onClick={() => navigate("/clinic/queue")}>
-              Live Queue
-            </Button>
-            <Button variant="outline" onClick={signOut}>
-              Sign Out
+            
+            <Button
+              onClick={() => navigate("/clinic/team")}
+              size="lg"
+              className="bg-white/20 backdrop-blur-sm hover:bg-white/30 border-2 border-white/30 text-white h-auto py-4 justify-start"
+            >
+              <UserPlus className="w-5 h-5 mr-3" />
+              <div className="text-left">
+                <div className="font-semibold">Manage Team</div>
+                <div className="text-xs text-blue-100">Invite staff members</div>
+              </div>
             </Button>
           </div>
         </div>
-      </header>
+      </div>
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Clinic Dashboard</h1>
-          <p className="text-muted-foreground">
-            {clinic?.practice_type === "solo_practice" ? "Solo Practice" : "Group Clinic"} • {clinic?.specialty}
-          </p>
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Today's Queue</CardTitle>
-              <Users className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">patients waiting</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Avg Wait Time</CardTitle>
-              <Clock className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">-</div>
-              <p className="text-xs text-muted-foreground">No data yet</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Completed Today</CardTitle>
-              <TrendingUp className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">appointments</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Active Staff</CardTitle>
-              <Activity className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">1</div>
-              <p className="text-xs text-muted-foreground">available now</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Live Queue</CardTitle>
-            <CardDescription>Real-time queue management</CardDescription>
+      {/* Stats Grid */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-500"></div>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Today's Queue</CardTitle>
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg">
+              <Users className="w-5 h-5 text-white" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-center py-12 text-muted-foreground">
-              <p>No patients in queue</p>
-              <p className="text-sm mt-2">Queue will appear here as patients check in</p>
+          <CardContent className="relative z-10">
+            <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">0</div>
+            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+              patients waiting
+              <ArrowRight className="w-3 h-3" />
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-amber-500/10 to-orange-500/10 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-500"></div>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Avg Wait Time</CardTitle>
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg">
+              <Clock className="w-5 h-5 text-white" />
+            </div>
+          </CardHeader>
+          <CardContent className="relative z-10">
+            <div className="text-3xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">-</div>
+            <p className="text-xs text-muted-foreground mt-1">No data yet</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-500"></div>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Completed Today</CardTitle>
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center shadow-lg">
+              <TrendingUp className="w-5 h-5 text-white" />
+            </div>
+          </CardHeader>
+          <CardContent className="relative z-10">
+            <div className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">0</div>
+            <p className="text-xs text-muted-foreground mt-1">appointments</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-500"></div>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Active Staff</CardTitle>
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg">
+              <Activity className="w-5 h-5 text-white" />
+            </div>
+          </CardHeader>
+          <CardContent className="relative z-10">
+            <div className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">1</div>
+            <p className="text-xs text-muted-foreground mt-1">available now</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Two Column Layout */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Live Queue Status */}
+        <Card className="lg:col-span-2 border-0 shadow-lg hover:shadow-xl transition-shadow">
+          <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                  Live Queue Status
+                </CardTitle>
+                <CardDescription className="text-base mt-1">Real-time patient flow</CardDescription>
+              </div>
+              <Button 
+                onClick={() => navigate("/clinic/queue")}
+                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+              >
+                View Full Queue
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="text-center py-16">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center mx-auto mb-4">
+                <Users className="w-10 h-10 text-blue-600" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">No patients in queue</h3>
+              <p className="text-muted-foreground mb-4">Your queue is currently empty</p>
+              <Button 
+                onClick={() => navigate("/clinic/queue")}
+                variant="outline"
+                className="border-2"
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                Add Walk-in Patient
+              </Button>
             </div>
           </CardContent>
         </Card>
-      </main>
+
+        {/* Quick Actions */}
+        <Card className="border-0 shadow-lg">
+          <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30">
+            <CardTitle className="text-xl">Quick Actions</CardTitle>
+            <CardDescription>Common tasks</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-3">
+            <Button
+              onClick={() => navigate("/clinic/settings")}
+              variant="outline"
+              className="w-full justify-start h-auto py-3 border-2 hover:border-blue-300 hover:bg-blue-50"
+            >
+              <div className="flex items-center gap-3 w-full">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center flex-shrink-0">
+                  <Calendar className="w-5 h-5 text-blue-600" />
+                </div>
+                <div className="text-left flex-1">
+                  <div className="font-semibold text-sm">Clinic Settings</div>
+                  <div className="text-xs text-muted-foreground">Configure hours & types</div>
+                </div>
+              </div>
+            </Button>
+
+            <Button
+              onClick={() => navigate("/clinic/team")}
+              variant="outline"
+              className="w-full justify-start h-auto py-3 border-2 hover:border-green-300 hover:bg-green-50"
+            >
+              <div className="flex items-center gap-3 w-full">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-100 to-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <UserPlus className="w-5 h-5 text-green-600" />
+                </div>
+                <div className="text-left flex-1">
+                  <div className="font-semibold text-sm">Invite Staff</div>
+                  <div className="text-xs text-muted-foreground">Add team members</div>
+                </div>
+              </div>
+            </Button>
+
+            <Button
+              onClick={() => navigate("/clinic/calendar")}
+              variant="outline"
+              className="w-full justify-start h-auto py-3 border-2 hover:border-purple-300 hover:bg-purple-50"
+            >
+              <div className="flex items-center gap-3 w-full">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center flex-shrink-0">
+                  <Calendar className="w-5 h-5 text-purple-600" />
+                </div>
+                <div className="text-left flex-1">
+                  <div className="font-semibold text-sm">Book Appointment</div>
+                  <div className="text-xs text-muted-foreground">Schedule a patient</div>
+                </div>
+              </div>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Clinic Info Card */}
+      <Card className="border-0 shadow-lg">
+        <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30">
+          <CardTitle className="text-xl">Clinic Information</CardTitle>
+          <CardDescription>Your practice details</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="grid md:grid-cols-3 gap-6">
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Practice Type</p>
+              <p className="text-lg font-semibold">
+                {clinic?.practice_type === "solo_practice" ? "Solo Practice" : "Group Clinic"}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Specialty</p>
+              <p className="text-lg font-semibold">{clinic?.specialty || "Not set"}</p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Location</p>
+              <p className="text-lg font-semibold">{clinic?.city || "Not set"}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

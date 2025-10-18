@@ -20,6 +20,9 @@ import TeamManagement from "./pages/clinic/TeamManagement";
 import ClinicSettings from "./pages/clinic/ClinicSettings";
 import ClinicProfile from "./pages/clinic/ClinicProfile";
 import AcceptInvitation from "./pages/AcceptInvitation";
+import ClinicLayout from "./layouts/ClinicLayout";
+import PatientLayout from "./layouts/PatientLayout";
+import PatientProfile from "./pages/patient/PatientProfile";
 
 const queryClient = new QueryClient();
 
@@ -30,24 +33,34 @@ const App = () => (
         <Toaster />
         <Sonner />
         <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/clinic/:clinicId" element={<ClinicDetailView />} />
-          <Route path="/booking/:clinicId" element={<BookingFlow />} />
-          <Route path="/my-appointments" element={<PatientDashboard />} />
+          {/* Auth routes - NO layout */}
           <Route path="/auth/login" element={<Login />} />
           <Route path="/auth/signup" element={<Signup />} />
           <Route path="/auth/onboarding/patient" element={<PatientOnboarding />} />
           <Route path="/auth/onboarding/clinic" element={<ClinicOnboarding />} />
           <Route path="/accept-invitation/:token" element={<AcceptInvitation />} />
-            <Route path="/patient/dashboard" element={<PatientDashboard />} />
+
+          {/* Patient routes - WITH PatientLayout */}
+          <Route element={<PatientLayout />}>
+            <Route path="/" element={<Index />} />
+            <Route path="/my-appointments" element={<PatientDashboard />} />
+            <Route path="/patient/profile" element={<PatientProfile />} />
             <Route path="/patient/queue/:appointmentId" element={<MyQueue />} />
-            <Route path="/clinic/dashboard" element={<ClinicDashboard />} />
-            <Route path="/clinic/queue" element={<ClinicQueue />} />
-            <Route path="/clinic/calendar" element={<ClinicCalendar />} />
-            <Route path="/clinic/team" element={<TeamManagement />} />
-          <Route path="/clinic/settings" element={<ClinicSettings />} />
-          <Route path="/clinic/profile" element={<ClinicProfile />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="/clinic/:clinicId" element={<ClinicDetailView />} />
+            <Route path="/booking/:clinicId" element={<BookingFlow />} />
+          </Route>
+          
+          {/* Clinic routes - WITH ClinicLayout */}
+          <Route path="/clinic" element={<ClinicLayout />}>
+            <Route path="dashboard" element={<ClinicDashboard />} />
+            <Route path="queue" element={<ClinicQueue />} />
+            <Route path="calendar" element={<ClinicCalendar />} />
+            <Route path="team" element={<TeamManagement />} />
+            <Route path="settings" element={<ClinicSettings />} />
+            <Route path="profile" element={<ClinicProfile />} />
+          </Route>
+
+          {/* Catch-all route */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </TooltipProvider>
