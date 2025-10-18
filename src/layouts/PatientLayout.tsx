@@ -7,11 +7,13 @@ import {
   Search, 
   Calendar, 
   User,
-  LogOut
+  LogOut,
+  LogIn // <-- ADDED: LogIn icon
 } from "lucide-react";
 
 export default function PatientLayout() {
-  const { user, signOut } = useAuth();
+  // Destructure 'user' to check the authentication state
+  const { user, signOut } = useAuth(); 
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -34,7 +36,8 @@ export default function PatientLayout() {
   ];
 
   const isActive = (path: string) => {
-    return location.pathname === path;
+    // Note: Use startsWith for paths like /patient/profile/edit
+    return location.pathname === path || (path === "/" && location.pathname === "/");
   };
 
   return (
@@ -53,7 +56,7 @@ export default function PatientLayout() {
               </div>
             </div>
 
-            {/* Navigation Tabs */}
+            {/* Navigation Tabs (Only show if logged in, typically) */}
             <nav className="hidden md:flex items-center gap-2">
               {navigationItems.map((item) => {
                 const Icon = item.icon;
@@ -76,15 +79,28 @@ export default function PatientLayout() {
               })}
             </nav>
 
-            {/* Sign Out */}
-            <Button 
-              variant="ghost" 
-              onClick={signOut} 
-              className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Sign Out</span>
-            </Button>
+            {/* 🟢 CONDITIONAL BUTTON: Sign Out vs Log In */}
+            {user ? (
+              // If user is logged in, show Sign Out
+              <Button 
+                variant="ghost" 
+                onClick={signOut} 
+                className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Sign Out</span>
+              </Button>
+            ) : (
+              // If user is NOT logged in (or just signed out), show Log In
+              <Button 
+                variant="default" 
+                onClick={() => navigate('/auth/login')} 
+                className="gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+              >
+                <LogIn className="w-4 h-4" />
+                <span className="hidden sm:inline">Log In</span>
+              </Button>
+            )}
           </div>
 
           {/* Mobile Navigation */}
