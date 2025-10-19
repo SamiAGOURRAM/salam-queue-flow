@@ -45,6 +45,7 @@ interface ClinicSettings {
     name: string;
     label: string;
     duration: number;
+    price?: number;
   }>;
   requires_appointment?: boolean;
   average_appointment_duration?: number;
@@ -307,27 +308,42 @@ const ClinicDetailView = () => {
 
             {/* Appointment Types */}
             {appointmentTypes.length > 0 && (
-              <Card className="p-6 border-0 shadow-lg">
-                <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                  <Timer className="h-5 w-5 text-blue-600" />
-                  Available Services
-                </h2>
-                <div className="grid sm:grid-cols-2 gap-3">
-                  {appointmentTypes.map((type) => (
-                    <div
-                      key={type.name}
-                      className="p-4 rounded-lg bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border border-blue-100 dark:border-blue-900"
-                    >
-                      <h3 className="font-semibold text-lg mb-1">{type.label}</h3>
-                      <p className="text-sm text-muted-foreground flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {type.duration} minutes
-                      </p>
+            <Card className="p-6 border-0 shadow-lg">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <Timer className="h-5 w-5 text-blue-600" />
+                Available Services
+              </h2>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {appointmentTypes.map((type) => (
+                  <div
+                    key={type.name}
+                    className="p-4 rounded-lg bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border border-blue-100 dark:border-blue-900"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <h3 className="font-semibold text-lg">{type.label}</h3>
+                      {/* NEW: Price Display */}
+                      {type.price ? (
+                        <div className="text-right">
+                          <p className="text-xl font-bold text-blue-600">
+                            {type.price.toFixed(2)}
+                          </p>
+                          <p className="text-xs text-gray-500">MAD</p>
+                        </div>
+                      ) : (
+                        <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs">
+                          Free
+                        </Badge>
+                      )}
                     </div>
-                  ))}
-                </div>
-              </Card>
-            )}
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {type.duration} minutes
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
 
             {/* Working Hours */}
             {clinic.settings?.working_hours && (

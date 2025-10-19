@@ -20,6 +20,12 @@ interface WorkingHours {
     slots?: Array<{ start: string; end: string }>;
   };
 }
+interface AppointmentType {
+  name: string;
+  duration: number;
+  label: string;
+  price?: number;  // NEW: Add this field
+}
 
 export default function ClinicSettings() {
   const { user, loading, isClinicOwner, signOut } = useAuth();
@@ -42,11 +48,11 @@ export default function ClinicSettings() {
   const [avgDuration, setAvgDuration] = useState(15);
   const [bufferTime, setBufferTime] = useState(5);
   const [maxQueueSize, setMaxQueueSize] = useState(50);
-  const [appointmentTypes, setAppointmentTypes] = useState([
-    { name: "consultation", duration: 15, label: "Consultation" },
-    { name: "follow_up", duration: 10, label: "Follow-up" },
-    { name: "procedure", duration: 30, label: "Procedure" },
-    { name: "emergency", duration: 20, label: "Emergency" },
+  const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([
+    { name: "consultation", duration: 15, label: "Consultation", price: undefined },
+    { name: "follow_up", duration: 10, label: "Follow-up", price: undefined },
+    { name: "procedure", duration: 30, label: "Procedure", price: undefined },
+    { name: "emergency", duration: 20, label: "Emergency", price: undefined },
   ]);
 
   useEffect(() => {
@@ -98,10 +104,10 @@ export default function ClinicSettings() {
         online: false,
       });
       setAppointmentTypes(settings.appointment_types || [
-        { name: "consultation", duration: 15, label: "Consultation" },
-        { name: "follow_up", duration: 10, label: "Follow-up" },
-        { name: "procedure", duration: 30, label: "Procedure" },
-        { name: "emergency", duration: 20, label: "Emergency" },
+        { name: "consultation", duration: 15, label: "Consultation", price: undefined },
+        { name: "follow_up", duration: 10, label: "Follow-up", price: undefined },
+        { name: "procedure", duration: 30, label: "Procedure", price: undefined },
+        { name: "emergency", duration: 20, label: "Emergency", price: undefined },
       ]);
     }
   };
@@ -446,104 +452,135 @@ export default function ClinicSettings() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-6 space-y-6">
-                {appointmentTypes.map((type, index) => (
-                  <div key={index} className="flex items-center gap-4 p-4 border rounded-lg hover:border-blue-300 transition-colors">
-                    <div className="flex-1 grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor={`type-label-${index}`} className="text-sm font-medium">
-                          Type Name
-                        </Label>
-                        <Input
-                          id={`type-label-${index}`}
-                          value={type.label}
-                          onChange={(e) => {
-                            const updated = [...appointmentTypes];
-                            updated[index].label = e.target.value;
-                            setAppointmentTypes(updated);
-                          }}
-                          placeholder="e.g., Consultation"
-                          className="h-11"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor={`type-duration-${index}`} className="text-sm font-medium">
-                          Duration (minutes)
-                        </Label>
-                        <Input
-                          id={`type-duration-${index}`}
-                          type="number"
-                          value={type.duration}
-                          onChange={(e) => {
-                            const updated = [...appointmentTypes];
-                            updated[index].duration = parseInt(e.target.value) || 15;
-                            setAppointmentTypes(updated);
-                          }}
-                          min="5"
-                          max="240"
-                          placeholder="15"
-                          className="h-11"
-                        />
-                      </div>
-                    </div>
-                    
-                    {/* Delete Button */}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        if (appointmentTypes.length <= 1) {
-                          toast({
-                            title: "Cannot Delete",
-                            description: "You must have at least one appointment type",
-                            variant: "destructive",
-                          });
-                          return;
-                        }
-                        
-                        const confirmed = window.confirm(
-                          `Are you sure you want to delete "${type.label}"?`
-                        );
-                        
-                        if (confirmed) {
-                          const updated = appointmentTypes.filter((_, i) => i !== index);
-                          setAppointmentTypes(updated);
-                          toast({
-                            title: "Type Deleted",
-                            description: `"${type.label}" has been removed`,
-                          });
-                        }
+              {appointmentTypes.map((type, index) => (
+              <div key={index} className="flex items-center gap-4 p-4 border rounded-lg hover:border-blue-300 transition-colors">
+                <div className="flex-1 grid grid-cols-3 gap-4">
+                  {/* Type Name */}
+                  <div>
+                    <Label htmlFor={`type-label-${index}`} className="text-sm font-medium">
+                      Type Name
+                    </Label>
+                    <Input
+                      id={`type-label-${index}`}
+                      value={type.label}
+                      onChange={(e) => {
+                        const updated = [...appointmentTypes];
+                        updated[index].label = e.target.value;
+                        setAppointmentTypes(updated);
                       }}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M3 6h18" />
-                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                        <line x1="10" x2="10" y1="11" y2="17" />
-                        <line x1="14" x2="14" y1="11" y2="17" />
-                      </svg>
-                    </Button>
+                      placeholder="e.g., Consultation"
+                      className="h-11"
+                    />
                   </div>
-                ))}
+
+                  {/* Duration */}
+                  <div>
+                    <Label htmlFor={`type-duration-${index}`} className="text-sm font-medium">
+                      Duration (min)
+                    </Label>
+                    <Input
+                      id={`type-duration-${index}`}
+                      type="number"
+                      value={type.duration}
+                      onChange={(e) => {
+                        const updated = [...appointmentTypes];
+                        updated[index].duration = parseInt(e.target.value) || 15;
+                        setAppointmentTypes(updated);
+                      }}
+                      min="5"
+                      max="240"
+                      placeholder="15"
+                      className="h-11"
+                    />
+                  </div>
+
+                  {/* NEW: Price Field */}
+                  <div>
+                    <Label htmlFor={`type-price-${index}`} className="text-sm font-medium">
+                      Price (MAD) <span className="text-gray-400 font-normal">- Optional</span>
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id={`type-price-${index}`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={type.price ?? ''}
+                        onChange={(e) => {
+                          const updated = [...appointmentTypes];
+                          const value = e.target.value;
+                          updated[index].price = value === '' ? undefined : parseFloat(value);
+                          setAppointmentTypes(updated);
+                        }}
+                        placeholder="Free"
+                        className="h-11 pr-14"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">
+                        MAD
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Delete Button */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    if (appointmentTypes.length <= 1) {
+                      toast({
+                        title: "Cannot Delete",
+                        description: "You must have at least one appointment type",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    
+                    const confirmed = window.confirm(
+                      `Are you sure you want to delete "${type.label}"?`
+                    );
+                    
+                    if (confirmed) {
+                      const updated = appointmentTypes.filter((_, i) => i !== index);
+                      setAppointmentTypes(updated);
+                      toast({
+                        title: "Type Deleted",
+                        description: `"${type.label}" has been removed`,
+                      });
+                    }
+                  }}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M3 6h18" />
+                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                    <line x1="10" x2="10" y1="11" y2="17" />
+                    <line x1="14" x2="14" y1="11" y2="17" />
+                  </svg>
+                </Button>
+              </div>
+            ))}
 
                 {/* Add New Type Button */}
                 <Button
                   variant="outline"
                   onClick={() => {
-                    const newType = {
+                    const newType: AppointmentType = {
                       name: `custom_type_${Date.now()}`,
                       duration: 15,
                       label: "New Appointment Type",
+                      price: undefined,  // NEW: Add price field
                     };
                     setAppointmentTypes([...appointmentTypes, newType]);
                     toast({

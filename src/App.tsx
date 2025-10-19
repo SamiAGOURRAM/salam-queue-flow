@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 // Standard Page Components
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import Welcome from "./pages//Welcome.tsx"; // ← ADD THIS IMPORT
 
 // Auth Pages
 import Login from "./pages/auth/Login.tsx";
@@ -49,6 +50,11 @@ const App = () => (
         <Sonner />
         <Routes>
           {/* ======================================================= */}
+          {/* WELCOME PAGE - First page users see */}
+          {/* ======================================================= */}
+          <Route path="/" element={<Welcome />} /> {/* ← ADD THIS ROUTE */}
+
+          {/* ======================================================= */}
           {/* Public Routes (Auth, Onboarding, Invitations) */}
           {/* ======================================================= */}
           <Route path="/auth/login" element={<Login />} />
@@ -62,7 +68,8 @@ const App = () => (
           {/* The PatientLayout handles the "Log In" vs "Sign Out" button internally */}
           {/* ======================================================= */}
           <Route element={<PatientLayout />}>
-            <Route path="/" element={<Index />} />
+            {/* Move Index to /browse or /clinics if you still need it */}
+            <Route path="/clinics" element={<Index />} /> {/* ← MOVED FROM "/" */}
             <Route path="/clinic/:clinicId" element={<ClinicDetailView />} />
             <Route path="/booking/:clinicId" element={<BookingFlow />} />
             

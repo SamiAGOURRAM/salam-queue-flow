@@ -5,9 +5,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, Activity, Search, MapPin, Building2, Sparkles, ArrowRight, X } from "lucide-react";
+import { Calendar, Clock, Activity, Search, MapPin, Building2, Sparkles, ArrowRight, X, MessageSquare } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import ReviewModal from "@/components/ReviewModal";
 
 interface Appointment {
   id: string;
@@ -32,8 +33,14 @@ export default function PatientDashboard() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterType>(null);
-  // --- ENHANCEMENT: State to hold the user's name from the profiles table ---
   const [patientFullName, setPatientFullName] = useState("");
+  
+  // Review Modal State
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [selectedClinicForReview, setSelectedClinicForReview] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -45,7 +52,6 @@ export default function PatientDashboard() {
     }
   }, [user, loading, navigate]);
   
-  // --- ENHANCEMENT: New function to fetch the name from the profiles table ---
   const fetchPatientProfile = async () => {
     try {
       const { data, error } = await supabase
@@ -54,7 +60,7 @@ export default function PatientDashboard() {
         .eq("id", user?.id)
         .single();
         
-      if (error && error.code !== 'PGRST116') throw error; // Ignore "No rows found" error
+      if (error && error.code !== 'PGRST116') throw error;
       
       if (data?.full_name) {
         setPatientFullName(data.full_name);
@@ -63,7 +69,6 @@ export default function PatientDashboard() {
       console.error("Error fetching patient name:", error);
     }
   };
-  // --------------------------------------------------------------------------
 
   const fetchAppointments = async () => {
     try {
@@ -106,7 +111,6 @@ export default function PatientDashboard() {
     
     return appointments.filter(apt => {
       const aptDate = new Date(apt.appointment_date);
-      // Check date is today or later, and status is active
       const isFutureOrToday = aptDate >= today;
       const isActiveStatus = ['scheduled', 'waiting', 'confirmed', 'in_progress'].includes(apt.status);
       return isFutureOrToday && isActiveStatus;
@@ -120,7 +124,7 @@ export default function PatientDashboard() {
   const getRecentAppointments = () => {
     return appointments
       .filter(apt => ['completed', 'cancelled', 'no_show'].includes(apt.status))
-      .sort((a, b) => new Date(b.appointment_date).getTime() - new Date(a.appointment_date).getTime()) // Sort by most recent first
+      .sort((a, b) => new Date(b.appointment_date).getTime() - new Date(a.appointment_date).getTime())
       .slice(0, 5);
   };
 
@@ -152,11 +156,6 @@ export default function PatientDashboard() {
     return <Badge className={`text-xs font-semibold rounded-full px-3 py-1 ${config.className}`}>{config.label}</Badge>;
   };
 
-  const upcomingAppointments = getUpcomingAppointments();
-  const completedAppointments = getCompletedAppointments();
-  const recentAppointments = getRecentAppointments();
-  const displayedAppointments = getFilteredAppointments();
-
   const getFilterTitle = () => {
     switch (activeFilter) {
       case 'all':
@@ -170,9 +169,23 @@ export default function PatientDashboard() {
     }
   };
 
-  // Determine the display name (Use patientFullName, fallback to auth metadata first name, then 'friend')
-  const displayName = patientFullName || user?.user_metadata?.first_name || 'friend';
+  // Review Modal Handlers
+  const handleOpenReviewModal = (clinicId: string, clinicName: string) => {
+    setSelectedClinicForReview({ id: clinicId, name: clinicName });
+    setReviewModalOpen(true);
+  };
 
+  const handleCloseReviewModal = () => {
+    setReviewModalOpen(false);
+    setSelectedClinicForReview(null);
+  };
+
+  const upcomingAppointments = getUpcomingAppointments();
+  const completedAppointments = getCompletedAppointments();
+  const recentAppointments = getRecentAppointments();
+  const displayedAppointments = getFilteredAppointments();
+
+  const displayName = patientFullName || user?.user_metadata?.first_name || 'friend';
 
   if (loading) {
     return (
@@ -185,7 +198,6 @@ export default function PatientDashboard() {
     );
   }
   
-  // Render nothing if user is logged out and still loading data (should be rare due to App.tsx guard)
   if (!user && !loadingAppointments) {
     return (
       <div className="text-center py-20">
@@ -211,7 +223,6 @@ export default function PatientDashboard() {
             <span className="text-sm font-medium text-blue-100 uppercase tracking-widest">Your Health Journey</span>
           </div>
           <h1 className="text-4xl md:text-6xl font-extrabold mb-3 leading-tight">
-            {/* --- ENHANCEMENT: Use displayName variable --- */}
             Welcome back, <span className="text-amber-200">{displayName}!</span> 👋
           </h1>
           <p className="text-xl text-blue-100 mb-10 max-w-3xl">
@@ -311,7 +322,7 @@ export default function PatientDashboard() {
 
       {/* Main Content Grid */}
       <div className="grid gap-8 lg:grid-cols-3">
-        {/* Appointments List (takes more space when filtered) */}
+        {/* Appointments List */}
         <Card id="upcoming-list" className={`border-0 shadow-xl ${activeFilter ? 'lg:col-span-3' : 'lg:col-span-2'}`}>
           <CardHeader className="border-b rounded-t-xl bg-gradient-to-r from-gray-50 to-blue-50/50 p-6">
             <div className="flex items-center justify-between">
@@ -368,7 +379,12 @@ export default function PatientDashboard() {
                   <div
                     key={apt.id}
                     className="group p-5 border border-gray-100 rounded-xl hover:border-blue-400 hover:shadow-2xl transition-all cursor-pointer bg-white"
-                    onClick={() => navigate(`/patient/queue/${apt.id}`)}
+                    onClick={() => {
+                      // Only navigate to queue for active appointments
+                      if (['scheduled', 'waiting', 'confirmed', 'in_progress'].includes(apt.status)) {
+                        navigate(`/patient/queue/${apt.id}`);
+                      }
+                    }}
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1 pr-4">
@@ -400,6 +416,7 @@ export default function PatientDashboard() {
                       </Badge>
                     </div>
                     
+                    {/* UPDATED SECTION WITH REVIEW BUTTON */}
                     <div className="pt-3 border-t">
                       <div className="flex items-center justify-between">
                         {apt.queue_position && ['scheduled', 'waiting', 'confirmed', 'in_progress'].includes(apt.status) ? (
@@ -407,16 +424,31 @@ export default function PatientDashboard() {
                             Position #{apt.queue_position}
                           </Badge>
                         ) : (
-                          <div className="h-6"></div> // Spacer for alignment
+                          <div className="h-6"></div>
                         )}
                         
+                        {/* Active appointments - Go to Queue */}
                         {['scheduled', 'waiting', 'confirmed', 'in_progress'].includes(apt.status) && (
                           <div className="flex items-center gap-1 text-blue-600 group-hover:gap-2 transition-all">
-                            <p className="text-sm font-bold">
-                              Go to Queue
-                            </p>
+                            <p className="text-sm font-bold">Go to Queue</p>
                             <ArrowRight className="w-4 h-4" />
                           </div>
+                        )}
+                        
+                        {/* Completed appointments - Leave Review button */}
+                        {apt.status === 'completed' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-amber-300 text-amber-700 hover:bg-amber-50 font-bold gap-2 ml-auto"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenReviewModal(apt.clinic_id, apt.clinic.name);
+                            }}
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                            Leave Review
+                          </Button>
                         )}
                       </div>
                     </div>
@@ -477,6 +509,16 @@ export default function PatientDashboard() {
           </Card>
         )}
       </div>
+
+      {/* Review Modal */}
+      {selectedClinicForReview && (
+        <ReviewModal
+          isOpen={reviewModalOpen}
+          onClose={handleCloseReviewModal}
+          clinicId={selectedClinicForReview.id}
+          clinicName={selectedClinicForReview.name}
+        />
+      )}
     </div>
   );
 }

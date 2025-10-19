@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,9 @@ import {
   ArrowRight, Zap, Timer, DollarSign, Stethoscope, X, Plus
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ratingService } from "@/services/rating/RatingService";
+import { favoriteService } from "@/services/favorite/FavoriteService";
 
 interface ClinicSettings {
   buffer_time?: number;
@@ -36,6 +40,7 @@ interface ClinicSettings {
     name: string;
     label: string;
     duration: number;
+    price?: number;
   }>;
   requires_appointment?: boolean;
   average_appointment_duration?: number;
@@ -53,17 +58,26 @@ interface Clinic {
   settings: ClinicSettings | null;
 }
 
+interface ClinicWithStats extends Clinic {
+  average_rating?: number;
+  total_ratings?: number;
+  is_favorited?: boolean;
+}
+
 const ClinicDirectory = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
   const [clinics, setClinics] = useState<Clinic[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCity, setSelectedCity] = useState<string>("all");
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>("all");
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
-  const [favorites, setFavorites] = useState<string[]>([]);
 
+  // Fetch clinics
   useEffect(() => {
     fetchClinics();
   }, []);
@@ -90,6 +104,82 @@ const ClinicDirectory = () => {
       setLoading(false);
     }
   };
+
+  // Fetch rating stats for all clinics
+  const { data: ratingsMap } = useQuery({
+    queryKey: ['clinic-ratings-all'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('clinic_rating_stats')
+        .select('*');
+      
+      if (error) throw error;
+      
+      // Convert to map for easy lookup
+      const map = new Map();
+      data?.forEach(stat => {
+        map.set(stat.clinic_id, {
+          average_rating: stat.average_rating,
+          total_ratings: stat.total_ratings
+        });
+      });
+      return map;
+    },
+    enabled: clinics.length > 0,
+  });
+
+  // Fetch user's favorites
+  const { data: userFavorites } = useQuery({
+    queryKey: ['user-favorites', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      return await favoriteService.getUserFavorites(user.id);
+    },
+    enabled: !!user,
+  });
+
+  // Toggle favorite mutation
+  const toggleFavoriteMutation = useMutation({
+    mutationFn: async (clinicId: string) => {
+      if (!user) {
+        toast({
+          title: "Login Required",
+          description: "Please login to save favorites",
+          variant: "destructive",
+        });
+        throw new Error('Not authenticated');
+      }
+      return await favoriteService.toggleFavorite(clinicId, user.id);
+    },
+    onMutate: async (clinicId) => {
+      // Optimistic update
+      await queryClient.cancelQueries({ queryKey: ['user-favorites', user?.id] });
+      const previousFavorites = queryClient.getQueryData(['user-favorites', user?.id]);
+      
+      queryClient.setQueryData(['user-favorites', user?.id], (old: string[] = []) => {
+        return old.includes(clinicId)
+          ? old.filter(id => id !== clinicId)
+          : [...old, clinicId];
+      });
+      
+      return { previousFavorites };
+    },
+    onError: (err, clinicId, context) => {
+      // Rollback on error
+      if (context?.previousFavorites) {
+        queryClient.setQueryData(['user-favorites', user?.id], context.previousFavorites);
+      }
+    },
+    onSuccess: (isFavorited) => {
+      toast({
+        title: isFavorited ? 'Added to favorites' : 'Removed from favorites',
+        description: isFavorited ? '❤️ Saved for quick access' : 'Removed from your list',
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-favorites', user?.id] });
+    },
+  });
 
   const getTodaySchedule = (clinic: Clinic) => {
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -134,11 +224,7 @@ const ClinicDirectory = () => {
 
   const toggleFavorite = (e: React.MouseEvent, clinicId: string) => {
     e.stopPropagation();
-    setFavorites(prev => 
-      prev.includes(clinicId) 
-        ? prev.filter(id => id !== clinicId)
-        : [...prev, clinicId]
-    );
+    toggleFavoriteMutation.mutate(clinicId);
   };
 
   if (loading) {
@@ -168,7 +254,7 @@ const ClinicDirectory = () => {
       </div>
 
       <div className="relative z-10 container mx-auto px-4 py-8">
-        {/* Hero Section - TRANSPARENT BACKGROUND */}
+        {/* Hero Section - KEEP AS IS */}
         <div className="relative mb-12 backdrop-blur-md bg-white/30 border border-white/20 rounded-[2.5rem] shadow-2xl">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-400/10 to-sky-400/10 blur-3xl"></div>
           
@@ -215,7 +301,7 @@ const ClinicDirectory = () => {
 
                   <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-white shadow-lg border border-blue-100">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shadow-lg">
-                      <Zap className="w-5 h-5 text-white" />
+                      <Zap className="w-5 w-5 text-white" />
                     </div>
                     <div>
                       <p className="text-2xl font-bold text-gray-900">24/7</p>
@@ -225,6 +311,7 @@ const ClinicDirectory = () => {
                 </div>
               </div>
 
+              {/* Keep hero right side as is */}
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-sky-400/20 blur-2xl"></div>
                 <div className="relative grid grid-cols-2 gap-4">
@@ -258,7 +345,7 @@ const ClinicDirectory = () => {
           </div>
         </div>
 
-        {/* Search & Filters - TRANSPARENT BACKGROUND */}
+        {/* Search & Filters - KEEP AS IS - Just add code at the end */}
         <Card className="backdrop-blur-md bg-white/30 border border-white/20 rounded-3xl p-8 mb-8 shadow-xl">
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -331,7 +418,7 @@ const ClinicDirectory = () => {
           </div>
         </Card>
 
-        {/* Results Count */}
+        {/* Results Count - KEEP AS IS */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
             <div className="px-4 py-2 rounded-full bg-gradient-to-r from-blue-100 to-sky-100 border border-blue-200">
@@ -347,7 +434,7 @@ const ClinicDirectory = () => {
           </div>
         </div>
 
-        {/* Clinics Grid */}
+        {/* Clinics Grid - UPDATED WITH REAL DATA */}
         {filteredClinics.length === 0 ? (
           <Card className="backdrop-blur-md bg-white/40 border border-white/20 rounded-3xl p-20 text-center shadow-xl">
             <div className="max-w-md mx-auto">
@@ -375,7 +462,14 @@ const ClinicDirectory = () => {
               const paymentMethods = getPaymentMethods(clinic);
               const allowWalkIns = clinic.settings?.allow_walk_ins;
               const avgDuration = clinic.settings?.average_appointment_duration;
-              const isFavorite = favorites.includes(clinic.id);
+              
+              // ✅ REAL DATA: Get rating from database
+              const ratingData = ratingsMap?.get(clinic.id);
+              const averageRating = ratingData?.average_rating || 0;
+              const totalRatings = ratingData?.total_ratings || 0;
+              
+              // ✅ REAL DATA: Check if favorited
+              const isFavorite = userFavorites?.includes(clinic.id) || false;
 
               return (
                 <div
@@ -391,17 +485,16 @@ const ClinicDirectory = () => {
                     className="relative backdrop-blur-md bg-white/60 border border-white/30 rounded-3xl overflow-hidden cursor-pointer hover:shadow-2xl transition-all duration-300 h-full"
                     onClick={() => navigate(`/clinic/${clinic.id}`)}
                   >
-                    {/* COMPACT Header */}
+                    {/* Header */}
                     <div className="relative h-28 bg-gradient-to-br from-blue-400 via-sky-400 to-cyan-400">
                       <div className="absolute inset-0 bg-white/20"></div>
                       
-                      {/* Minimal Floating Elements */}
                       <div className="absolute inset-0 opacity-10">
                         <Plus className="absolute top-2 left-4 w-4 h-4 text-white rotate-12" />
                         <Stethoscope className="absolute bottom-2 right-3 w-5 h-5 text-white -rotate-12" />
                       </div>
                       
-                      {/* Status & Favorite in one row */}
+                      {/* Status & Favorite */}
                       <div className="absolute top-2 left-2 right-2 flex items-center justify-between z-20">
                         <Badge className={`${todaySchedule.isOpen ? 'bg-green-500' : 'bg-gray-500'} text-white border-0 shadow-lg text-xs px-2 py-1`}>
                           <div className={`w-1.5 h-1.5 rounded-full ${todaySchedule.isOpen ? 'bg-white animate-pulse' : 'bg-gray-300'} mr-1`}></div>
@@ -409,13 +502,20 @@ const ClinicDirectory = () => {
                         </Badge>
                         <button
                           onClick={(e) => toggleFavorite(e, clinic.id)}
-                          className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-all"
+                          disabled={toggleFavoriteMutation.isPending}
+                          className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-all disabled:opacity-50"
                         >
-                          <Heart className={`w-4 h-4 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
+                          <Heart 
+                            className={`w-4 h-4 transition-all ${
+                              isFavorite 
+                                ? 'fill-red-500 text-red-500 scale-110' 
+                                : 'text-gray-400 hover:text-red-400'
+                            }`} 
+                          />
                         </button>
                       </div>
 
-                      {/* Compact Logo */}
+                      {/* Logo */}
                       <div className="absolute inset-0 flex items-center justify-center">
                         {clinic.logo_url ? (
                           <img 
@@ -433,9 +533,9 @@ const ClinicDirectory = () => {
                       </div>
                     </div>
 
-                    {/* COMPACT Content */}
+                    {/* Content */}
                     <div className="p-4 space-y-3">
-                      {/* Name, Specialty & Rating inline */}
+                      {/* Name, Specialty & Rating */}
                       <div>
                         <h3 className="text-lg font-bold text-gray-900 mb-1.5 line-clamp-1 group-hover:text-blue-600 transition-colors">
                           {clinic.name}
@@ -444,9 +544,21 @@ const ClinicDirectory = () => {
                           <Badge className="bg-gradient-to-r from-blue-100/80 to-sky-100/80 border-blue-200/50 text-blue-700 text-xs px-2 py-0.5">
                             {clinic.specialty}
                           </Badge>
+                          {/* ✅ REAL RATING DATA */}
                           <div className="flex items-center gap-0.5">
-                            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                            <span className="text-xs font-semibold text-gray-700">4.8</span>
+                            {totalRatings > 0 ? (
+                              <>
+                                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                                <span className="text-xs font-semibold text-gray-700">
+                                  {averageRating.toFixed(1)}
+                                </span>
+                                <span className="text-xs text-gray-400 ml-0.5">
+                                  ({totalRatings})
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-xs text-gray-400">No reviews</span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -463,7 +575,7 @@ const ClinicDirectory = () => {
                         </div>
                       </div>
 
-                      {/* Features & Payment in one row */}
+                      {/* Features & Payment */}
                       <div className="flex items-center justify-between pt-2 border-t border-gray-100/50">
                         <div className="flex flex-wrap gap-1">
                           {allowWalkIns && (
@@ -494,7 +606,7 @@ const ClinicDirectory = () => {
                         )}
                       </div>
 
-                      {/* Compact Book Button */}
+                      {/* Book Button */}
                       <Button className="w-full h-10 bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white border-0 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all group text-sm">
                         <Calendar className="w-3.5 h-3.5 mr-1.5" />
                         <span>Book Now</span>

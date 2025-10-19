@@ -147,3 +147,4 @@ class Logger {
 
 // Export singleton instance
 export const logger = new Logger();
+export { Logger };
