@@ -149,7 +149,7 @@ const ClinicDirectory = () => {
             <Skeleton className="h-96 w-full rounded-3xl bg-blue-100/50" />
             <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                <Skeleton key={i} className="h-[480px] rounded-3xl bg-blue-100/50" />
+                <Skeleton key={i} className="h-[320px] rounded-3xl bg-blue-100/50" />
               ))}
             </div>
           </div>
@@ -160,7 +160,7 @@ const ClinicDirectory = () => {
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-blue-50 via-white to-sky-50 relative">
-      {/* Animated Background Elements - Fixed positioning */}
+      {/* Animated Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse"></div>
         <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-sky-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse" style={{animationDelay: '2s'}}></div>
@@ -168,15 +168,10 @@ const ClinicDirectory = () => {
       </div>
 
       <div className="relative z-10 container mx-auto px-4 py-8">
-        {/* Hero Section - MODIFIED for seamless background */}
-        <div 
-          // New background and border applied to the outer div
-          className="relative mb-12 backdrop-blur-sm bg-white border border-white/60 rounded-[2.5rem] shadow-2xl"
-        >
-          {/* Glow effect stays here */}
+        {/* Hero Section - TRANSPARENT BACKGROUND */}
+        <div className="relative mb-12 backdrop-blur-md bg-white/30 border border-white/20 rounded-[2.5rem] shadow-2xl">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-400/10 to-sky-400/10 blur-3xl"></div>
           
-          {/* Inner content div just needs padding now */}
           <div className="relative p-12">
             <div className="grid lg:grid-cols-2 gap-12 items-center">
               <div className="space-y-6">
@@ -263,13 +258,13 @@ const ClinicDirectory = () => {
           </div>
         </div>
 
-        {/* Search & Filters - MODIFIED Card border for cleaner look */}
-        <Card className="bg-white border border-blue-100 rounded-3xl p-8 mb-8 shadow-xl">
+        {/* Search & Filters - TRANSPARENT BACKGROUND */}
+        <Card className="backdrop-blur-md bg-white/30 border border-white/20 rounded-3xl p-8 mb-8 shadow-xl">
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-1">Find Your Clinic</h2>
-                <p className="text-gray-500">Search from our network of premium healthcare providers</p>
+                <p className="text-gray-600">Search from our network of premium healthcare providers</p>
               </div>
               <Button 
                 variant="ghost"
@@ -354,7 +349,7 @@ const ClinicDirectory = () => {
 
         {/* Clinics Grid */}
         {filteredClinics.length === 0 ? (
-          <Card className="backdrop-blur-sm bg-white/90 border border-white/60 rounded-3xl p-20 text-center shadow-xl">
+          <Card className="backdrop-blur-md bg-white/40 border border-white/20 rounded-3xl p-20 text-center shadow-xl">
             <div className="max-w-md mx-auto">
               <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-100 to-sky-100 flex items-center justify-center mx-auto mb-6">
                 <Search className="w-12 h-12 text-blue-400" />
@@ -390,137 +385,120 @@ const ClinicDirectory = () => {
                   onMouseLeave={() => setHoveredCard(null)}
                 >
                   {/* Glow Effect */}
-                  <div className={`absolute -inset-0.5 bg-gradient-to-r from-blue-400 to-sky-400 rounded-3xl blur-lg opacity-0 group-hover:opacity-30 transition-all duration-300 ${hoveredCard === clinic.id ? 'opacity-30' : ''}`}></div>
+                  <div className={`absolute -inset-0.5 bg-gradient-to-r from-blue-400 to-sky-400 rounded-3xl blur-lg opacity-0 group-hover:opacity-30 transition-all duration-300`}></div>
                   
                   <Card 
-                    className="relative backdrop-blur-sm bg-white/95 border border-white/60 rounded-3xl overflow-hidden cursor-pointer hover:shadow-2xl transition-all duration-300 h-full"
+                    className="relative backdrop-blur-md bg-white/60 border border-white/30 rounded-3xl overflow-hidden cursor-pointer hover:shadow-2xl transition-all duration-300 h-full"
                     onClick={() => navigate(`/clinic/${clinic.id}`)}
                   >
-                    {/* Header with Logo */}
-                    <div className="relative h-48 bg-gradient-to-br from-blue-400 via-sky-400 to-cyan-400">
-                      <div className="absolute inset-0 bg-white/30"></div>
+                    {/* COMPACT Header */}
+                    <div className="relative h-28 bg-gradient-to-br from-blue-400 via-sky-400 to-cyan-400">
+                      <div className="absolute inset-0 bg-white/20"></div>
                       
-                      {/* Floating Elements Pattern */}
-                      <div className="absolute inset-0 opacity-20">
-                        <Plus className="absolute top-4 left-8 w-6 h-6 text-white rotate-12" />
-                        <Stethoscope className="absolute bottom-8 right-6 w-8 h-8 text-white -rotate-12" />
-                        <Activity className="absolute top-12 right-12 w-5 h-5 text-white" />
+                      {/* Minimal Floating Elements */}
+                      <div className="absolute inset-0 opacity-10">
+                        <Plus className="absolute top-2 left-4 w-4 h-4 text-white rotate-12" />
+                        <Stethoscope className="absolute bottom-2 right-3 w-5 h-5 text-white -rotate-12" />
                       </div>
                       
-                      {/* Favorite Button */}
-                      <button
-                        onClick={(e) => toggleFavorite(e, clinic.id)}
-                        className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-all"
-                      >
-                        <Heart className={`w-5 h-5 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
-                      </button>
-
-                      {/* Status Badge */}
-                      <div className="absolute top-4 left-4 z-20">
-                        <Badge className={`${todaySchedule.isOpen ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-500'} text-white border-0 shadow-lg`}>
-                          <div className={`w-2 h-2 rounded-full ${todaySchedule.isOpen ? 'bg-white animate-pulse' : 'bg-gray-300'} mr-2`}></div>
+                      {/* Status & Favorite in one row */}
+                      <div className="absolute top-2 left-2 right-2 flex items-center justify-between z-20">
+                        <Badge className={`${todaySchedule.isOpen ? 'bg-green-500' : 'bg-gray-500'} text-white border-0 shadow-lg text-xs px-2 py-1`}>
+                          <div className={`w-1.5 h-1.5 rounded-full ${todaySchedule.isOpen ? 'bg-white animate-pulse' : 'bg-gray-300'} mr-1`}></div>
                           {todaySchedule.isOpen ? "Open" : "Closed"}
                         </Badge>
+                        <button
+                          onClick={(e) => toggleFavorite(e, clinic.id)}
+                          className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-all"
+                        >
+                          <Heart className={`w-4 h-4 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
+                        </button>
                       </div>
 
-                      {/* Logo */}
+                      {/* Compact Logo */}
                       <div className="absolute inset-0 flex items-center justify-center">
                         {clinic.logo_url ? (
                           <img 
                             src={clinic.logo_url} 
                             alt={clinic.name} 
-                            className="h-20 w-20 object-contain bg-white rounded-2xl p-3 shadow-xl" 
+                            className="h-14 w-14 object-contain bg-white rounded-xl p-2 shadow-xl" 
                           />
                         ) : (
-                          <div className="w-20 h-20 rounded-2xl bg-white shadow-xl flex items-center justify-center">
-                            <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-sky-600 bg-clip-text text-transparent">
+                          <div className="w-14 h-14 rounded-xl bg-white shadow-xl flex items-center justify-center">
+                            <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-sky-600 bg-clip-text text-transparent">
                               {clinic.name.charAt(0)}
                             </span>
                           </div>
                         )}
                       </div>
-
-                      {/* Rating */}
-                      <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1.5 flex items-center gap-1 shadow-lg">
-                        {[1,2,3,4,5].map(i => (
-                          <Star key={i} className={`w-3.5 h-3.5 ${i <= 4 ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
-                        ))}
-                        <span className="text-gray-700 text-sm ml-1 font-medium">4.8</span>
-                      </div>
                     </div>
 
-                    {/* Content */}
-                    <div className="p-6 space-y-4">
-                      {/* Name & Specialty */}
+                    {/* COMPACT Content */}
+                    <div className="p-4 space-y-3">
+                      {/* Name, Specialty & Rating inline */}
                       <div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-1 group-hover:text-blue-600 transition-colors">
+                        <h3 className="text-lg font-bold text-gray-900 mb-1.5 line-clamp-1 group-hover:text-blue-600 transition-colors">
                           {clinic.name}
                         </h3>
-                        <Badge className="bg-gradient-to-r from-blue-100 to-sky-100 border-blue-200 text-blue-700">
-                          {clinic.specialty}
-                        </Badge>
+                        <div className="flex items-center justify-between gap-2">
+                          <Badge className="bg-gradient-to-r from-blue-100/80 to-sky-100/80 border-blue-200/50 text-blue-700 text-xs px-2 py-0.5">
+                            {clinic.specialty}
+                          </Badge>
+                          <div className="flex items-center gap-0.5">
+                            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                            <span className="text-xs font-semibold text-gray-700">4.8</span>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Info */}
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-gray-600 text-sm">
-                          <div className="w-6 h-6 rounded-lg bg-blue-50 flex items-center justify-center">
-                            <MapPin className="h-3.5 w-3.5 text-blue-600" />
-                          </div>
-                          <span className="line-clamp-1">{clinic.address}, {clinic.city}</span>
+                      {/* Compact Info */}
+                      <div className="space-y-1.5 text-xs">
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <MapPin className="h-3 w-3 text-blue-600 flex-shrink-0" />
+                          <span className="line-clamp-1">{clinic.city}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-gray-600 text-sm">
-                          <div className="w-6 h-6 rounded-lg bg-sky-50 flex items-center justify-center">
-                            <Clock className="h-3.5 w-3.5 text-sky-600" />
-                          </div>
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Clock className="h-3 w-3 text-sky-600 flex-shrink-0" />
                           <span className="font-medium">{todaySchedule.hours}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-gray-600 text-sm">
-                          <div className="w-6 h-6 rounded-lg bg-cyan-50 flex items-center justify-center">
-                            <Phone className="h-3.5 w-3.5 text-cyan-600" />
-                          </div>
-                          <span>{clinic.phone}</span>
+                      </div>
+
+                      {/* Features & Payment in one row */}
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-100/50">
+                        <div className="flex flex-wrap gap-1">
+                          {allowWalkIns && (
+                            <Badge className="bg-emerald-50/80 border-emerald-200/50 text-emerald-700 text-xs px-2 py-0.5">
+                              <Zap className="w-2.5 h-2.5 mr-0.5" />
+                              Walk-in
+                            </Badge>
+                          )}
+                          {avgDuration && (
+                            <Badge className="bg-amber-50/80 border-amber-200/50 text-amber-700 text-xs px-2 py-0.5">
+                              {avgDuration}min
+                            </Badge>
+                          )}
                         </div>
-                      </div>
-
-                      {/* Features */}
-                      <div className="flex flex-wrap gap-2">
-                        {allowWalkIns && (
-                          <Badge className="bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100">
-                            <Zap className="w-3 h-3 mr-1" />
-                            Walk-ins
-                          </Badge>
-                        )}
-                        {avgDuration && (
-                          <Badge className="bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100">
-                            <Timer className="w-3 h-3 mr-1" />
-                            ~{avgDuration}min
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Payment Methods */}
-                      {paymentMethods.length > 0 && (
-                        <div className="pt-3 border-t border-gray-100">
-                          <div className="flex items-center gap-2">
-                            {paymentMethods.map((method) => (
+                        
+                        {paymentMethods.length > 0 && (
+                          <div className="flex items-center gap-1">
+                            {paymentMethods.slice(0, 3).map((method) => (
                               <div
                                 key={method.name}
-                                className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center group-hover:bg-blue-50 group-hover:border-blue-200 transition-all"
+                                className="w-6 h-6 rounded-lg bg-gray-50/80 border border-gray-200/50 flex items-center justify-center"
                                 title={method.name}
                               >
-                                <method.icon className="h-4 w-4 text-gray-600 group-hover:text-blue-600" />
+                                <method.icon className="h-3 w-3 text-gray-600" />
                               </div>
                             ))}
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
 
-                      {/* Book Button */}
-                      <Button className="w-full h-12 bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white border-0 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all group">
-                        <Calendar className="w-4 h-4 mr-2" />
-                        <span>Book Appointment</span>
-                        <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                      {/* Compact Book Button */}
+                      <Button className="w-full h-10 bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white border-0 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all group text-sm">
+                        <Calendar className="w-3.5 h-3.5 mr-1.5" />
+                        <span>Book Now</span>
+                        <ArrowRight className="w-3.5 h-3.5 ml-1.5 group-hover:translate-x-1 transition-transform" />
                       </Button>
                     </div>
                   </Card>
