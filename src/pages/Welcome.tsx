@@ -336,7 +336,7 @@ const WelcomePage = () => {
               </span>
             </h2>
             <p className="text-xl text-gray-600">
-              Join thousands of patients and clinics already using QueueMed to deliver exceptional healthcare experiences.
+              Join thousands of patients and clinics already using INTIDAR to deliver exceptional healthcare experiences.
             </p>
             <div className="flex items-center justify-center gap-4">
               <button 
@@ -364,7 +364,7 @@ const WelcomePage = () => {
         <div className="container mx-auto flex items-center justify-between text-sm text-gray-600">
           <div className="flex items-center gap-2">
             <Heart className="w-5 h-5 text-blue-600" />
-            <span className="font-semibold text-gray-900">QueueMed</span>
+            <span className="font-semibold text-gray-900">INTIDAR</span>
             <span>© 2025 All rights reserved</span>
           </div>
           <div className="flex gap-6">

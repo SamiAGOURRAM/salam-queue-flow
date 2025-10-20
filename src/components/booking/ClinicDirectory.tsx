@@ -12,7 +12,8 @@ import {
   Search, MapPin, Phone, Clock, Calendar, CreditCard, Wallet, 
   Building2, Globe, Check, Sparkles, TrendingUp, Filter, 
   Star, Heart, Shield, Award, Users, Activity, ChevronRight,
-  ArrowRight, Zap, Timer, DollarSign, Stethoscope, X, Plus
+  ArrowRight, Zap, Timer, DollarSign, Stethoscope, X, Plus,
+  Layers, HeartHandshake, ClipboardCheck, BellRing, Pill
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -58,12 +59,6 @@ interface Clinic {
   settings: ClinicSettings | null;
 }
 
-interface ClinicWithStats extends Clinic {
-  average_rating?: number;
-  total_ratings?: number;
-  is_favorited?: boolean;
-}
-
 const ClinicDirectory = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -76,6 +71,16 @@ const ClinicDirectory = () => {
   const [selectedCity, setSelectedCity] = useState<string>("all");
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>("all");
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+
+  // Mouse tracking for parallax
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePosition({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
 
   // Fetch clinics
   useEffect(() => {
@@ -115,7 +120,6 @@ const ClinicDirectory = () => {
       
       if (error) throw error;
       
-      // Convert to map for easy lookup
       const map = new Map();
       data?.forEach(stat => {
         map.set(stat.clinic_id, {
@@ -152,7 +156,6 @@ const ClinicDirectory = () => {
       return await favoriteService.toggleFavorite(clinicId, user.id);
     },
     onMutate: async (clinicId) => {
-      // Optimistic update
       await queryClient.cancelQueries({ queryKey: ['user-favorites', user?.id] });
       const previousFavorites = queryClient.getQueryData(['user-favorites', user?.id]);
       
@@ -165,7 +168,6 @@ const ClinicDirectory = () => {
       return { previousFavorites };
     },
     onError: (err, clinicId, context) => {
-      // Rollback on error
       if (context?.previousFavorites) {
         queryClient.setQueryData(['user-favorites', user?.id], context.previousFavorites);
       }
@@ -227,15 +229,19 @@ const ClinicDirectory = () => {
     toggleFavoriteMutation.mutate(clinicId);
   };
 
+  const parallaxStyle = {
+    transform: `translate(${mousePosition.x * 0.01}px, ${mousePosition.y * 0.01}px)`,
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen w-full bg-gradient-to-br from-blue-50 via-white to-sky-50">
-        <div className="container mx-auto px-4 py-8">
-          <div className="space-y-6">
-            <Skeleton className="h-96 w-full rounded-3xl bg-blue-100/50" />
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                <Skeleton key={i} className="h-[320px] rounded-3xl bg-blue-100/50" />
+      <div className="min-h-screen w-full bg-transparent">
+        <div className="container mx-auto px-6 py-10">
+          <div className="space-y-8">
+            <Skeleton className="h-[500px] w-full rounded-[3rem] bg-transparent" />
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <Skeleton key={i} className="h-[400px] rounded-3xl bg-transparent" />
               ))}
             </div>
           </div>
@@ -245,99 +251,149 @@ const ClinicDirectory = () => {
   }
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-blue-50 via-white to-sky-50 relative">
-      {/* Animated Background Elements */}
+    <div className="min-h-screen w-full bg-transparent relative overflow-x-hidden">
+      {/* Animated Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse"></div>
         <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-sky-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse" style={{animationDelay: '2s'}}></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse" style={{animationDelay: '4s'}}></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" style={{animationDelay: '4s'}}></div>
       </div>
 
-      <div className="relative z-10 container mx-auto px-4 py-8">
-        {/* Hero Section - KEEP AS IS */}
-        <div className="relative mb-12 backdrop-blur-md bg-white/30 border border-white/20 rounded-[2.5rem] shadow-2xl">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-400/10 to-sky-400/10 blur-3xl"></div>
-          
-          <div className="relative p-12">
-            <div className="grid lg:grid-cols-2 gap-12 items-center">
-              <div className="space-y-6">
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-100 to-sky-100 border border-blue-200">
-                  <Activity className="w-4 h-4 text-blue-600 animate-pulse" />
-                  <span className="text-sm font-medium text-blue-900">Healthcare Excellence</span>
-                  <Badge className="bg-gradient-to-r from-green-400 to-emerald-400 text-white border-0">LIVE</Badge>
-                </div>
-                
-                <h1 className="text-6xl lg:text-7xl font-bold text-gray-900 leading-tight">
-                  Your Health,
-                  <span className="block bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-600 bg-clip-text text-transparent">
-                    Our Priority
-                  </span>
-                </h1>
-                
-                <p className="text-xl text-gray-600 leading-relaxed">
-                  Connect with top-rated healthcare providers. Real-time availability, instant booking, and exceptional care.
-                </p>
-
-                <div className="flex flex-wrap gap-4">
-                  <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-white shadow-lg border border-blue-100">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-sky-500 flex items-center justify-center shadow-lg">
-                      <Check className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-gray-900">{clinics.length}+</p>
-                      <p className="text-xs text-gray-500">Verified Clinics</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-white shadow-lg border border-blue-100">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-500 flex items-center justify-center shadow-lg">
-                      <Users className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-gray-900">10K+</p>
-                      <p className="text-xs text-gray-500">Happy Patients</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-white shadow-lg border border-blue-100">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shadow-lg">
-                      <Zap className="w-5 w-5 text-white" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-gray-900">24/7</p>
-                      <p className="text-xs text-gray-500">Instant Booking</p>
-                    </div>
-                  </div>
-                </div>
+      <div className="relative z-10 container mx-auto px-6 py-10">
+        {/* Enhanced Hero Section with 3D Elements */}
+        <div className="relative mb-16">
+          <div 
+            className="relative rounded-[3rem] bg-gradient-to-br from-blue-600 via-sky-600 to-cyan-600 p-1 shadow-2xl"
+            style={{
+              transform: 'perspective(1000px) rotateX(2deg)',
+              transformStyle: 'preserve-3d'
+            }}
+          >
+            <div className="relative rounded-[2.9rem] bg-white p-16 overflow-hidden">
+              {/* Floating 3D Elements */}
+              <div className="absolute top-10 right-10 w-32 h-32 opacity-20" style={parallaxStyle}>
+                <div className="w-full h-full rounded-3xl bg-gradient-to-br from-blue-400 to-sky-400 transform rotate-12 animate-float"></div>
+              </div>
+              <div className="absolute bottom-10 left-20 w-24 h-24 opacity-20" style={{...parallaxStyle, animationDelay: '2s'}}>
+                <div className="w-full h-full rounded-3xl bg-gradient-to-br from-cyan-400 to-blue-400 transform -rotate-12 animate-float"></div>
               </div>
 
-              {/* Keep hero right side as is */}
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-sky-400/20 blur-2xl"></div>
-                <div className="relative grid grid-cols-2 gap-4">
-                  <div className="space-y-4">
-                    <Card className="p-6 bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-xl transform hover:scale-105 hover:-rotate-1 transition-all duration-300 cursor-pointer border-0">
-                      <Shield className="w-8 h-8 mb-3" />
-                      <p className="font-semibold">Verified Doctors</p>
-                      <p className="text-blue-100 text-sm mt-1">All credentials checked</p>
-                    </Card>
-                    <Card className="p-6 bg-white shadow-xl border border-blue-100 transform hover:scale-105 hover:rotate-1 transition-all duration-300 cursor-pointer">
-                      <Star className="w-8 h-8 text-yellow-500 mb-3" />
-                      <p className="text-gray-900 font-semibold">Top Rated</p>
-                      <p className="text-gray-500 text-sm mt-1">Patient reviews</p>
-                    </Card>
+              <div className="relative grid lg:grid-cols-2 gap-16 items-center">
+                <div className="space-y-8">
+                  <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-blue-100 to-sky-100 border border-blue-200 shadow-lg">
+                    <Activity className="w-5 h-5 text-blue-600 animate-pulse" />
+                    <span className="text-sm font-semibold text-blue-900">Healthcare Directory</span>
+                    <Badge className="bg-gradient-to-r from-green-400 to-emerald-400 text-white border-0 shadow-md">
+                      {clinics.length} ACTIVE
+                    </Badge>
                   </div>
-                  <div className="space-y-4 mt-8">
-                    <Card className="p-6 bg-white shadow-xl border border-blue-100 transform hover:scale-105 hover:-rotate-1 transition-all duration-300 cursor-pointer">
-                      <Timer className="w-8 h-8 text-blue-600 mb-3" />
-                      <p className="text-gray-900 font-semibold">No Wait Time</p>
-                      <p className="text-gray-500 text-sm mt-1">Book instantly</p>
-                    </Card>
-                    <Card className="p-6 bg-gradient-to-br from-sky-500 to-cyan-500 text-white shadow-xl transform hover:scale-105 hover:rotate-1 transition-all duration-300 cursor-pointer border-0">
-                      <Award className="w-8 h-8 mb-3" />
-                      <p className="font-semibold">Best Price</p>
-                      <p className="text-sky-100 text-sm mt-1">Transparent pricing</p>
-                    </Card>
+                  
+                  <h1 className="text-6xl lg:text-7xl font-bold text-gray-900 leading-tight">
+                    Find Your
+                    <span className="block bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-600 bg-clip-text text-transparent animate-gradient">
+                      Perfect Clinic
+                    </span>
+                  </h1>
+                  
+                  <p className="text-xl text-gray-600 leading-relaxed max-w-xl">
+                    Browse top-rated healthcare providers with real-time availability. 
+                    Book appointments instantly and skip the queues.
+                  </p>
+
+                  {/* Stats Cards */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div 
+                      className="relative p-5 rounded-2xl bg-white shadow-xl border border-blue-100 hover:shadow-2xl transition-all group"
+                      style={{
+                        transform: hoveredCard === 'stat1' ? 'perspective(500px) rotateY(-5deg) scale(1.05)' : '',
+                        transformStyle: 'preserve-3d'
+                      }}
+                      onMouseEnter={() => setHoveredCard('stat1')}
+                      onMouseLeave={() => setHoveredCard(null)}
+                    >
+                      <Building2 className="w-8 h-8 text-blue-600 mb-2 group-hover:scale-110 transition-transform" />
+                      <p className="text-3xl font-bold text-gray-900">{clinics.length}</p>
+                      <p className="text-xs text-gray-500 mt-1">Verified Clinics</p>
+                    </div>
+                    
+                    <div 
+                      className="relative p-5 rounded-2xl bg-gradient-to-br from-blue-500 to-sky-500 text-white shadow-xl hover:shadow-2xl transition-all group"
+                      style={{
+                        transform: hoveredCard === 'stat2' ? 'perspective(500px) rotateX(-5deg) scale(1.05)' : '',
+                        transformStyle: 'preserve-3d'
+                      }}
+                      onMouseEnter={() => setHoveredCard('stat2')}
+                      onMouseLeave={() => setHoveredCard(null)}
+                    >
+                      <Users className="w-8 h-8 mb-2 group-hover:scale-110 transition-transform" />
+                      <p className="text-3xl font-bold">10K+</p>
+                      <p className="text-xs text-blue-100 mt-1">Patients Served</p>
+                    </div>
+
+                    <div 
+                      className="relative p-5 rounded-2xl bg-white shadow-xl border border-blue-100 hover:shadow-2xl transition-all group"
+                      style={{
+                        transform: hoveredCard === 'stat3' ? 'perspective(500px) rotateY(5deg) scale(1.05)' : '',
+                        transformStyle: 'preserve-3d'
+                      }}
+                      onMouseEnter={() => setHoveredCard('stat3')}
+                      onMouseLeave={() => setHoveredCard(null)}
+                    >
+                      <Star className="w-8 h-8 text-yellow-500 mb-2 group-hover:scale-110 transition-transform" />
+                      <p className="text-3xl font-bold text-gray-900">4.8</p>
+                      <p className="text-xs text-gray-500 mt-1">Avg Rating</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3D Graphic Cards */}
+                <div className="relative h-[400px] hidden lg:block">
+                  <div 
+                    className="absolute top-0 right-0 w-72 h-44 rounded-3xl bg-gradient-to-br from-blue-500 to-sky-500 shadow-2xl p-6 text-white"
+                    style={{
+                      transform: `perspective(1000px) rotateX(${hoveredCard === 'card1' ? '0' : '10'}deg) rotateY(${hoveredCard === 'card1' ? '0' : '-20'}deg) translateZ(50px)`,
+                      transformStyle: 'preserve-3d',
+                      transition: 'transform 0.3s ease'
+                    }}
+                    onMouseEnter={() => setHoveredCard('card1')}
+                    onMouseLeave={() => setHoveredCard(null)}
+                  >
+                    <Stethoscope className="w-10 h-10 mb-3" />
+                    <h3 className="text-xl font-bold mb-2">All Specialties</h3>
+                    <p className="text-blue-100">Find doctors across all medical fields</p>
+                  </div>
+
+                  <div 
+                    className="absolute bottom-0 left-0 w-64 h-40 rounded-3xl bg-white shadow-2xl border border-blue-100 p-6"
+                    style={{
+                      transform: `perspective(1000px) rotateX(${hoveredCard === 'card2' ? '0' : '-10'}deg) rotateY(${hoveredCard === 'card2' ? '0' : '15'}deg) translateZ(30px)`,
+                      transformStyle: 'preserve-3d',
+                      transition: 'transform 0.3s ease'
+                    }}
+                    onMouseEnter={() => setHoveredCard('card2')}
+                    onMouseLeave={() => setHoveredCard(null)}
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-400 to-emerald-400 flex items-center justify-center">
+                        <Clock className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-gray-900">Instant Booking</h3>
+                        <p className="text-xs text-gray-500">No waiting required</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-50 to-sky-50 border border-blue-100"></div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Floating icons */}
+                  <div className="absolute top-1/2 right-1/3 w-16 h-16 animate-float">
+                    <div className="w-full h-full rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-400 shadow-xl flex items-center justify-center transform rotate-12">
+                      <Heart className="w-8 h-8 text-white" />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -345,51 +401,77 @@ const ClinicDirectory = () => {
           </div>
         </div>
 
-        {/* Search & Filters - KEEP AS IS - Just add code at the end */}
-        <Card className="backdrop-blur-md bg-white/30 border border-white/20 rounded-3xl p-8 mb-8 shadow-xl">
-          <div className="space-y-6">
+        {/* Enhanced Search & Filters */}
+        <div 
+          className="relative mb-12 rounded-[2rem] bg-white border shadow-xl p-10"
+          style={{
+            transform: 'perspective(2000px) rotateX(1deg)',
+            transformStyle: 'preserve-3d'
+          }}
+        >
+          <div className="space-y-8">
             <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-1">Find Your Clinic</h2>
-                <p className="text-gray-600">Search from our network of premium healthcare providers</p>
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-sky-500 flex items-center justify-center shadow-lg">
+                  <Search className="w-7 h-7 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-3xl font-bold text-gray-900">Search Clinics</h2>
+                  <p className="text-gray-600">Find the perfect healthcare provider</p>
+                </div>
               </div>
               <Button 
                 variant="ghost"
-                className="text-gray-600 hover:bg-blue-50"
+                className="text-gray-600 hover:bg-blue-50 hover:text-blue-600 px-6 py-3 rounded-xl transition-all"
                 onClick={() => {
                   setSearchTerm("");
                   setSelectedCity("all");
                   setSelectedSpecialty("all");
                 }}
               >
-                <Filter className="w-4 h-4 mr-2" />
-                Reset
+                <Filter className="w-5 h-5 mr-2" />
+                Clear Filters
               </Button>
             </div>
 
             <div className="relative group">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-sky-400 rounded-2xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity"></div>
-              <div className="relative">
-                <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-sky-400 rounded-2xl blur-2xl opacity-10 group-hover:opacity-20 transition-opacity"></div>
+              <div className="relative flex items-center">
+                <Search className="absolute left-6 h-6 w-6 text-gray-400" />
                 <Input
-                  placeholder="Search clinics, specialties, or locations..."
+                  placeholder="Search by name, specialty, or location..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-14 pr-6 h-16 bg-white border-2 border-blue-100 text-gray-900 placeholder:text-gray-400 rounded-2xl text-lg focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100 transition-all"
+                  className="w-full pl-16 pr-6 h-20 bg-white/90 backdrop-blur border-2 border-blue-100 text-gray-900 placeholder:text-gray-400 rounded-2xl text-lg focus:border-blue-400 focus:shadow-xl focus:shadow-blue-100/50 transition-all"
                 />
+                <div className="absolute right-4 flex items-center gap-2">
+                  {searchTerm && (
+                    <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                      Searching...
+                    </Badge>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid md:grid-cols-2 gap-6">
               <Select value={selectedCity} onValueChange={setSelectedCity}>
-                <SelectTrigger className="h-14 bg-white border-2 border-blue-100 text-gray-900 rounded-2xl hover:border-blue-300 focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100 transition-all">
-                  <SelectValue placeholder="All Cities" />
+                <SelectTrigger className="h-16 bg-white/90 backdrop-blur border-2 border-blue-100 text-gray-900 rounded-2xl hover:border-blue-300 focus:border-blue-400 focus:shadow-xl focus:shadow-blue-100/50 transition-all text-base">
+                  <div className="flex items-center gap-3">
+                    <MapPin className="w-5 h-5 text-blue-600" />
+                    <SelectValue placeholder="All Cities" />
+                  </div>
                 </SelectTrigger>
-                <SelectContent className="bg-white border-blue-100">
-                  <SelectItem value="all">All Cities</SelectItem>
+                <SelectContent className="bg-white/95 backdrop-blur-xl border-blue-100 rounded-xl">
+                  <SelectItem value="all">
+                    <div className="flex items-center gap-2 py-1">
+                      <Globe className="w-4 h-4 text-blue-600" />
+                      All Cities
+                    </div>
+                  </SelectItem>
                   {cities.map((city) => (
                     <SelectItem key={city} value={city}>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 py-1">
                         <MapPin className="w-4 h-4 text-blue-600" />
                         {city}
                       </div>
@@ -399,14 +481,22 @@ const ClinicDirectory = () => {
               </Select>
 
               <Select value={selectedSpecialty} onValueChange={setSelectedSpecialty}>
-                <SelectTrigger className="h-14 bg-white border-2 border-blue-100 text-gray-900 rounded-2xl hover:border-blue-300 focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100 transition-all">
-                  <SelectValue placeholder="All Specialties" />
+                <SelectTrigger className="h-16 bg-white/90 backdrop-blur border-2 border-blue-100 text-gray-900 rounded-2xl hover:border-blue-300 focus:border-blue-400 focus:shadow-xl focus:shadow-blue-100/50 transition-all text-base">
+                  <div className="flex items-center gap-3">
+                    <Stethoscope className="w-5 h-5 text-blue-600" />
+                    <SelectValue placeholder="All Specialties" />
+                  </div>
                 </SelectTrigger>
-                <SelectContent className="bg-white border-blue-100">
-                  <SelectItem value="all">All Specialties</SelectItem>
+                <SelectContent className="bg-white/95 backdrop-blur-xl border-blue-100 rounded-xl">
+                  <SelectItem value="all">
+                    <div className="flex items-center gap-2 py-1">
+                      <Layers className="w-4 h-4 text-blue-600" />
+                      All Specialties
+                    </div>
+                  </SelectItem>
                   {specialties.map((specialty) => (
                     <SelectItem key={specialty} value={specialty}>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 py-1">
                         <Stethoscope className="w-4 h-4 text-blue-600" />
                         {specialty}
                       </div>
@@ -416,210 +506,291 @@ const ClinicDirectory = () => {
               </Select>
             </div>
           </div>
-        </Card>
+        </div>
 
-        {/* Results Count - KEEP AS IS */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <div className="px-4 py-2 rounded-full bg-gradient-to-r from-blue-100 to-sky-100 border border-blue-200">
-              <p className="text-blue-900 font-semibold">
-                {filteredClinics.length} {filteredClinics.length === 1 ? "Clinic" : "Clinics"} Found
+        {/* Results Count Bar */}
+        <div className="flex items-center justify-between mb-10">
+          <div className="flex items-center gap-4">
+            <div className="px-6 py-3 rounded-2xl bg-gradient-to-r from-blue-100 to-sky-100 border border-blue-200 shadow-lg">
+              <p className="text-blue-900 font-bold text-lg">
+                {filteredClinics.length} {filteredClinics.length === 1 ? "Clinic" : "Clinics"} Available
               </p>
             </div>
             {(searchTerm || selectedCity !== "all" || selectedSpecialty !== "all") && (
-              <Badge className="bg-white border-blue-200 text-blue-600">
-                Filtered
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge className="bg-white border-blue-200 text-blue-600 shadow-md px-3 py-1.5">
+                  Filters Active
+                </Badge>
+                <div className="h-8 w-px bg-blue-200"></div>
+                <div className="flex gap-2">
+                  {searchTerm && (
+                    <Badge className="bg-blue-50 text-blue-700 border-blue-200">
+                      "{searchTerm}"
+                    </Badge>
+                  )}
+                  {selectedCity !== "all" && (
+                    <Badge className="bg-sky-50 text-sky-700 border-sky-200">
+                      {selectedCity}
+                    </Badge>
+                  )}
+                  {selectedSpecialty !== "all" && (
+                    <Badge className="bg-cyan-50 text-cyan-700 border-cyan-200">
+                      {selectedSpecialty}
+                    </Badge>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>
 
-        {/* Clinics Grid - UPDATED WITH REAL DATA */}
+        {/* Enhanced Clinics Grid with 3D Cards */}
         {filteredClinics.length === 0 ? (
-          <Card className="backdrop-blur-md bg-white/40 border border-white/20 rounded-3xl p-20 text-center shadow-xl">
-            <div className="max-w-md mx-auto">
-              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-100 to-sky-100 flex items-center justify-center mx-auto mb-6">
-                <Search className="w-12 h-12 text-blue-400" />
+          <div 
+            className="relative rounded-[2rem] bg-white/80 backdrop-blur-xl border border-white/50 shadow-2xl p-24 text-center"
+            style={{
+              transform: 'perspective(2000px) rotateX(2deg)',
+              transformStyle: 'preserve-3d'
+            }}
+          >
+            <div className="max-w-lg mx-auto">
+              <div className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-100 to-sky-100 flex items-center justify-center mx-auto mb-8 shadow-xl">
+                <Search className="w-16 h-16 text-blue-400" />
               </div>
-              <h3 className="text-3xl font-bold text-gray-900 mb-3">No Clinics Found</h3>
-              <p className="text-gray-500 mb-8">Try adjusting your filters or search terms</p>
+              <h3 className="text-4xl font-bold text-gray-900 mb-4">No Clinics Found</h3>
+              <p className="text-xl text-gray-600 mb-10">Try adjusting your search criteria</p>
               <Button
                 onClick={() => {
                   setSearchTerm("");
                   setSelectedCity("all");
                   setSelectedSpecialty("all");
                 }}
-                className="bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white px-8 py-6 rounded-2xl text-lg font-semibold shadow-xl hover:shadow-2xl transition-all"
+                className="px-10 py-6 rounded-2xl bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white text-lg font-bold shadow-2xl hover:shadow-3xl transform hover:-translate-y-1 transition-all"
               >
-                Clear All Filters
+                <Filter className="w-5 h-5 mr-2" />
+                Reset All Filters
               </Button>
             </div>
-          </Card>
+          </div>
         ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-12">
-            {filteredClinics.map((clinic) => {
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 pb-16">
+            {filteredClinics.map((clinic, index) => {
               const todaySchedule = getTodaySchedule(clinic);
               const paymentMethods = getPaymentMethods(clinic);
               const allowWalkIns = clinic.settings?.allow_walk_ins;
               const avgDuration = clinic.settings?.average_appointment_duration;
               
-              // ✅ REAL DATA: Get rating from database
               const ratingData = ratingsMap?.get(clinic.id);
               const averageRating = ratingData?.average_rating || 0;
               const totalRatings = ratingData?.total_ratings || 0;
               
-              // ✅ REAL DATA: Check if favorited
               const isFavorite = userFavorites?.includes(clinic.id) || false;
 
               return (
                 <div
                   key={clinic.id}
                   className="group relative"
+                  style={{
+                    animation: `slideUp 0.5s ease-out ${index * 0.05}s both`
+                  }}
                   onMouseEnter={() => setHoveredCard(clinic.id)}
                   onMouseLeave={() => setHoveredCard(null)}
                 >
-                  {/* Glow Effect */}
-                  <div className={`absolute -inset-0.5 bg-gradient-to-r from-blue-400 to-sky-400 rounded-3xl blur-lg opacity-0 group-hover:opacity-30 transition-all duration-300`}></div>
-                  
-                  <Card 
-                    className="relative backdrop-blur-md bg-white/60 border border-white/30 rounded-3xl overflow-hidden cursor-pointer hover:shadow-2xl transition-all duration-300 h-full"
-                    onClick={() => navigate(`/clinic/${clinic.id}`)}
+                  {/* 3D Card Container */}
+                  <div 
+                    className="relative h-full transition-all duration-500"
+                    style={{
+                      transform: hoveredCard === clinic.id 
+                        ? 'perspective(1000px) rotateX(-5deg) translateY(-10px) scale(1.02)' 
+                        : 'perspective(1000px) rotateX(0deg)',
+                      transformStyle: 'preserve-3d'
+                    }}
                   >
-                    {/* Header */}
-                    <div className="relative h-28 bg-gradient-to-br from-blue-400 via-sky-400 to-cyan-400">
-                      <div className="absolute inset-0 bg-white/20"></div>
-                      
-                      <div className="absolute inset-0 opacity-10">
-                        <Plus className="absolute top-2 left-4 w-4 h-4 text-white rotate-12" />
-                        <Stethoscope className="absolute bottom-2 right-3 w-5 h-5 text-white -rotate-12" />
-                      </div>
-                      
-                      {/* Status & Favorite */}
-                      <div className="absolute top-2 left-2 right-2 flex items-center justify-between z-20">
-                        <Badge className={`${todaySchedule.isOpen ? 'bg-green-500' : 'bg-gray-500'} text-white border-0 shadow-lg text-xs px-2 py-1`}>
-                          <div className={`w-1.5 h-1.5 rounded-full ${todaySchedule.isOpen ? 'bg-white animate-pulse' : 'bg-gray-300'} mr-1`}></div>
-                          {todaySchedule.isOpen ? "Open" : "Closed"}
-                        </Badge>
-                        <button
-                          onClick={(e) => toggleFavorite(e, clinic.id)}
-                          disabled={toggleFavoriteMutation.isPending}
-                          className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-all disabled:opacity-50"
-                        >
-                          <Heart 
-                            className={`w-4 h-4 transition-all ${
-                              isFavorite 
-                                ? 'fill-red-500 text-red-500 scale-110' 
-                                : 'text-gray-400 hover:text-red-400'
-                            }`} 
-                          />
-                        </button>
-                      </div>
-
-                      {/* Logo */}
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        {clinic.logo_url ? (
-                          <img 
-                            src={clinic.logo_url} 
-                            alt={clinic.name} 
-                            className="h-14 w-14 object-contain bg-white rounded-xl p-2 shadow-xl" 
-                          />
-                        ) : (
-                          <div className="w-14 h-14 rounded-xl bg-white shadow-xl flex items-center justify-center">
-                            <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-sky-600 bg-clip-text text-transparent">
-                              {clinic.name.charAt(0)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Content */}
-                    <div className="p-4 space-y-3">
-                      {/* Name, Specialty & Rating */}
-                      <div>
-                        <h3 className="text-lg font-bold text-gray-900 mb-1.5 line-clamp-1 group-hover:text-blue-600 transition-colors">
-                          {clinic.name}
-                        </h3>
-                        <div className="flex items-center justify-between gap-2">
-                          <Badge className="bg-gradient-to-r from-blue-100/80 to-sky-100/80 border-blue-200/50 text-blue-700 text-xs px-2 py-0.5">
-                            {clinic.specialty}
+                    {/* Glow Effect */}
+                    <div className={`absolute -inset-1 bg-gradient-to-r from-blue-400 via-sky-400 to-cyan-400 rounded-3xl blur-xl ${hoveredCard === clinic.id ? 'opacity-40' : 'opacity-0'} transition-opacity duration-500`}></div>
+                    
+                    <Card 
+                      className="relative h-full bg-white/90 backdrop-blur-md border-2 border-white/50 rounded-3xl overflow-hidden cursor-pointer hover:shadow-2xl transition-all duration-300"
+                      onClick={() => navigate(`/clinic/${clinic.id}`)}
+                    >
+                      {/* Enhanced Header */}
+                      <div className="relative h-28 bg-gradient-to-br from-blue-500 via-sky-500 to-cyan-500 overflow-hidden">
+                        <div className="absolute inset-0 bg-black/10"></div>
+                        <div className="absolute inset-0" style={{
+                          backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(255,255,255,0.1) 0%, transparent 50%)'
+                        }}></div>
+                        
+                        {/* Medical Pattern */}
+                        <div className="absolute inset-0 opacity-10">
+                          <Plus className="absolute top-4 left-6 w-6 h-6 text-white rotate-12" />
+                          <Stethoscope className="absolute bottom-4 right-6 w-7 h-7 text-white -rotate-12" />
+                          <Pill className="absolute top-8 right-12 w-5 h-5 text-white rotate-45" />
+                          <Heart className="absolute bottom-8 left-8 w-5 h-5 text-white -rotate-6" />
+                        </div>
+                        
+                        {/* Status Badge */}
+                        <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-20">
+                          <Badge className={`${todaySchedule.isOpen ? 'bg-green-500/90' : 'bg-gray-500/90'} backdrop-blur text-white border-0 shadow-xl px-3 py-1.5 font-semibold`}>
+                            <div className={`w-2 h-2 rounded-full ${todaySchedule.isOpen ? 'bg-white animate-pulse' : 'bg-gray-300'} mr-2`}></div>
+                            {todaySchedule.isOpen ? "OPEN NOW" : "CLOSED"}
                           </Badge>
-                          {/* ✅ REAL RATING DATA */}
-                          <div className="flex items-center gap-0.5">
-                            {totalRatings > 0 ? (
-                              <>
-                                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                                <span className="text-xs font-semibold text-gray-700">
-                                  {averageRating.toFixed(1)}
-                                </span>
-                                <span className="text-xs text-gray-400 ml-0.5">
-                                  ({totalRatings})
-                                </span>
-                              </>
-                            ) : (
-                              <span className="text-xs text-gray-400">No reviews</span>
-                            )}
+                          
+                          {/* Favorite Button */}
+                          <button
+                            onClick={(e) => toggleFavorite(e, clinic.id)}
+                            disabled={toggleFavoriteMutation.isPending}
+                            className="w-10 h-10 rounded-full bg-white/95 backdrop-blur-sm shadow-xl flex items-center justify-center hover:bg-white hover:scale-110 transition-all disabled:opacity-50"
+                          >
+                            <Heart 
+                              className={`w-5 h-5 transition-all ${
+                                isFavorite 
+                                  ? 'fill-red-500 text-red-500 scale-110' 
+                                  : 'text-gray-400 hover:text-red-400'
+                              }`} 
+                            />
+                          </button>
+                        </div>
+
+                        {/* Logo */}
+                        <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2">
+                          {clinic.logo_url ? (
+                            <div className="w-16 h-16 rounded-2xl bg-white shadow-xl p-2 border-2 border-white">
+                              <img 
+                                src={clinic.logo_url} 
+                                alt={clinic.name} 
+                                className="w-full h-full object-contain" 
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-16 h-16 rounded-2xl bg-white shadow-xl flex items-center justify-center border-2 border-white">
+                              <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-sky-600 bg-clip-text text-transparent">
+                                {clinic.name.charAt(0)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Content */}
+                      <div className="p-4 pt-10 space-y-3">
+                        {/* Name & Rating */}
+                        <div className="text-center">
+                          <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-1 group-hover:text-blue-600 transition-colors">
+                            {clinic.name}
+                          </h3>
+                          <div className="flex items-center justify-center gap-3 mb-3">
+                            <Badge className="bg-gradient-to-r from-blue-100 to-sky-100 border-blue-200 text-blue-700 font-semibold px-3 py-1">
+                              {clinic.specialty}
+                            </Badge>
+                            <div className="flex items-center gap-1">
+                              {totalRatings > 0 ? (
+                                <>
+                                  <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                                  <span className="text-sm font-bold text-gray-700">
+                                    {averageRating.toFixed(1)}
+                                  </span>
+                                  <span className="text-xs text-gray-400">
+                                    ({totalRatings})
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-sm text-gray-400">New Clinic</span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Compact Info */}
-                      <div className="space-y-1.5 text-xs">
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <MapPin className="h-3 w-3 text-blue-600 flex-shrink-0" />
-                          <span className="line-clamp-1">{clinic.city}</span>
+                        {/* Info Cards */}
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-blue-50 to-sky-50 border border-blue-100">
+                            <MapPin className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                            <span className="text-sm font-medium text-gray-700 line-clamp-1">{clinic.city}</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-sky-50 to-cyan-50 border border-sky-100">
+                            <Clock className="h-5 w-5 text-sky-600 flex-shrink-0" />
+                            <span className="text-sm font-semibold text-gray-700">{todaySchedule.hours}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <Clock className="h-3 w-3 text-sky-600 flex-shrink-0" />
-                          <span className="font-medium">{todaySchedule.hours}</span>
-                        </div>
-                      </div>
 
-                      {/* Features & Payment */}
-                      <div className="flex items-center justify-between pt-2 border-t border-gray-100/50">
-                        <div className="flex flex-wrap gap-1">
+                        {/* Features */}
+                        <div className="flex flex-wrap gap-2 justify-center">
                           {allowWalkIns && (
-                            <Badge className="bg-emerald-50/80 border-emerald-200/50 text-emerald-700 text-xs px-2 py-0.5">
-                              <Zap className="w-2.5 h-2.5 mr-0.5" />
-                              Walk-in
+                            <Badge className="bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-200 text-emerald-700 font-semibold px-3 py-1.5">
+                              <Zap className="w-3 h-3 mr-1" />
+                              Walk-ins OK
                             </Badge>
                           )}
                           {avgDuration && (
-                            <Badge className="bg-amber-50/80 border-amber-200/50 text-amber-700 text-xs px-2 py-0.5">
-                              {avgDuration}min
+                            <Badge className="bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200 text-amber-700 font-semibold px-3 py-1.5">
+                              <Timer className="w-3 h-3 mr-1" />
+                              {avgDuration} min
                             </Badge>
                           )}
                         </div>
-                        
+
+                        {/* Payment Methods */}
                         {paymentMethods.length > 0 && (
-                          <div className="flex items-center gap-1">
-                            {paymentMethods.slice(0, 3).map((method) => (
+                          <div className="flex items-center justify-center gap-2 pt-2">
+                            {paymentMethods.map((method) => (
                               <div
                                 key={method.name}
-                                className="w-6 h-6 rounded-lg bg-gray-50/80 border border-gray-200/50 flex items-center justify-center"
+                                className="w-10 h-10 rounded-xl bg-white border-2 border-blue-100 flex items-center justify-center shadow-md hover:shadow-lg hover:border-blue-300 transition-all"
                                 title={method.name}
                               >
-                                <method.icon className="h-3 w-3 text-gray-600" />
+                                <method.icon className="h-5 w-5 text-gray-700" />
                               </div>
                             ))}
                           </div>
                         )}
-                      </div>
 
-                      {/* Book Button */}
-                      <Button className="w-full h-10 bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white border-0 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all group text-sm">
-                        <Calendar className="w-3.5 h-3.5 mr-1.5" />
-                        <span>Book Now</span>
-                        <ArrowRight className="w-3.5 h-3.5 ml-1.5 group-hover:translate-x-1 transition-transform" />
-                      </Button>
-                    </div>
-                  </Card>
+                        {/* CTA Button */}
+                        <Button className="w-full h-14 bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white border-0 rounded-2xl font-bold shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition-all group text-base">
+                          <Calendar className="w-5 h-5 mr-2" />
+                          <span>Book Appointment</span>
+                          <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                        </Button>
+                      </div>
+                    </Card>
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
       </div>
+
+      <style jsx>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) rotate(12deg); }
+          50% { transform: translateY(-20px) rotate(12deg); }
+        }
+        
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes gradient {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+        
+        .animate-float {
+          animation: float 6s ease-in-out infinite;
+        }
+
+        .animate-gradient {
+          background-size: 200% 200%;
+          animation: gradient 3s ease infinite;
+        }
+      `}</style>
     </div>
   );
 };

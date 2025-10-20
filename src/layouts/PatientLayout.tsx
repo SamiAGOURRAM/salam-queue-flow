@@ -8,11 +8,11 @@ import {
   Calendar, 
   User,
   LogOut,
-  LogIn // <-- ADDED: LogIn icon
+  LogIn,
+  Info // 1. IMPORT THE NEW ICON
 } from "lucide-react";
 
 export default function PatientLayout() {
-  // Destructure 'user' to check the authentication state
   const { user, signOut } = useAuth(); 
   const navigate = useNavigate();
   const location = useLocation();
@@ -20,9 +20,10 @@ export default function PatientLayout() {
   const navigationItems = [
     {
       name: "Browse Clinics",
-      path: "/",
+      path: "/clinics",
       icon: Search,
     },
+    // 2. ADD THE NEW "ABOUT" LINK HERE
     {
       name: "My Appointments",
       path: "/my-appointments",
@@ -33,12 +34,17 @@ export default function PatientLayout() {
       path: "/patient/profile",
       icon: User,
     },
+    {
+      name: "About",
+      path: "/welcome", // This will link to Welcome.tsx
+      icon: Info,
+    },
   ];
 
   const isActive = (path: string) => {
-    // Note: Use startsWith for paths like /patient/profile/edit
-    return location.pathname === path || (path === "/" && location.pathname === "/");
+    return location.pathname === path;
   };
+  
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">

@@ -5,25 +5,38 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { User, Mail, Phone, Save, MapPin } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { Skeleton } from "@/components/ui/skeleton"; // Added Skeleton for better loading state
+import { Skeleton } from "@/components/ui/skeleton";
+import { Link } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { favoriteService } from "@/services/favorite/FavoriteService";
+import { 
+  User, Mail, Phone, Save, MapPin, 
+  Heart, Building, ChevronRight, Trash2 
+} from "lucide-react";
+
+// Define a type for the clinic data we'll fetch
+interface FavoriteClinic {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  specialty: string;
+}
 
 export default function PatientProfile() {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  
-  // Profile data
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [city, setCity] = useState("");
+  const queryClient = useQueryClient();
+
+  const [loading, setLoading]          = useState(false);
+  const [saving, setSaving]            = useState(false);
+  const [fullName, setFullName]        = useState("");
+  const [phone, setPhone]              = useState("");
+  const [email, setEmail]              = useState("");
+  const [city, setCity]                = useState("");
 
   useEffect(() => {
     if (user) {
       fetchProfile();
-      // Ensure email is set from the initial user object if available
       setEmail(user.email || ""); 
     }
   }, [user]);
@@ -43,8 +56,6 @@ export default function PatientProfile() {
         setFullName(data.full_name || "");
         setPhone(data.phone_number || "");
         setCity(data.city || "");
-        // Use user object's email as the single source of truth for email
-        // setEmail(data.email || ""); // Removed, using user.email from initial load
       }
     } catch (error) {
       console.error("Error fetching profile:", error);
@@ -88,7 +99,50 @@ export default function PatientProfile() {
     }
   };
 
-  // Enhanced Loading State with Skeleton
+  // Query to fetch favorite clinics' details
+  const { data: favoriteClinics, isLoading: isLoadingFavorites } = useQuery<FavoriteClinic[]>({
+    queryKey: ['favorite-clinics', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      const favoriteClinicIds = await favoriteService.getUserFavorites(user.id);
+      if (!favoriteClinicIds || favoriteClinicIds.length === 0) {
+        return [];
+      }
+
+      const { data, error } = await supabase
+        .from('clinics')
+        .select('id, name, logo_url, specialty')
+        .in('id', favoriteClinicIds);
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  // Mutation to remove a favorite
+  const { mutate: removeFavorite, isPending: isRemovingFavorite } = useMutation({
+    mutationFn: (clinicId: string) => {
+      if (!user) throw new Error("User not found");
+      return favoriteService.removeFavorite(clinicId, user.id);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Removed",
+        description: "Clinic removed from your favorites.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['favorite-clinics', user?.id] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: `Failed to remove favorite: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto space-y-8 py-8">
@@ -115,7 +169,6 @@ export default function PatientProfile() {
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-blue-50 via-white to-sky-50 relative py-12">
-      {/* Animated Background Elements - Inherited from ClinicDirectory */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse"></div>
         <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-sky-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse" style={{animationDelay: '2s'}}></div>
@@ -123,7 +176,6 @@ export default function PatientProfile() {
       </div>
 
       <div className="relative z-10 max-w-4xl mx-auto px-4 space-y-8">
-        {/* Page Header */}
         <div>
           <h1 className="text-5xl font-extrabold tracking-tight text-gray-900">
             <span className="bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-600 bg-clip-text text-transparent">
@@ -133,7 +185,6 @@ export default function PatientProfile() {
           <p className="text-lg text-gray-600 mt-3">Manage your personal information and account details.</p>
         </div>
 
-        {/* Profile Card - Enhanced Style */}
         <Card className="relative backdrop-blur-sm bg-white/95 border border-white/60 rounded-3xl shadow-2xl transition-all duration-300">
           <CardHeader className="border-b border-blue-100 bg-gradient-to-r from-blue-50 to-sky-50/50 rounded-t-3xl p-6">
             <CardTitle className="text-2xl font-bold flex items-center gap-3 text-gray-800">
@@ -207,7 +258,6 @@ export default function PatientProfile() {
             <Button
               onClick={handleSave}
               disabled={saving}
-              // Primary button style with blue/sky gradient
               className="w-full h-14 text-lg bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 shadow-xl hover:shadow-2xl text-white rounded-xl font-bold transition-all"
             >
               <Save className="w-5 h-5 mr-2" />
@@ -216,33 +266,61 @@ export default function PatientProfile() {
           </CardContent>
         </Card>
 
-        {/* Account Info Card - Enhanced Style */}
         <Card className="relative backdrop-blur-sm bg-white/95 border border-white/60 rounded-3xl shadow-xl transition-all duration-300">
           <CardHeader className="border-b border-blue-100 bg-gradient-to-r from-blue-50 to-sky-50/50 rounded-t-3xl p-6">
-            <CardTitle className="text-2xl font-bold text-gray-800">Account Information</CardTitle>
-            <CardDescription className="text-gray-500">Essential account details</CardDescription>
+            <CardTitle className="text-2xl font-bold flex items-center gap-3 text-gray-800">
+              <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center shadow-md">
+                <Heart className="w-4 h-4 text-white" />
+              </div>
+              My Favorite Clinics
+            </CardTitle>
+            <CardDescription className="text-gray-500 ml-11">Your saved clinics for quick access</CardDescription>
           </CardHeader>
-          <CardContent className="pt-6">
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-blue-50/80 border border-blue-200 rounded-xl shadow-inner">
-                <div className="mb-2 sm:mb-0">
-                  <p className="text-xs font-medium text-blue-600 uppercase tracking-wider">User ID</p>
-                  <p className="font-mono text-sm text-gray-900 break-all">{user?.id}</p>
+          <CardContent className="pt-6 space-y-3">
+            {isLoadingFavorites ? (
+              <>
+                <Skeleton className="h-16 w-full bg-blue-100/50 rounded-xl" />
+                <Skeleton className="h-16 w-full bg-blue-100/50 rounded-xl" />
+              </>
+            ) : favoriteClinics && favoriteClinics.length > 0 ? (
+              favoriteClinics.map((clinic) => (
+                <div key={clinic.id} className="flex items-center justify-between p-3 bg-blue-50/80 border border-blue-200 rounded-xl shadow-inner transition-all hover:bg-white hover:border-blue-300">
+                  <Link to={`/clinic/${clinic.id}`} className="flex items-center gap-4 flex-grow">
+                    {clinic.logo_url ? (
+                      <img src={clinic.logo_url} alt={clinic.name} className="w-12 h-12 rounded-lg object-contain bg-white p-1" />
+                    ) : (
+                      <div className="w-12 h-12 flex-shrink-0 rounded-lg bg-blue-200 flex items-center justify-center">
+                        <Building className="w-6 h-6 text-blue-600" />
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-bold text-gray-900">{clinic.name}</p>
+                      <p className="text-sm text-gray-500">{clinic.specialty}</p>
+                    </div>
+                  </Link>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeFavorite(clinic.id)}
+                    disabled={isRemovingFavorite}
+                    className="text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
+              ))
+            ) : (
+              <div className="text-center py-8 px-4 bg-blue-50/50 rounded-xl border border-dashed border-blue-200">
+                <Heart className="w-12 h-12 text-blue-300 mx-auto mb-4" />
+                <p className="font-semibold text-gray-800">No favorite clinics yet</p>
+                <p className="text-sm text-gray-500 mb-4">Your saved clinics will appear here.</p>
+                <Button asChild variant="link" className="text-blue-600">
+                  <Link to="/clinics">
+                    Browse Clinics <ChevronRight className="w-4 h-4 ml-1" />
+                  </Link>
+                </Button>
               </div>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-blue-50/80 border border-blue-200 rounded-xl shadow-inner">
-                <div className="mb-2 sm:mb-0">
-                  <p className="text-xs font-medium text-blue-600 uppercase tracking-wider">Account Created</p>
-                  <p className="font-semibold text-gray-900">
-                    {new Date(user?.created_at || "").toLocaleDateString("en-US", { 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                    })}
-                  </p>
-                </div>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>

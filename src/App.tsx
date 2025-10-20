@@ -67,19 +67,23 @@ const App = () => (
           {/* PUBLIC Patient Routes (Allow access even when logged out) */}
           {/* The PatientLayout handles the "Log In" vs "Sign Out" button internally */}
           {/* ======================================================= */}
-          <Route element={<PatientLayout />}>
-            {/* Move Index to /browse or /clinics if you still need it */}
-            <Route path="/clinics" element={<Index />} /> {/* ← MOVED FROM "/" */}
-            <Route path="/clinic/:clinicId" element={<ClinicDetailView />} />
-            <Route path="/booking/:clinicId" element={<BookingFlow />} />
-            
-            {/* 🟢 PROTECTED ROUTES: Only protected areas are wrapped */}
-            <Route element={<ProtectedRoute />}>
-              <Route path="/my-appointments" element={<PatientDashboard />} />
-              <Route path="/patient/profile" element={<PatientProfile />} />
-              <Route path="/patient/queue/:appointmentId" element={<MyQueue />} />
-            </Route>
+          <Route path="/" element={<PatientLayout />}>
+  {/* The `index` route is the default page for the layout at "/" */}
+          <Route index element={<Index />} />
+
+          {/* The "About" page is a child of the layout */}
+          <Route path="welcome" element={<Welcome />} /> 
+
+          <Route path="clinic/:clinicId" element={<ClinicDetailView />} />
+          <Route path="booking/:clinicId" element={<BookingFlow />} />
+
+          {/* PROTECTED ROUTES: Only protected areas are wrapped */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="my-appointments" element={<PatientDashboard />} />
+            <Route path="patient/profile" element={<PatientProfile />} />
+            <Route path="patient/queue/:appointmentId" element={<MyQueue />} />
           </Route>
+        </Route>
           
           {/* ======================================================= */}
           {/* PROTECTED Clinic Routes (All are protected) */}
