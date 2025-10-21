@@ -7,7 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 // Standard Page Components
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
-import Welcome from "./pages//Welcome.tsx"; // ← ADD THIS IMPORT
+import Welcome from "./pages/Welcome.tsx";
 
 // Auth Pages
 import Login from "./pages/auth/Login.tsx";
@@ -38,7 +38,7 @@ import ClinicLayout from "./layouts/ClinicLayout.tsx";
 import PatientLayout from "./layouts/PatientLayout.tsx";
 
 // Protected Route Component
-import { ProtectedRoute } from "./components/auth/ProtectedRoute.tsx"; 
+import { ProtectedRoute } from "./components/auth/ProtectedRoute.tsx";
 
 const queryClient = new QueryClient();
 
@@ -50,11 +50,6 @@ const App = () => (
         <Sonner />
         <Routes>
           {/* ======================================================= */}
-          {/* WELCOME PAGE - First page users see */}
-          {/* ======================================================= */}
-          <Route path="/" element={<Welcome />} /> {/* ← ADD THIS ROUTE */}
-
-          {/* ======================================================= */}
           {/* Public Routes (Auth, Onboarding, Invitations) */}
           {/* ======================================================= */}
           <Route path="/auth/login" element={<Login />} />
@@ -64,29 +59,29 @@ const App = () => (
           <Route path="/accept-invitation/:token" element={<AcceptInvitation />} />
 
           {/* ======================================================= */}
-          {/* PUBLIC Patient Routes (Allow access even when logged out) */}
-          {/* The PatientLayout handles the "Log In" vs "Sign Out" button internally */}
+          {/* PUBLIC Patient Routes with PatientLayout */}
           {/* ======================================================= */}
           <Route path="/" element={<PatientLayout />}>
-  {/* The `index` route is the default page for the layout at "/" */}
-          <Route index element={<Index />} />
+            {/* Browse Clinics - Default landing page */}
+            <Route index element={<Index />} />
 
-          {/* The "About" page is a child of the layout */}
-          <Route path="welcome" element={<Welcome />} /> 
+            {/* About/Welcome page - Accessible via nav button */}
+            <Route path="welcome" element={<Welcome />} />
 
-          <Route path="clinic/:clinicId" element={<ClinicDetailView />} />
-          <Route path="booking/:clinicId" element={<BookingFlow />} />
+            {/* Public clinic browsing */}
+            <Route path="clinic/:clinicId" element={<ClinicDetailView />} />
+            <Route path="booking/:clinicId" element={<BookingFlow />} />
 
-          {/* PROTECTED ROUTES: Only protected areas are wrapped */}
-          <Route element={<ProtectedRoute />}>
-            <Route path="my-appointments" element={<PatientDashboard />} />
-            <Route path="patient/profile" element={<PatientProfile />} />
-            <Route path="patient/queue/:appointmentId" element={<MyQueue />} />
+            {/* PROTECTED Patient Routes */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="my-appointments" element={<PatientDashboard />} />
+              <Route path="patient/profile" element={<PatientProfile />} />
+              <Route path="patient/queue/:appointmentId" element={<MyQueue />} />
+            </Route>
           </Route>
-        </Route>
-          
+
           {/* ======================================================= */}
-          {/* PROTECTED Clinic Routes (All are protected) */}
+          {/* PROTECTED Clinic Routes */}
           {/* ======================================================= */}
           <Route element={<ProtectedRoute />}>
             <Route path="/clinic" element={<ClinicLayout />}>

@@ -1,0 +1,101 @@
+{
+    "common": {
+      "search": "Rechercher",
+      "filter": "Filtrer",
+      "clear": "Effacer",
+      "clearFilters": "Effacer les filtres",
+      "resetFilters": "Réinitialiser les filtres",
+      "loading": "Chargement...",
+      "save": "Enregistrer",
+      "cancel": "Annuler",
+      "edit": "Modifier",
+      "delete": "Supprimer",
+      "close": "Fermer",
+      "open": "Ouvert",
+      "closed": "Fermé",
+      "active": "Actif",
+      "filtersActive": "Filtres actifs"
+    },
+    "nav": {
+      "home": "Accueil",
+      "clinics": "Parcourir les cliniques",
+      "appointments": "Mes rendez-vous",
+      "profile": "Profil",
+      "settings": "Paramètres",
+      "logout": "Déconnexion",
+      "login": "Connexion",
+      "signup": "S'inscrire"
+    },
+    "clinic": {
+      "directory": "Répertoire de santé",
+      "searchClinics": "Rechercher des cliniques",
+      "findPerfectClinic": "Trouvez votre clinique idéale",
+      "browseProviders": "Parcourez les prestataires de soins de santé les mieux notés avec disponibilité en temps réel. Réservez des rendez-vous instantanément et évitez les files d'attente.",
+      "allClinics": "Toutes les cliniques",
+      "allCities": "Toutes les villes",
+      "allSpecialties": "Toutes les spécialités",
+      "verifiedClinics": "Cliniques vérifiées",
+      "patientsServed": "Patients servis",
+      "avgRating": "Note moyenne",
+      "rating": "Note",
+      "clinics": "Cliniques",
+      "clinic_one": "Clinique",
+      "clinic_other": "Cliniques",
+      "available": "Disponible",
+      "noClinicsFound": "Aucune clinique trouvée",
+      "tryAdjustingFilters": "Essayez d'ajuster vos critères de recherche",
+      "findPerfectProvider": "Trouvez le prestataire de soins idéal",
+      "searchPlaceholder": "Rechercher par nom, spécialité ou lieu...",
+      "bookAppointment": "Prendre rendez-vous",
+      "bookNow": "Réserver maintenant",
+      "openNow": "OUVERT",
+      "newClinic": "Nouvelle clinique",
+      "allSpecialtiesText": "Toutes les spécialités",
+      "allSpecialtiesDesc": "Trouvez des médecins dans tous les domaines médicaux",
+      "instantBooking": "Réservation instantanée",
+      "instantBookingDesc": "Aucune attente requise"
+    },
+    "features": {
+      "walkIn": "Sans rendez-vous",
+      "walkInsOk": "Sans rendez-vous accepté",
+      "duration": "Durée",
+      "minutes": "min",
+      "averageTime": "Temps moyen"
+    },
+    "payment": {
+      "methods": "Modes de paiement",
+      "cash": "Espèces",
+      "card": "Carte",
+      "insurance": "Assurance",
+      "online": "En ligne"
+    },
+    "location": {
+      "city": "Ville",
+      "address": "Adresse",
+      "phone": "Téléphone",
+      "location": "Emplacement"
+    },
+    "time": {
+      "hours": "Horaires",
+      "today": "Aujourd'hui",
+      "schedule": "Horaire",
+      "workingHours": "Heures de travail"
+    },
+    "auth": {
+      "loginRequired": "Connexion requise",
+      "pleaseLogin": "Veuillez vous connecter pour continuer",
+      "loginToSaveFavorites": "Veuillez vous connecter pour enregistrer les favoris"
+    },
+    "favorites": {
+      "addedToFavorites": "Ajouté aux favoris",
+      "removedFromFavorites": "Retiré des favoris",
+      "savedForQuickAccess": "❤️ Enregistré pour un accès rapide",
+      "removedFromList": "Retiré de votre liste"
+    },
+    "errors": {
+      "error": "Erreur",
+      "failedToLoad": "Échec du chargement",
+      "tryAgain": "Veuillez réessayer",
+      "somethingWentWrong": "Quelque chose s'est mal passé"
+    }
+  }

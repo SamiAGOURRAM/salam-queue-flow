@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ratingService } from "@/services/rating/RatingService";
 import { favoriteService } from "@/services/favorite/FavoriteService";
+import { useTranslation } from "react-i18next"; 
 
 interface ClinicSettings {
   buffer_time?: number;
@@ -64,6 +65,7 @@ const ClinicDirectory = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   
   const [clinics, setClinics] = useState<Clinic[]>([]);
   const [loading, setLoading] = useState(true);
@@ -545,35 +547,30 @@ const ClinicDirectory = () => {
         </div>
 
         {/* Enhanced Clinics Grid with 3D Cards */}
-        {filteredClinics.length === 0 ? (
-          <div 
-            className="relative rounded-[2rem] bg-white/80 backdrop-blur-xl border border-white/50 shadow-2xl p-24 text-center"
-            style={{
-              transform: 'perspective(2000px) rotateX(2deg)',
-              transformStyle: 'preserve-3d'
-            }}
-          >
-            <div className="max-w-lg mx-auto">
-              <div className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-100 to-sky-100 flex items-center justify-center mx-auto mb-8 shadow-xl">
-                <Search className="w-16 h-16 text-blue-400" />
+  {/* Compact Clinics Grid - 4 columns on xl */}
+  {filteredClinics.length === 0 ? (
+          <div className="rounded-2xl bg-white border shadow-lg p-16 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-100 to-sky-100 flex items-center justify-center mx-auto mb-6">
+                <Search className="w-12 h-12 text-blue-400" />
               </div>
-              <h3 className="text-4xl font-bold text-gray-900 mb-4">No Clinics Found</h3>
-              <p className="text-xl text-gray-600 mb-10">Try adjusting your search criteria</p>
+              <h3 className="text-3xl font-bold text-gray-900 mb-3">No Clinics Found</h3>
+              <p className="text-lg text-gray-600 mb-8">Try adjusting your filters</p>
               <Button
                 onClick={() => {
                   setSearchTerm("");
                   setSelectedCity("all");
                   setSelectedSpecialty("all");
                 }}
-                className="px-10 py-6 rounded-2xl bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white text-lg font-bold shadow-2xl hover:shadow-3xl transform hover:-translate-y-1 transition-all"
+                className="px-8 py-5 rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white font-bold shadow-lg"
               >
                 <Filter className="w-5 h-5 mr-2" />
-                Reset All Filters
+                Reset Filters
               </Button>
             </div>
           </div>
         ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 pb-16">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-12">
             {filteredClinics.map((clinic, index) => {
               const todaySchedule = getTodaySchedule(clinic);
               const paymentMethods = getPaymentMethods(clinic);
@@ -589,72 +586,56 @@ const ClinicDirectory = () => {
               return (
                 <div
                   key={clinic.id}
-                  className="group relative"
-                  style={{
-                    animation: `slideUp 0.5s ease-out ${index * 0.05}s both`
-                  }}
+                  className="group"
                   onMouseEnter={() => setHoveredCard(clinic.id)}
                   onMouseLeave={() => setHoveredCard(null)}
                 >
-                  {/* 3D Card Container */}
                   <div 
-                    className="relative h-full transition-all duration-500"
+                    className="relative h-full transition-all duration-300"
                     style={{
                       transform: hoveredCard === clinic.id 
-                        ? 'perspective(1000px) rotateX(-5deg) translateY(-10px) scale(1.02)' 
-                        : 'perspective(1000px) rotateX(0deg)',
-                      transformStyle: 'preserve-3d'
+                        ? 'translateY(-4px)' 
+                        : 'translateY(0)'
                     }}
                   >
-                    {/* Glow Effect */}
-                    <div className={`absolute -inset-1 bg-gradient-to-r from-blue-400 via-sky-400 to-cyan-400 rounded-3xl blur-xl ${hoveredCard === clinic.id ? 'opacity-40' : 'opacity-0'} transition-opacity duration-500`}></div>
+                    <div className={`absolute -inset-0.5 bg-gradient-to-r from-blue-400 to-sky-400 rounded-2xl blur ${hoveredCard === clinic.id ? 'opacity-20' : 'opacity-0'} transition-opacity duration-300`}></div>
                     
                     <Card 
-                      className="relative h-full bg-white/90 backdrop-blur-md border-2 border-white/50 rounded-3xl overflow-hidden cursor-pointer hover:shadow-2xl transition-all duration-300"
+                      className="relative h-full bg-white border border-gray-200 rounded-2xl overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-300"
                       onClick={() => navigate(`/clinic/${clinic.id}`)}
                     >
-                      {/* Enhanced Header */}
-                      <div className="relative h-28 bg-gradient-to-br from-blue-500 via-sky-500 to-cyan-500 overflow-hidden">
-                        <div className="absolute inset-0 bg-black/10"></div>
-                        <div className="absolute inset-0" style={{
-                          backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(255,255,255,0.1) 0%, transparent 50%)'
-                        }}></div>
-                        
-                        {/* Medical Pattern */}
+                      {/* Compact Header - 60px */}
+                      <div className="relative h-[60px] bg-gradient-to-br from-blue-500 via-sky-500 to-cyan-500">
+                        <div className="absolute inset-0 bg-black/5"></div>
                         <div className="absolute inset-0 opacity-10">
-                          <Plus className="absolute top-4 left-6 w-6 h-6 text-white rotate-12" />
-                          <Stethoscope className="absolute bottom-4 right-6 w-7 h-7 text-white -rotate-12" />
-                          <Pill className="absolute top-8 right-12 w-5 h-5 text-white rotate-45" />
-                          <Heart className="absolute bottom-8 left-8 w-5 h-5 text-white -rotate-6" />
+                          <Plus className="absolute top-2 left-3 w-4 h-4 text-white" />
+                          <Stethoscope className="absolute bottom-2 right-3 w-5 h-5 text-white" />
                         </div>
                         
-                        {/* Status Badge */}
-                        <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-20">
-                          <Badge className={`${todaySchedule.isOpen ? 'bg-green-500/90' : 'bg-gray-500/90'} backdrop-blur text-white border-0 shadow-xl px-3 py-1.5 font-semibold`}>
-                            <div className={`w-2 h-2 rounded-full ${todaySchedule.isOpen ? 'bg-white animate-pulse' : 'bg-gray-300'} mr-2`}></div>
-                            {todaySchedule.isOpen ? "OPEN NOW" : "CLOSED"}
+                        <div className="absolute top-2 left-2 right-2 flex items-center justify-between z-10">
+                          <Badge className={`${todaySchedule.isOpen ? 'bg-green-500/90' : 'bg-gray-500/90'} backdrop-blur text-white border-0 px-2 py-0.5 text-xs font-semibold`}>
+                            {todaySchedule.isOpen ? "OPEN" : "CLOSED"}
                           </Badge>
                           
-                          {/* Favorite Button */}
                           <button
                             onClick={(e) => toggleFavorite(e, clinic.id)}
                             disabled={toggleFavoriteMutation.isPending}
-                            className="w-10 h-10 rounded-full bg-white/95 backdrop-blur-sm shadow-xl flex items-center justify-center hover:bg-white hover:scale-110 transition-all disabled:opacity-50"
+                            className="w-7 h-7 rounded-full bg-white/95 backdrop-blur-sm shadow-md flex items-center justify-center hover:bg-white hover:scale-110 transition-all disabled:opacity-50"
                           >
                             <Heart 
-                              className={`w-5 h-5 transition-all ${
+                              className={`w-3.5 h-3.5 transition-all ${
                                 isFavorite 
-                                  ? 'fill-red-500 text-red-500 scale-110' 
-                                  : 'text-gray-400 hover:text-red-400'
+                                  ? 'fill-red-500 text-red-500' 
+                                  : 'text-gray-400'
                               }`} 
                             />
                           </button>
                         </div>
 
-                        {/* Logo */}
+                        {/* Compact Logo - 40px */}
                         <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2">
                           {clinic.logo_url ? (
-                            <div className="w-16 h-16 rounded-2xl bg-white shadow-xl p-2 border-2 border-white">
+                            <div className="w-10 h-10 rounded-xl bg-white shadow-lg p-1.5 border-2 border-white">
                               <img 
                                 src={clinic.logo_url} 
                                 alt={clinic.name} 
@@ -662,8 +643,8 @@ const ClinicDirectory = () => {
                               />
                             </div>
                           ) : (
-                            <div className="w-16 h-16 rounded-2xl bg-white shadow-xl flex items-center justify-center border-2 border-white">
-                              <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-sky-600 bg-clip-text text-transparent">
+                            <div className="w-10 h-10 rounded-xl bg-white shadow-lg flex items-center justify-center border-2 border-white">
+                              <span className="text-lg font-bold bg-gradient-to-r from-blue-600 to-sky-600 bg-clip-text text-transparent">
                                 {clinic.name.charAt(0)}
                               </span>
                             </div>
@@ -671,84 +652,80 @@ const ClinicDirectory = () => {
                         </div>
                       </div>
 
-                      {/* Content */}
-                      <div className="p-4 pt-10 space-y-3">
+                      {/* Compact Content */}
+                      <div className="p-3 pt-6 space-y-2.5">
                         {/* Name & Rating */}
                         <div className="text-center">
-                          <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-1 group-hover:text-blue-600 transition-colors">
+                          <h3 className="text-base font-bold text-gray-900 mb-1 line-clamp-1 group-hover:text-blue-600 transition-colors">
                             {clinic.name}
                           </h3>
-                          <div className="flex items-center justify-center gap-3 mb-3">
-                            <Badge className="bg-gradient-to-r from-blue-100 to-sky-100 border-blue-200 text-blue-700 font-semibold px-3 py-1">
+                          <div className="flex items-center justify-center gap-2 flex-wrap">
+                            <Badge className="bg-blue-50 border-blue-200 text-blue-700 text-xs px-2 py-0.5">
                               {clinic.specialty}
                             </Badge>
-                            <div className="flex items-center gap-1">
-                              {totalRatings > 0 ? (
-                                <>
-                                  <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                                  <span className="text-sm font-bold text-gray-700">
-                                    {averageRating.toFixed(1)}
-                                  </span>
-                                  <span className="text-xs text-gray-400">
-                                    ({totalRatings})
-                                  </span>
-                                </>
-                              ) : (
-                                <span className="text-sm text-gray-400">New Clinic</span>
-                              )}
-                            </div>
+                            {totalRatings > 0 && (
+                              <div className="flex items-center gap-1">
+                                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                                <span className="text-xs font-bold text-gray-700">
+                                  {averageRating.toFixed(1)}
+                                </span>
+                                <span className="text-xs text-gray-400">
+                                  ({totalRatings})
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
 
-                        {/* Info Cards */}
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-blue-50 to-sky-50 border border-blue-100">
-                            <MapPin className="h-5 w-5 text-blue-600 flex-shrink-0" />
-                            <span className="text-sm font-medium text-gray-700 line-clamp-1">{clinic.city}</span>
+                        {/* Compact Info */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-blue-50 border border-blue-100">
+                            <MapPin className="h-3.5 w-3.5 text-blue-600 flex-shrink-0" />
+                            <span className="text-xs font-medium text-gray-700 line-clamp-1">{clinic.city}</span>
                           </div>
                           
-                          <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-sky-50 to-cyan-50 border border-sky-100">
-                            <Clock className="h-5 w-5 text-sky-600 flex-shrink-0" />
-                            <span className="text-sm font-semibold text-gray-700">{todaySchedule.hours}</span>
+                          <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-sky-50 border border-sky-100">
+                            <Clock className="h-3.5 w-3.5 text-sky-600 flex-shrink-0" />
+                            <span className="text-xs font-semibold text-gray-700">{todaySchedule.hours}</span>
                           </div>
                         </div>
 
-                        {/* Features */}
-                        <div className="flex flex-wrap gap-2 justify-center">
+                        {/* Compact Features */}
+                        <div className="flex flex-wrap gap-1.5 justify-center">
                           {allowWalkIns && (
-                            <Badge className="bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-200 text-emerald-700 font-semibold px-3 py-1.5">
-                              <Zap className="w-3 h-3 mr-1" />
-                              Walk-ins OK
+                            <Badge className="bg-emerald-50 border-emerald-200 text-emerald-700 text-xs px-2 py-0.5">
+                              <Zap className="w-2.5 h-2.5 mr-1" />
+                              Walk-in
                             </Badge>
                           )}
                           {avgDuration && (
-                            <Badge className="bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200 text-amber-700 font-semibold px-3 py-1.5">
-                              <Timer className="w-3 h-3 mr-1" />
-                              {avgDuration} min
+                            <Badge className="bg-amber-50 border-amber-200 text-amber-700 text-xs px-2 py-0.5">
+                              <Timer className="w-2.5 h-2.5 mr-1" />
+                              {avgDuration}m
                             </Badge>
                           )}
                         </div>
 
-                        {/* Payment Methods */}
+                        {/* Compact Payment Methods */}
                         {paymentMethods.length > 0 && (
-                          <div className="flex items-center justify-center gap-2 pt-2">
+                          <div className="flex items-center justify-center gap-1.5 pt-1">
                             {paymentMethods.map((method) => (
                               <div
                                 key={method.name}
-                                className="w-10 h-10 rounded-xl bg-white border-2 border-blue-100 flex items-center justify-center shadow-md hover:shadow-lg hover:border-blue-300 transition-all"
+                                className="w-7 h-7 rounded-lg bg-white border border-blue-100 flex items-center justify-center shadow-sm hover:shadow hover:border-blue-300 transition-all"
                                 title={method.name}
                               >
-                                <method.icon className="h-5 w-5 text-gray-700" />
+                                <method.icon className="h-3.5 w-3.5 text-gray-700" />
                               </div>
                             ))}
                           </div>
                         )}
 
-                        {/* CTA Button */}
-                        <Button className="w-full h-14 bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white border-0 rounded-2xl font-bold shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition-all group text-base">
-                          <Calendar className="w-5 h-5 mr-2" />
-                          <span>Book Appointment</span>
-                          <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                        {/* Compact Button */}
+                        <Button className="w-full h-9 bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white border-0 rounded-xl font-semibold shadow-md hover:shadow-lg transition-all group text-xs">
+                          <Calendar className="w-3.5 h-3.5 mr-1.5" />
+                          <span>Book Now</span>
+                          <ArrowRight className="w-3.5 h-3.5 ml-1.5 group-hover:translate-x-0.5 transition-transform" />
                         </Button>
                       </div>
                     </Card>

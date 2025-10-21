@@ -1,0 +1,101 @@
+{
+    "common": {
+      "search": "بحث",
+      "filter": "تصفية",
+      "clear": "مسح",
+      "clearFilters": "مسح الفلاتر",
+      "resetFilters": "إعادة تعيين الفلاتر",
+      "loading": "جاري التحميل...",
+      "save": "حفظ",
+      "cancel": "إلغاء",
+      "edit": "تعديل",
+      "delete": "حذف",
+      "close": "إغلاق",
+      "open": "مفتوح",
+      "closed": "مغلق",
+      "active": "نشط",
+      "filtersActive": "الفلاتر نشطة"
+    },
+    "nav": {
+      "home": "الرئيسية",
+      "clinics": "تصفح العيادات",
+      "appointments": "مواعيدي",
+      "profile": "الملف الشخصي",
+      "settings": "الإعدادات",
+      "logout": "تسجيل الخروج",
+      "login": "تسجيل الدخول",
+      "signup": "إنشاء حساب"
+    },
+    "clinic": {
+      "directory": "دليل الرعاية الصحية",
+      "searchClinics": "البحث عن العيادات",
+      "findPerfectClinic": "ابحث عن عيادتك المثالية",
+      "browseProviders": "تصفح مقدمي الرعاية الصحية الأعلى تقييماً مع التوفر في الوقت الفعلي. احجز المواعيد فوراً وتجنب الطوابير.",
+      "allClinics": "جميع العيادات",
+      "allCities": "جميع المدن",
+      "allSpecialties": "جميع التخصصات",
+      "verifiedClinics": "عيادات موثقة",
+      "patientsServed": "المرضى المخدومون",
+      "avgRating": "متوسط التقييم",
+      "rating": "التقييم",
+      "clinics": "عيادات",
+      "clinic_one": "عيادة",
+      "clinic_other": "عيادات",
+      "available": "متاح",
+      "noClinicsFound": "لم يتم العثور على عيادات",
+      "tryAdjustingFilters": "حاول تعديل معايير البحث الخاصة بك",
+      "findPerfectProvider": "ابحث عن مقدم الرعاية الصحية المثالي",
+      "searchPlaceholder": "البحث بالاسم أو التخصص أو الموقع...",
+      "bookAppointment": "حجز موعد",
+      "bookNow": "احجز الآن",
+      "openNow": "مفتوح الآن",
+      "newClinic": "عيادة جديدة",
+      "allSpecialtiesText": "جميع التخصصات",
+      "allSpecialtiesDesc": "ابحث عن أطباء في جميع المجالات الطبية",
+      "instantBooking": "حجز فوري",
+      "instantBookingDesc": "لا حاجة للانتظار"
+    },
+    "features": {
+      "walkIn": "بدون موعد",
+      "walkInsOk": "يقبل الزيارات بدون موعد",
+      "duration": "المدة",
+      "minutes": "دقيقة",
+      "averageTime": "الوقت المتوسط"
+    },
+    "payment": {
+      "methods": "طرق الدفع",
+      "cash": "نقداً",
+      "card": "بطاقة",
+      "insurance": "تأمين",
+      "online": "عبر الإنترنت"
+    },
+    "location": {
+      "city": "المدينة",
+      "address": "العنوان",
+      "phone": "الهاتف",
+      "location": "الموقع"
+    },
+    "time": {
+      "hours": "الساعات",
+      "today": "اليوم",
+      "schedule": "الجدول الزمني",
+      "workingHours": "ساعات العمل"
+    },
+    "auth": {
+      "loginRequired": "تسجيل الدخول مطلوب",
+      "pleaseLogin": "الرجاء تسجيل الدخول للمتابعة",
+      "loginToSaveFavorites": "الرجاء تسجيل الدخول لحفظ المفضلات"
+    },
+    "favorites": {
+      "addedToFavorites": "تمت الإضافة إلى المفضلات",
+      "removedFromFavorites": "تمت الإزالة من المفضلات",
+      "savedForQuickAccess": "❤️ تم الحفظ للوصول السريع",
+      "removedFromList": "تمت الإزالة من قائمتك"
+    },
+    "errors": {
+      "error": "خطأ",
+      "failedToLoad": "فشل التحميل",
+      "tryAgain": "الرجاء المحاولة مرة أخرى",
+      "somethingWentWrong": "حدث خطأ ما"
+    }
+  }

@@ -9,34 +9,36 @@ import {
   User,
   LogOut,
   LogIn,
-  Info // 1. IMPORT THE NEW ICON
+  Info
 } from "lucide-react";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher"; // 🌍 IMPORT LANGUAGE SWITCHER
+import { useTranslation } from "react-i18next"; // 🌍 IMPORT i18n HOOK
 
 export default function PatientLayout() {
   const { user, signOut } = useAuth(); 
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useTranslation(); // 🌍 USE TRANSLATION HOOK
 
   const navigationItems = [
     {
-      name: "Browse Clinics",
-      path: "/clinics",
+      name: t('nav.clinics'), // Will translate later
+      path: "/",
       icon: Search,
     },
-    // 2. ADD THE NEW "ABOUT" LINK HERE
     {
-      name: "My Appointments",
+      name: t('nav.appointments'), // Will translate later
       path: "/my-appointments",
       icon: Calendar,
     },
     {
-      name: "Profile",
+      name: t('nav.profile'), // Will translate later
       path: "/patient/profile",
       icon: User,
     },
     {
-      name: "About",
-      path: "/welcome", // This will link to Welcome.tsx
+      name: "About", // Keep as is for now
+      path: "/welcome",
       icon: Info,
     },
   ];
@@ -85,28 +87,34 @@ export default function PatientLayout() {
               })}
             </nav>
 
-            {/* 🟢 CONDITIONAL BUTTON: Sign Out vs Log In */}
-            {user ? (
-              // If user is logged in, show Sign Out
-              <Button 
-                variant="ghost" 
-                onClick={signOut} 
-                className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                <LogOut className="w-4 h-4" />
-                <span className="hidden sm:inline">Sign Out</span>
-              </Button>
-            ) : (
-              // If user is NOT logged in (or just signed out), show Log In
-              <Button 
-                variant="default" 
-                onClick={() => navigate('/auth/login')} 
-                className="gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
-              >
-                <LogIn className="w-4 h-4" />
-                <span className="hidden sm:inline">Log In</span>
-              </Button>
-            )}
+            {/* 🌍 RIGHT SIDE: Language Switcher + Auth Button */}
+            <div className="flex items-center gap-3">
+              {/* Language Switcher */}
+              <LanguageSwitcher />
+              
+              {/* CONDITIONAL BUTTON: Sign Out vs Log In */}
+              {user ? (
+                // If user is logged in, show Sign Out
+                <Button 
+                  variant="ghost" 
+                  onClick={signOut} 
+                  className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span className="hidden sm:inline">{t('nav.logout')}</span>
+                </Button>
+              ) : (
+                // If user is NOT logged in (or just signed out), show Log In
+                <Button 
+                  variant="default" 
+                  onClick={() => navigate('/auth/login')} 
+                  className="gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span className="hidden sm:inline">{t('nav.login')}</span>
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Mobile Navigation */}

@@ -1,0 +1,101 @@
+{
+    "common": {
+      "search": "Search",
+      "filter": "Filter",
+      "clear": "Clear",
+      "clearFilters": "Clear Filters",
+      "resetFilters": "Reset Filters",
+      "loading": "Loading...",
+      "save": "Save",
+      "cancel": "Cancel",
+      "edit": "Edit",
+      "delete": "Delete",
+      "close": "Close",
+      "open": "Open",
+      "closed": "Closed",
+      "active": "Active",
+      "filtersActive": "Filters Active"
+    },
+    "nav": {
+      "home": "Home",
+      "clinics": "Browse Clinics",
+      "appointments": "My Appointments",
+      "profile": "Profile",
+      "settings": "Settings",
+      "logout": "Sign Out",
+      "login": "Log In",
+      "signup": "Sign Up"
+    },
+    "clinic": {
+      "directory": "Healthcare Directory",
+      "searchClinics": "Search Clinics",
+      "findPerfectClinic": "Find Your Perfect Clinic",
+      "browseProviders": "Browse top-rated healthcare providers with real-time availability. Book appointments instantly and skip the queues.",
+      "allClinics": "All Clinics",
+      "allCities": "All Cities",
+      "allSpecialties": "All Specialties",
+      "verifiedClinics": "Verified Clinics",
+      "patientsServed": "Patients Served",
+      "avgRating": "Avg Rating",
+      "rating": "Rating",
+      "clinics": "Clinics",
+      "clinic_one": "Clinic",
+      "clinic_other": "Clinics",
+      "available": "Available",
+      "noClinicsFound": "No Clinics Found",
+      "tryAdjustingFilters": "Try adjusting your search criteria",
+      "findPerfectProvider": "Find the perfect healthcare provider",
+      "searchPlaceholder": "Search by name, specialty, or location...",
+      "bookAppointment": "Book Appointment",
+      "bookNow": "Book Now",
+      "openNow": "OPEN NOW",
+      "newClinic": "New Clinic",
+      "allSpecialtiesText": "All Specialties",
+      "allSpecialtiesDesc": "Find doctors across all medical fields",
+      "instantBooking": "Instant Booking",
+      "instantBookingDesc": "No waiting required"
+    },
+    "features": {
+      "walkIn": "Walk-in",
+      "walkInsOk": "Walk-ins OK",
+      "duration": "Duration",
+      "minutes": "min",
+      "averageTime": "Average Time"
+    },
+    "payment": {
+      "methods": "Payment Methods",
+      "cash": "Cash",
+      "card": "Card",
+      "insurance": "Insurance",
+      "online": "Online"
+    },
+    "location": {
+      "city": "City",
+      "address": "Address",
+      "phone": "Phone",
+      "location": "Location"
+    },
+    "time": {
+      "hours": "Hours",
+      "today": "Today",
+      "schedule": "Schedule",
+      "workingHours": "Working Hours"
+    },
+    "auth": {
+      "loginRequired": "Login Required",
+      "pleaseLogin": "Please login to continue",
+      "loginToSaveFavorites": "Please login to save favorites"
+    },
+    "favorites": {
+      "addedToFavorites": "Added to favorites",
+      "removedFromFavorites": "Removed from favorites",
+      "savedForQuickAccess": "❤️ Saved for quick access",
+      "removedFromList": "Removed from your list"
+    },
+    "errors": {
+      "error": "Error",
+      "failedToLoad": "Failed to load",
+      "tryAgain": "Please try again",
+      "somethingWentWrong": "Something went wrong"
+    }
+  }
