@@ -14,6 +14,7 @@ import {
   User, Mail, Phone, Save, MapPin, 
   Heart, Building, ChevronRight, Trash2 
 } from "lucide-react";
+import { useTranslation } from "react-i18next"; // CRITICAL REQUIREMENT: Added hook
 
 // Define a type for the clinic data we'll fetch
 interface FavoriteClinic {
@@ -25,6 +26,7 @@ interface FavoriteClinic {
 
 export default function PatientProfile() {
   const { user } = useAuth();
+  const { t } = useTranslation(); // CRITICAL REQUIREMENT: Initialize hook
   const queryClient = useQueryClient();
 
   const [loading, setLoading]          = useState(false);
@@ -60,8 +62,8 @@ export default function PatientProfile() {
     } catch (error) {
       console.error("Error fetching profile:", error);
       toast({
-        title: "Error",
-        description: "Failed to load profile",
+        title: t('errors.error'), // Translated
+        description: t('errors.failedToLoad'), // Translated
         variant: "destructive",
       });
     } finally {
@@ -84,14 +86,14 @@ export default function PatientProfile() {
       if (error) throw error;
 
       toast({
-        title: "Success",
-        description: "Profile updated successfully",
+        title: t('common.success', { defaultValue: 'Success' }), // Assumed common.success key
+        description: t('profile.saveSuccess', { defaultValue: 'Profile updated successfully' }), // Translated
       });
     } catch (error: any) {
       console.error("Error updating profile:", error);
       toast({
-        title: "Error",
-        description: error.message || "Failed to update profile",
+        title: t('errors.error'), // Translated
+        description: error.message || t('profile.saveError', { defaultValue: 'Failed to update profile' }), // Translated
         variant: "destructive",
       });
     } finally {
@@ -129,15 +131,18 @@ export default function PatientProfile() {
     },
     onSuccess: () => {
       toast({
-        title: "Removed",
-        description: "Clinic removed from your favorites.",
+        title: t('favorites.removed', { defaultValue: 'Removed' }), // Translated (Reusing favorites key)
+        description: t('favorites.removedFromList', { defaultValue: 'Clinic removed from your favorites.' }), // Translated
       });
       queryClient.invalidateQueries({ queryKey: ['favorite-clinics', user?.id] });
     },
     onError: (error) => {
       toast({
-        title: "Error",
-        description: `Failed to remove favorite: ${error.message}`,
+        title: t('errors.error'), // Translated
+        description: t('profile.removeFavoriteError', { // Translated
+          error: error.message, 
+          defaultValue: `Failed to remove favorite: ${error.message}`
+        }),
         variant: "destructive",
       });
     },
@@ -179,10 +184,10 @@ export default function PatientProfile() {
         <div>
           <h1 className="text-5xl font-extrabold tracking-tight text-gray-900">
             <span className="bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-600 bg-clip-text text-transparent">
-              My Profile
+              {t('nav.profile')}
             </span>
           </h1>
-          <p className="text-lg text-gray-600 mt-3">Manage your personal information and account details.</p>
+          <p className="text-lg text-gray-600 mt-3">{t('profile.tagline', { defaultValue: 'Manage your personal information and account details.' })}</p>
         </div>
 
         <Card className="relative backdrop-blur-sm bg-white/95 border border-white/60 rounded-3xl shadow-2xl transition-all duration-300">
@@ -191,22 +196,22 @@ export default function PatientProfile() {
               <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center shadow-md">
                 <User className="w-4 h-4 text-white" />
               </div>
-              Personal Information
+              {t('profile.personalInfoTitle', { defaultValue: 'Personal Information' })}
             </CardTitle>
-            <CardDescription className="text-gray-500 ml-11">Update your profile details</CardDescription>
+            <CardDescription className="text-gray-500 ml-11">{t('profile.personalInfoDesc', { defaultValue: 'Update your profile details' })}</CardDescription>
           </CardHeader>
           <CardContent className="pt-8 space-y-6">
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="fullName" className="text-sm font-semibold flex items-center gap-2 text-gray-700">
                   <User className="w-4 h-4 text-blue-600" />
-                  Full Name
+                  {t('profile.fullName', { defaultValue: 'Full Name' })}
                 </Label>
                 <Input
                   id="fullName"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="John Doe"
+                  placeholder={t('profile.fullNamePlaceholder', { defaultValue: 'John Doe' })}
                   className="h-12 bg-white border-2 border-blue-100 text-gray-900 rounded-xl focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100 transition-all"
                 />
               </div>
@@ -214,13 +219,13 @@ export default function PatientProfile() {
               <div className="space-y-2">
                 <Label htmlFor="phone" className="text-sm font-semibold flex items-center gap-2 text-gray-700">
                   <Phone className="w-4 h-4 text-blue-600" />
-                  Phone Number
+                  {t('location.phone')}
                 </Label>
                 <Input
                   id="phone"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+212..."
+                  placeholder={t('profile.phonePlaceholder', { defaultValue: '+212...' })}
                   className="h-12 bg-white border-2 border-blue-100 text-gray-900 rounded-xl focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100 transition-all"
                 />
               </div>
@@ -229,7 +234,7 @@ export default function PatientProfile() {
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm font-semibold flex items-center gap-2 text-gray-700">
                 <Mail className="w-4 h-4 text-blue-600" />
-                Email Address (Read-Only)
+                {t('profile.emailReadOnly', { defaultValue: 'Email Address (Read-Only)' })}
               </Label>
               <Input
                 id="email"
@@ -238,19 +243,19 @@ export default function PatientProfile() {
                 disabled
                 className="h-12 bg-blue-50/50 border-2 border-blue-100 text-gray-600 rounded-xl cursor-not-allowed"
               />
-              <p className="text-xs text-gray-500">Email is tied to your account and cannot be changed here.</p>
+              <p className="text-xs text-gray-500">{t('profile.emailNote', { defaultValue: 'Email is tied to your account and cannot be changed here.' })}</p>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="city" className="text-sm font-semibold flex items-center gap-2 text-gray-700">
                 <MapPin className="w-4 h-4 text-blue-600" />
-                City
+                {t('location.city')}
               </Label>
               <Input
                 id="city"
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
-                placeholder="Casablanca"
+                placeholder={t('profile.cityPlaceholder', { defaultValue: 'Casablanca' })}
                 className="h-12 bg-white border-2 border-blue-100 text-gray-900 rounded-xl focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100 transition-all"
               />
             </div>
@@ -261,7 +266,7 @@ export default function PatientProfile() {
               className="w-full h-14 text-lg bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 shadow-xl hover:shadow-2xl text-white rounded-xl font-bold transition-all"
             >
               <Save className="w-5 h-5 mr-2" />
-              {saving ? "Saving..." : "Save Changes"}
+              {saving ? t('common.saving', { defaultValue: 'Saving...' }) : t('profile.saveChanges', { defaultValue: 'Save Changes' })}
             </Button>
           </CardContent>
         </Card>
@@ -272,9 +277,9 @@ export default function PatientProfile() {
               <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center shadow-md">
                 <Heart className="w-4 h-4 text-white" />
               </div>
-              My Favorite Clinics
+              {t('profile.favoritesTitle', { defaultValue: 'My Favorite Clinics' })}
             </CardTitle>
-            <CardDescription className="text-gray-500 ml-11">Your saved clinics for quick access</CardDescription>
+            <CardDescription className="text-gray-500 ml-11">{t('favorites.savedForQuickAccess')}</CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-3">
             {isLoadingFavorites ? (
@@ -312,11 +317,11 @@ export default function PatientProfile() {
             ) : (
               <div className="text-center py-8 px-4 bg-blue-50/50 rounded-xl border border-dashed border-blue-200">
                 <Heart className="w-12 h-12 text-blue-300 mx-auto mb-4" />
-                <p className="font-semibold text-gray-800">No favorite clinics yet</p>
-                <p className="text-sm text-gray-500 mb-4">Your saved clinics will appear here.</p>
+                <p className="font-semibold text-gray-800">{t('favorites.noFavoritesYet', { defaultValue: 'No favorite clinics yet' })}</p>
+                <p className="text-sm text-gray-500 mb-4">{t('favorites.savedClinicsAppearHere', { defaultValue: 'Your saved clinics will appear here.' })}</p>
                 <Button asChild variant="link" className="text-blue-600">
                   <Link to="/clinics">
-                    Browse Clinics <ChevronRight className="w-4 h-4 ml-1" />
+                    {t('nav.clinics')} <ChevronRight className="w-4 h-4 ml-1" />
                   </Link>
                 </Button>
               </div>

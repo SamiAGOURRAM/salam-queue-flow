@@ -9,6 +9,7 @@ import { Calendar, Clock, Activity, Search, MapPin, Building2, Sparkles, ArrowRi
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import ReviewModal from "@/components/ReviewModal";
+import { useTranslation } from "react-i18next"; // Added hook
 
 interface Appointment {
   id: string;
@@ -30,6 +31,8 @@ type FilterType = 'all' | 'upcoming' | 'completed' | null;
 export default function PatientDashboard() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation(); // Initialize hook
+
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterType>(null);
@@ -96,8 +99,8 @@ export default function PatientDashboard() {
     } catch (error) {
       console.error("Error fetching appointments:", error);
       toast({
-        title: "Error",
-        description: "Failed to load appointments",
+        title: t('errors.error'),
+        description: t('errors.failedToLoad'),
         variant: "destructive",
       });
     } finally {
@@ -137,35 +140,39 @@ export default function PatientDashboard() {
       case 'completed':
         return getCompletedAppointments();
       default:
+        // Default to upcoming if no filter is set (matches original logic)
         return getUpcomingAppointments();
     }
   };
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, { label: string, className: string }> = {
-      scheduled: { label: "Scheduled", className: "bg-blue-500 text-white" },
-      confirmed: { label: "Confirmed", className: "bg-indigo-500 text-white" },
-      waiting: { label: "Waiting", className: "bg-amber-500 text-white" },
-      in_progress: { label: "In Progress", className: "bg-cyan-500 text-white" },
-      completed: { label: "Completed", className: "bg-green-600 text-white" },
-      cancelled: { label: "Cancelled", className: "bg-gray-400 text-white" },
-      no_show: { label: "No Show", className: "bg-red-500 text-white" }
+    // NOTE: Using assumed 'appointments.status' keys
+    const variants: Record<string, { labelKey: string, className: string }> = {
+      scheduled: { labelKey: "scheduled", className: "bg-blue-500 text-white" },
+      confirmed: { labelKey: "confirmed", className: "bg-indigo-500 text-white" },
+      waiting: { labelKey: "waiting", className: "bg-amber-500 text-white" },
+      in_progress: { labelKey: "in_progress", className: "bg-cyan-500 text-white" },
+      completed: { labelKey: "completed", className: "bg-green-600 text-white" },
+      cancelled: { labelKey: "cancelled", className: "bg-gray-400 text-white" },
+      no_show: { labelKey: "no_show", className: "bg-red-500 text-white" }
     };
     
-    const config = variants[status] || { label: status, className: "bg-gray-300 text-gray-800" };
-    return <Badge className={`text-xs font-semibold rounded-full px-3 py-1 ${config.className}`}>{config.label}</Badge>;
+    const config = variants[status] || { labelKey: status, className: "bg-gray-300 text-gray-800" };
+    return <Badge className={`text-xs font-semibold rounded-full px-3 py-1 ${config.className}`}>
+      {t(`appointments.status.${config.labelKey}`, { defaultValue: config.labelKey.replace(/_/g, ' ') })} 
+    </Badge>;
   };
 
   const getFilterTitle = () => {
     switch (activeFilter) {
       case 'all':
-        return 'All Appointments';
+        return t('appointments.filter.all', { defaultValue: 'All Appointments' }); 
       case 'upcoming':
-        return 'Upcoming Appointments';
+        return t('appointments.filter.upcoming', { defaultValue: 'Upcoming Appointments' }); 
       case 'completed':
-        return 'Completed Appointments';
+        return t('appointments.filter.completed', { defaultValue: 'Completed Appointments' }); 
       default:
-        return 'Upcoming Appointments';
+        return t('appointments.filter.upcoming', { defaultValue: 'Upcoming Appointments' });
     }
   };
 
@@ -185,14 +192,15 @@ export default function PatientDashboard() {
   const recentAppointments = getRecentAppointments();
   const displayedAppointments = getFilteredAppointments();
 
-  const displayName = patientFullName || user?.user_metadata?.first_name || 'friend';
+  // Use an empty string if no name is found, otherwise fallback to a generic term 'friend'
+  const displayName = patientFullName || user?.user_metadata?.first_name || t('common.friend', { defaultValue: 'friend' });
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading your dashboard...</p>
+          <p className="text-muted-foreground">{t('common.loading')}</p> 
         </div>
       </div>
     );
@@ -201,11 +209,11 @@ export default function PatientDashboard() {
   if (!user && !loadingAppointments) {
     return (
       <div className="text-center py-20">
-        <h3 className="text-xl font-semibold">Please log in</h3>
+        <h3 className="text-xl font-semibold">{t('auth.loginRequired')}</h3> 
         <p className="text-muted-foreground mb-6">
-          You need to be signed in to view your dashboard.
+          {t('auth.pleaseLogin')}
         </p>
-        <Button onClick={() => navigate("/auth/login")}>Go to Login</Button>
+        <Button onClick={() => navigate("/auth/login")}>{t('nav.login')}</Button> 
       </div>
     );
   }
@@ -220,13 +228,13 @@ export default function PatientDashboard() {
         <div className="relative z-10">
           <div className="flex items-center gap-2 mb-3">
             <Sparkles className="w-5 h-5 text-amber-300" />
-            <span className="text-sm font-medium text-blue-100 uppercase tracking-widest">Your Health Journey</span>
+            <span className="text-sm font-medium text-blue-100 uppercase tracking-widest">{t('appointments.hero.journey', { defaultValue: 'Your Health Journey' })}</span> 
           </div>
           <h1 className="text-4xl md:text-6xl font-extrabold mb-3 leading-tight">
-            Welcome back, <span className="text-amber-200">{displayName}!</span> 👋
+            {t('appointments.hero.welcome', { defaultValue: 'Welcome back' })} <span className="text-amber-200">{displayName}</span> 👋
           </h1>
           <p className="text-xl text-blue-100 mb-10 max-w-3xl">
-            Quickly manage your upcoming visits and find new healthcare providers.
+            {t('appointments.hero.tagline', { defaultValue: 'Quickly manage your upcoming visits and find new healthcare providers.' })} 
           </p>
 
           <div className="flex flex-wrap gap-4">
@@ -236,7 +244,7 @@ export default function PatientDashboard() {
               className="bg-white text-blue-700 hover:bg-blue-50 shadow-xl shadow-blue-900/20 h-14 px-8 gap-2 font-bold text-base transition-transform transform hover:scale-[1.03]"
             >
               <Search className="w-5 h-5" />
-              Find a Clinic
+              {t('clinic.searchClinics')}
             </Button>
             
             {upcomingAppointments.length > 0 && (
@@ -247,7 +255,7 @@ export default function PatientDashboard() {
                 className="bg-white/20 backdrop-blur-md border-2 border-white/50 text-white hover:bg-white/30 h-14 px-8 font-semibold transition-transform transform hover:scale-[1.03]"
               >
                 <Calendar className="w-5 h-5 mr-2" />
-                {upcomingAppointments.length} Upcoming Appointments
+                {t('appointments.count', { count: upcomingAppointments.length, context: 'upcoming', defaultValue: `${upcomingAppointments.length} Upcoming Appointments` })} 
               </Button>
             )}
           </div>
@@ -270,7 +278,7 @@ export default function PatientDashboard() {
               </div>
               <ArrowRight className="w-6 h-6 text-gray-400 group-hover:translate-x-1 transition-transform" />
             </div>
-            <p className="text-md text-muted-foreground mb-1">Total Appointments</p>
+            <p className="text-md text-muted-foreground mb-1">{t('appointments.total', { defaultValue: 'Total Appointments' })}</p> 
             <p className="text-4xl font-extrabold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
               {appointments.length}
             </p>
@@ -291,7 +299,7 @@ export default function PatientDashboard() {
               </div>
               <ArrowRight className="w-6 h-6 text-gray-400 group-hover:translate-x-1 transition-transform" />
             </div>
-            <p className="text-md text-muted-foreground mb-1">Upcoming</p>
+            <p className="text-md text-muted-foreground mb-1">{t('appointments.filter.upcoming', { defaultValue: 'Upcoming' })}</p> 
             <p className="text-4xl font-extrabold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
               {upcomingAppointments.length}
             </p>
@@ -312,7 +320,7 @@ export default function PatientDashboard() {
               </div>
               <ArrowRight className="w-6 h-6 text-gray-400 group-hover:translate-x-1 transition-transform" />
             </div>
-            <p className="text-md text-muted-foreground mb-1">Completed</p>
+            <p className="text-md text-muted-foreground mb-1">{t('appointments.filter.completed', { defaultValue: 'Completed' })}</p> 
             <p className="text-4xl font-extrabold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
               {completedAppointments.length}
             </p>
@@ -332,7 +340,9 @@ export default function PatientDashboard() {
                   {getFilterTitle()}
                 </CardTitle>
                 <CardDescription className="text-base mt-1">
-                  {loadingAppointments ? "Loading appointments data..." : `${displayedAppointments.length} appointment${displayedAppointments.length !== 1 ? 's' : ''} found.`}
+                  {loadingAppointments ? 
+                    `${t('common.loading')}` 
+                    : t('appointments.count', { count: displayedAppointments.length, defaultValue: `${displayedAppointments.length} appointments found.` })} 
                 </CardDescription>
               </div>
               {activeFilter && (
@@ -343,7 +353,7 @@ export default function PatientDashboard() {
                   className="gap-1 text-sm text-gray-600 hover:text-red-500"
                 >
                   <X className="w-4 h-4" />
-                  Clear Filter
+                  {t('common.clearFilter')}
                 </Button>
               )}
             </div>
@@ -358,11 +368,11 @@ export default function PatientDashboard() {
                 <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center mx-auto mb-6">
                   <Calendar className="w-10 h-10 text-blue-600" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">No appointments found</h3>
+                <h3 className="text-xl font-semibold mb-2">{t('appointments.noAppointments', { defaultValue: 'No appointments found' })}</h3> 
                 <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
                   {activeFilter === 'completed' ? 
-                    "It looks like you haven't completed any visits yet." : 
-                    "Ready to schedule your next visit? Start by finding a clinic."
+                    t('appointments.noCompleted', { defaultValue: "It looks like you haven't completed any visits yet." }) 
+                    : t('appointments.schedulePrompt', { defaultValue: "Ready to schedule your next visit? Start by finding a clinic." }) 
                   }
                 </p>
                 <Button 
@@ -370,7 +380,7 @@ export default function PatientDashboard() {
                   onClick={() => navigate("/")}
                 >
                   <Search className="w-4 h-4 mr-2" />
-                  Browse Clinics
+                  {t('nav.clinics')} 
                 </Button>
               </div>
             ) : (
@@ -400,7 +410,7 @@ export default function PatientDashboard() {
                     <div className="flex flex-wrap gap-3 text-sm mb-4">
                       <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-blue-50 text-blue-700 font-semibold">
                         <Calendar className="w-4 h-4" />
-                        <span>{format(new Date(apt.appointment_date), 'MMM d, yyyy')}</span>
+                        <span>{format(new Date(apt.appointment_date), t('appointments.dateFormat', { defaultValue: 'MMM d, yyyy' }))}</span> 
                       </div>
                       <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-amber-50 text-amber-700 font-semibold">
                         <Clock className="w-4 h-4" />
@@ -412,7 +422,7 @@ export default function PatientDashboard() {
                       <MapPin className="w-4 h-4 text-green-600" />
                       <span className="font-medium">{apt.clinic.city}</span>
                       <Badge variant="outline" className="ml-auto text-xs border-blue-200 text-blue-600 font-medium">
-                        {apt.appointment_type.replace(/_/g, ' ').toUpperCase()}
+                        {t(`appointments.type.${apt.appointment_type.toLowerCase()}`, { defaultValue: apt.appointment_type.replace(/_/g, ' ').toUpperCase() })} 
                       </Badge>
                     </div>
                     
@@ -421,7 +431,7 @@ export default function PatientDashboard() {
                       <div className="flex items-center justify-between">
                         {apt.queue_position && ['scheduled', 'waiting', 'confirmed', 'in_progress'].includes(apt.status) ? (
                           <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50 font-bold">
-                            Position #{apt.queue_position}
+                            {t('appointments.queuePosition', { position: apt.queue_position, defaultValue: `Position #${apt.queue_position}` })} 
                           </Badge>
                         ) : (
                           <div className="h-6"></div>
@@ -430,7 +440,7 @@ export default function PatientDashboard() {
                         {/* Active appointments - Go to Queue */}
                         {['scheduled', 'waiting', 'confirmed', 'in_progress'].includes(apt.status) && (
                           <div className="flex items-center gap-1 text-blue-600 group-hover:gap-2 transition-all">
-                            <p className="text-sm font-bold">Go to Queue</p>
+                            <p className="text-sm font-bold">{t('appointments.goToQueue', { defaultValue: 'Go to Queue' })}</p> 
                             <ArrowRight className="w-4 h-4" />
                           </div>
                         )}
@@ -447,7 +457,7 @@ export default function PatientDashboard() {
                             }}
                           >
                             <MessageSquare className="w-4 h-4" />
-                            Leave Review
+                            {t('appointments.leaveReview', { defaultValue: 'Leave Review' })} 
                           </Button>
                         )}
                       </div>
@@ -465,10 +475,10 @@ export default function PatientDashboard() {
             <CardHeader className="border-b rounded-t-xl bg-gradient-to-r from-gray-50 to-green-50/50 p-6">
               <CardTitle className="flex items-center gap-2 text-2xl font-bold text-gray-800">
                 <Activity className="w-6 h-6 text-green-600" />
-                Recent Activity
+                {t('appointments.recentActivity.title', { defaultValue: 'Recent Activity' })} 
               </CardTitle>
               <CardDescription className="text-base mt-1">
-                Last 5 completed or cancelled visits.
+                {t('appointments.recentActivity.description', { defaultValue: 'Last 5 completed or cancelled visits.' })} 
               </CardDescription>
             </CardHeader>
             <CardContent className="p-6">
@@ -482,7 +492,7 @@ export default function PatientDashboard() {
                     <Activity className="w-8 h-8 text-green-600" />
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    No recent activity to display.
+                    {t('appointments.recentActivity.none', { defaultValue: 'No recent activity to display.' })} 
                   </p>
                 </div>
               ) : (
@@ -499,7 +509,7 @@ export default function PatientDashboard() {
                       </div>
                       <p className="text-xs text-muted-foreground flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        <span className="font-medium">{format(new Date(apt.appointment_date), 'MMMM d, yyyy')}</span> at <span className="font-bold">{apt.scheduled_time}</span>
+                        <span className="font-medium">{format(new Date(apt.appointment_date), t('appointments.recentActivity.dateFormat', { defaultValue: 'MMMM d, yyyy' }))}</span> at <span className="font-bold">{apt.scheduled_time}</span>
                       </p>
                     </div>
                   ))}

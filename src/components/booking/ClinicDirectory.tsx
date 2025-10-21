@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ratingService } from "@/services/rating/RatingService";
 import { favoriteService } from "@/services/favorite/FavoriteService";
-import { useTranslation } from "react-i18next"; 
+import { useTranslation } from "react-i18next"; // Added import
 
 interface ClinicSettings {
   buffer_time?: number;
@@ -65,7 +65,7 @@ const ClinicDirectory = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { t } = useTranslation();
+  const { t } = useTranslation(); // Added hook
   
   const [clinics, setClinics] = useState<Clinic[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,8 +103,8 @@ const ClinicDirectory = () => {
     } catch (error) {
       console.error("Error fetching clinics:", error);
       toast({
-        title: "Error",
-        description: "Failed to load clinics. Please try again.",
+        title: t('errors.error'),
+        description: t('errors.failedToLoad') + '. ' + t('errors.tryAgain'),
         variant: "destructive",
       });
     } finally {
@@ -149,8 +149,8 @@ const ClinicDirectory = () => {
     mutationFn: async (clinicId: string) => {
       if (!user) {
         toast({
-          title: "Login Required",
-          description: "Please login to save favorites",
+          title: t('auth.loginRequired'),
+          description: t('auth.loginToSaveFavorites'),
           variant: "destructive",
         });
         throw new Error('Not authenticated');
@@ -176,8 +176,8 @@ const ClinicDirectory = () => {
     },
     onSuccess: (isFavorited) => {
       toast({
-        title: isFavorited ? 'Added to favorites' : 'Removed from favorites',
-        description: isFavorited ? '❤️ Saved for quick access' : 'Removed from your list',
+        title: isFavorited ? t('favorites.addedToFavorites') : t('favorites.removedFromFavorites'),
+        description: isFavorited ? t('favorites.savedForQuickAccess') : t('favorites.removedFromList'),
       });
     },
     onSettled: () => {
@@ -191,7 +191,7 @@ const ClinicDirectory = () => {
     const schedule = clinic.settings?.working_hours?.[today];
     
     if (!schedule || schedule.closed) {
-      return { isOpen: false, hours: "Closed" };
+      return { isOpen: false, hours: t('common.closed') };
     }
     
     return { 
@@ -203,10 +203,10 @@ const ClinicDirectory = () => {
   const getPaymentMethods = (clinic: Clinic) => {
     const methods = clinic.settings?.payment_methods || {};
     return [
-      { name: "Cash", icon: Wallet, enabled: methods.cash },
-      { name: "Card", icon: CreditCard, enabled: methods.card },
-      { name: "Insurance", icon: Building2, enabled: methods.insurance },
-      { name: "Online", icon: Globe, enabled: methods.online },
+      { name: t('payment.cash'), icon: Wallet, enabled: methods.cash },
+      { name: t('payment.card'), icon: CreditCard, enabled: methods.card },
+      { name: t('payment.insurance'), icon: Building2, enabled: methods.insurance },
+      { name: t('payment.online'), icon: Globe, enabled: methods.online },
     ].filter(m => m.enabled);
   };
 
@@ -284,22 +284,22 @@ const ClinicDirectory = () => {
                 <div className="space-y-8">
                   <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-blue-100 to-sky-100 border border-blue-200 shadow-lg">
                     <Activity className="w-5 h-5 text-blue-600 animate-pulse" />
-                    <span className="text-sm font-semibold text-blue-900">Healthcare Directory</span>
+                    <span className="text-sm font-semibold text-blue-900">{t('clinic.directory')}</span>
                     <Badge className="bg-gradient-to-r from-green-400 to-emerald-400 text-white border-0 shadow-md">
-                      {clinics.length} ACTIVE
+                      {clinics.length} {t('common.active')}
                     </Badge>
                   </div>
                   
                   <h1 className="text-6xl lg:text-7xl font-bold text-gray-900 leading-tight">
-                    Find Your
+                    {/* Translating parts of clinic.findPerfectClinic based on component's split structure */}
+                    {t('clinic.findPerfectClinic').split(' ').slice(0, 2).join(' ')} 
                     <span className="block bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-600 bg-clip-text text-transparent animate-gradient">
-                      Perfect Clinic
+                      {t('clinic.findPerfectClinic').split(' ').slice(2).join(' ')}
                     </span>
                   </h1>
                   
                   <p className="text-xl text-gray-600 leading-relaxed max-w-xl">
-                    Browse top-rated healthcare providers with real-time availability. 
-                    Book appointments instantly and skip the queues.
+                    {t('clinic.browseProviders')}
                   </p>
 
                   {/* Stats Cards */}
@@ -315,7 +315,7 @@ const ClinicDirectory = () => {
                     >
                       <Building2 className="w-8 h-8 text-blue-600 mb-2 group-hover:scale-110 transition-transform" />
                       <p className="text-3xl font-bold text-gray-900">{clinics.length}</p>
-                      <p className="text-xs text-gray-500 mt-1">Verified Clinics</p>
+                      <p className="text-xs text-gray-500 mt-1">{t('clinic.verifiedClinics')}</p>
                     </div>
                     
                     <div 
@@ -329,7 +329,7 @@ const ClinicDirectory = () => {
                     >
                       <Users className="w-8 h-8 mb-2 group-hover:scale-110 transition-transform" />
                       <p className="text-3xl font-bold">10K+</p>
-                      <p className="text-xs text-blue-100 mt-1">Patients Served</p>
+                      <p className="text-xs text-blue-100 mt-1">{t('clinic.patientsServed')}</p>
                     </div>
 
                     <div 
@@ -343,7 +343,7 @@ const ClinicDirectory = () => {
                     >
                       <Star className="w-8 h-8 text-yellow-500 mb-2 group-hover:scale-110 transition-transform" />
                       <p className="text-3xl font-bold text-gray-900">4.8</p>
-                      <p className="text-xs text-gray-500 mt-1">Avg Rating</p>
+                      <p className="text-xs text-gray-500 mt-1">{t('clinic.avgRating')}</p>
                     </div>
                   </div>
                 </div>
@@ -361,8 +361,8 @@ const ClinicDirectory = () => {
                     onMouseLeave={() => setHoveredCard(null)}
                   >
                     <Stethoscope className="w-10 h-10 mb-3" />
-                    <h3 className="text-xl font-bold mb-2">All Specialties</h3>
-                    <p className="text-blue-100">Find doctors across all medical fields</p>
+                    <h3 className="text-xl font-bold mb-2">{t('clinic.allSpecialtiesText')}</h3>
+                    <p className="text-blue-100">{t('clinic.allSpecialtiesDesc')}</p>
                   </div>
 
                   <div 
@@ -380,8 +380,8 @@ const ClinicDirectory = () => {
                         <Clock className="w-6 h-6 text-white" />
                       </div>
                       <div>
-                        <h3 className="font-bold text-gray-900">Instant Booking</h3>
-                        <p className="text-xs text-gray-500">No waiting required</p>
+                        <h3 className="font-bold text-gray-900">{t('clinic.instantBooking')}</h3>
+                        <p className="text-xs text-gray-500">{t('clinic.instantBookingDesc')}</p>
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -418,8 +418,8 @@ const ClinicDirectory = () => {
                   <Search className="w-7 h-7 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-3xl font-bold text-gray-900">Search Clinics</h2>
-                  <p className="text-gray-600">Find the perfect healthcare provider</p>
+                  <h2 className="text-3xl font-bold text-gray-900">{t('clinic.searchClinics')}</h2>
+                  <p className="text-gray-600">{t('clinic.findPerfectProvider')}</p>
                 </div>
               </div>
               <Button 
@@ -432,7 +432,7 @@ const ClinicDirectory = () => {
                 }}
               >
                 <Filter className="w-5 h-5 mr-2" />
-                Clear Filters
+                {t('common.clearFilters')}
               </Button>
             </div>
 
@@ -441,7 +441,7 @@ const ClinicDirectory = () => {
               <div className="relative flex items-center">
                 <Search className="absolute left-6 h-6 w-6 text-gray-400" />
                 <Input
-                  placeholder="Search by name, specialty, or location..."
+                  placeholder={t('clinic.searchPlaceholder')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-16 pr-6 h-20 bg-white/90 backdrop-blur border-2 border-blue-100 text-gray-900 placeholder:text-gray-400 rounded-2xl text-lg focus:border-blue-400 focus:shadow-xl focus:shadow-blue-100/50 transition-all"
@@ -449,7 +449,7 @@ const ClinicDirectory = () => {
                 <div className="absolute right-4 flex items-center gap-2">
                   {searchTerm && (
                     <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-                      Searching...
+                      {t('common.search')}...
                     </Badge>
                   )}
                 </div>
@@ -461,14 +461,14 @@ const ClinicDirectory = () => {
                 <SelectTrigger className="h-16 bg-white/90 backdrop-blur border-2 border-blue-100 text-gray-900 rounded-2xl hover:border-blue-300 focus:border-blue-400 focus:shadow-xl focus:shadow-blue-100/50 transition-all text-base">
                   <div className="flex items-center gap-3">
                     <MapPin className="w-5 h-5 text-blue-600" />
-                    <SelectValue placeholder="All Cities" />
+                    <SelectValue placeholder={t('clinic.allCities')} />
                   </div>
                 </SelectTrigger>
                 <SelectContent className="bg-white/95 backdrop-blur-xl border-blue-100 rounded-xl">
                   <SelectItem value="all">
                     <div className="flex items-center gap-2 py-1">
                       <Globe className="w-4 h-4 text-blue-600" />
-                      All Cities
+                      {t('clinic.allCities')}
                     </div>
                   </SelectItem>
                   {cities.map((city) => (
@@ -486,14 +486,14 @@ const ClinicDirectory = () => {
                 <SelectTrigger className="h-16 bg-white/90 backdrop-blur border-2 border-blue-100 text-gray-900 rounded-2xl hover:border-blue-300 focus:border-blue-400 focus:shadow-xl focus:shadow-blue-100/50 transition-all text-base">
                   <div className="flex items-center gap-3">
                     <Stethoscope className="w-5 h-5 text-blue-600" />
-                    <SelectValue placeholder="All Specialties" />
+                    <SelectValue placeholder={t('clinic.allSpecialties')} />
                   </div>
                 </SelectTrigger>
                 <SelectContent className="bg-white/95 backdrop-blur-xl border-blue-100 rounded-xl">
                   <SelectItem value="all">
                     <div className="flex items-center gap-2 py-1">
                       <Layers className="w-4 h-4 text-blue-600" />
-                      All Specialties
+                      {t('clinic.allSpecialties')}
                     </div>
                   </SelectItem>
                   {specialties.map((specialty) => (
@@ -515,13 +515,14 @@ const ClinicDirectory = () => {
           <div className="flex items-center gap-4">
             <div className="px-6 py-3 rounded-2xl bg-gradient-to-r from-blue-100 to-sky-100 border border-blue-200 shadow-lg">
               <p className="text-blue-900 font-bold text-lg">
-                {filteredClinics.length} {filteredClinics.length === 1 ? "Clinic" : "Clinics"} Available
+                {/* Pluralization for "Clinics Available" */}
+                {t('clinic.clinics', { count: filteredClinics.length, defaultValue: 'Clinics' })} {t('clinic.available')}
               </p>
             </div>
             {(searchTerm || selectedCity !== "all" || selectedSpecialty !== "all") && (
               <div className="flex items-center gap-2">
                 <Badge className="bg-white border-blue-200 text-blue-600 shadow-md px-3 py-1.5">
-                  Filters Active
+                  {t('common.filtersActive')}
                 </Badge>
                 <div className="h-8 w-px bg-blue-200"></div>
                 <div className="flex gap-2">
@@ -554,8 +555,8 @@ const ClinicDirectory = () => {
               <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-100 to-sky-100 flex items-center justify-center mx-auto mb-6">
                 <Search className="w-12 h-12 text-blue-400" />
               </div>
-              <h3 className="text-3xl font-bold text-gray-900 mb-3">No Clinics Found</h3>
-              <p className="text-lg text-gray-600 mb-8">Try adjusting your filters</p>
+              <h3 className="text-3xl font-bold text-gray-900 mb-3">{t('clinic.noClinicsFound')}</h3>
+              <p className="text-lg text-gray-600 mb-8">{t('clinic.tryAdjustingFilters')}</p>
               <Button
                 onClick={() => {
                   setSearchTerm("");
@@ -565,7 +566,7 @@ const ClinicDirectory = () => {
                 className="px-8 py-5 rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white font-bold shadow-lg"
               >
                 <Filter className="w-5 h-5 mr-2" />
-                Reset Filters
+                {t('common.resetFilters')}
               </Button>
             </div>
           </div>
@@ -614,7 +615,7 @@ const ClinicDirectory = () => {
                         
                         <div className="absolute top-2 left-2 right-2 flex items-center justify-between z-10">
                           <Badge className={`${todaySchedule.isOpen ? 'bg-green-500/90' : 'bg-gray-500/90'} backdrop-blur text-white border-0 px-2 py-0.5 text-xs font-semibold`}>
-                            {todaySchedule.isOpen ? "OPEN" : "CLOSED"}
+                            {todaySchedule.isOpen ? t('common.open') : t('common.closed')}
                           </Badge>
                           
                           <button
@@ -664,68 +665,69 @@ const ClinicDirectory = () => {
                               {clinic.specialty}
                             </Badge>
                             {totalRatings > 0 && (
-                              <div className="flex items-center gap-1">
-                                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                                <span className="text-xs font-bold text-gray-700">
-                                  {averageRating.toFixed(1)}
-                                </span>
-                                <span className="text-xs text-gray-400">
-                                  ({totalRatings})
-                                </span>
-                              </div>
+                                <div className="flex items-center text-sm text-yellow-600">
+                                  <Star className="w-3 h-3 fill-yellow-500 text-yellow-500 mr-1" />
+                                  <span className="font-semibold">{averageRating.toFixed(1)}</span>
+                                  <span className="text-gray-400 ml-1">({totalRatings})</span>
+                                </div>
                             )}
                           </div>
                         </div>
 
-                        {/* Compact Info */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-blue-50 border border-blue-100">
-                            <MapPin className="h-3.5 w-3.5 text-blue-600 flex-shrink-0" />
-                            <span className="text-xs font-medium text-gray-700 line-clamp-1">{clinic.city}</span>
+                        {/* Details */}
+                        <div className="space-y-2 text-sm text-gray-600 border-t border-gray-100 pt-2">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-blue-500 shrink-0" />
+                            <span className="line-clamp-1">{clinic.city}</span>
                           </div>
-                          
-                          <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-sky-50 border border-sky-100">
-                            <Clock className="h-3.5 w-3.5 text-sky-600 flex-shrink-0" />
-                            <span className="text-xs font-semibold text-gray-700">{todaySchedule.hours}</span>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-sky-500 shrink-0" />
+                            <span className="line-clamp-1">
+                              {t('time.today')}: {todaySchedule.hours}
+                            </span>
                           </div>
-                        </div>
-
-                        {/* Compact Features */}
-                        <div className="flex flex-wrap gap-1.5 justify-center">
                           {allowWalkIns && (
-                            <Badge className="bg-emerald-50 border-emerald-200 text-emerald-700 text-xs px-2 py-0.5">
-                              <Zap className="w-2.5 h-2.5 mr-1" />
-                              Walk-in
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Users className="w-4 h-4 text-green-500 shrink-0" />
+                              <span className="line-clamp-1 font-semibold text-green-700">
+                                {t('features.walkInsOk')}
+                              </span>
+                            </div>
                           )}
                           {avgDuration && (
-                            <Badge className="bg-amber-50 border-amber-200 text-amber-700 text-xs px-2 py-0.5">
-                              <Timer className="w-2.5 h-2.5 mr-1" />
-                              {avgDuration}m
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Timer className="w-4 h-4 text-cyan-500 shrink-0" />
+                              <span className="line-clamp-1">
+                                {t('features.averageTime')}: {avgDuration} {t('features.minutes')}
+                              </span>
+                            </div>
                           )}
                         </div>
-
-                        {/* Compact Payment Methods */}
+                        
+                        {/* Payment Methods */}
                         {paymentMethods.length > 0 && (
-                          <div className="flex items-center justify-center gap-1.5 pt-1">
-                            {paymentMethods.map((method) => (
-                              <div
-                                key={method.name}
-                                className="w-7 h-7 rounded-lg bg-white border border-blue-100 flex items-center justify-center shadow-sm hover:shadow hover:border-blue-300 transition-all"
-                                title={method.name}
+                          <div className="border-t border-gray-100 pt-2 flex flex-wrap gap-2">
+                            {paymentMethods.map(method => (
+                              <Badge 
+                                key={method.name} 
+                                variant="outline" 
+                                className="border-cyan-200 text-cyan-700 bg-cyan-50 text-xs px-2 py-0.5 font-normal"
                               >
-                                <method.icon className="h-3.5 w-3.5 text-gray-700" />
-                              </div>
+                                <method.icon className="w-3 h-3 mr-1" />
+                                {method.name}
+                              </Badge>
                             ))}
                           </div>
                         )}
-
-                        {/* Compact Button */}
-                        <Button className="w-full h-9 bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white border-0 rounded-xl font-semibold shadow-md hover:shadow-lg transition-all group text-xs">
-                          <Calendar className="w-3.5 h-3.5 mr-1.5" />
-                          <span>Book Now</span>
-                          <ArrowRight className="w-3.5 h-3.5 ml-1.5 group-hover:translate-x-0.5 transition-transform" />
+                      </div>
+                      
+                      {/* Footer Button */}
+                      <div className="p-3 border-t border-gray-100">
+                        <Button 
+                          className="w-full bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white font-semibold py-2 h-auto rounded-xl transition-all"
+                        >
+                          {t('clinic.bookAppointment')}
+                          <ArrowRight className="w-4 h-4 ml-2" />
                         </Button>
                       </div>
                     </Card>
@@ -736,7 +738,7 @@ const ClinicDirectory = () => {
           </div>
         )}
       </div>
-
+      {/* Styles for animation, included as requested */}
       <style jsx>{`
         @keyframes float {
           0%, 100% { transform: translateY(0px) rotate(12deg); }
