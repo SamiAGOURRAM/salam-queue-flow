@@ -17,7 +17,9 @@
     "active": "نشط",
     "filtersActive": "الفلاتر نشطة",
     "success": "نجاح",
-    "friend": "صديقي"
+    "friend": "صديقي",
+    "andUp": "فأكثر",
+    "stars": "نجوم"
   },
   "nav": {
     "home": "الرئيسية",
@@ -56,7 +58,10 @@
     "allSpecialtiesText": "جميع التخصصات",
     "allSpecialtiesDesc": "ابحث عن أطباء في جميع المجالات الطبية",
     "instantBooking": "حجز فوري",
-    "instantBookingDesc": "لا حاجة للانتظار"
+    "instantBookingDesc": "لا حاجة للانتظار",
+    "minRating": "الحد الأدنى للتقييم",
+    "allRatings": "جميع التقييمات",
+    "popularSpecialties": "التخصصات الشائعة"
   },
   "features": {
     "walkIn": "بدون موعد",

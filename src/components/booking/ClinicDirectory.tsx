@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ratingService } from "@/services/rating/RatingService";
 import { favoriteService } from "@/services/favorite/FavoriteService";
-import { useTranslation } from "react-i18next"; // Added import
+import { useTranslation } from "react-i18next";
 
 interface ClinicSettings {
   buffer_time?: number;
@@ -65,15 +65,19 @@ const ClinicDirectory = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { t } = useTranslation(); // Added hook
+  const { t } = useTranslation();
   
   const [clinics, setClinics] = useState<Clinic[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+
+  // --- Filter State ---
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCity, setSelectedCity] = useState<string>("all");
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>("all");
-  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [minRating, setMinRating] = useState<string>("all");
+  // --------------------
 
   // Mouse tracking for parallax
   useEffect(() => {
@@ -210,6 +214,7 @@ const ClinicDirectory = () => {
     ].filter(m => m.enabled);
   };
 
+  // --- Filtering Logic ---
   const filteredClinics = clinics.filter((clinic) => {
     const matchesSearch =
       searchTerm === "" ||
@@ -220,11 +225,21 @@ const ClinicDirectory = () => {
     const matchesCity = selectedCity === "all" || clinic.city === selectedCity;
     const matchesSpecialty = selectedSpecialty === "all" || clinic.specialty === selectedSpecialty;
 
-    return matchesSearch && matchesCity && matchesSpecialty;
+    // Rating Filter Logic (uses the 'ratingsMap' from your useQuery)
+    const ratingData = ratingsMap?.get(clinic.id);
+    const averageRating = ratingData?.average_rating || 0;
+    const matchesRating = minRating === "all" || averageRating >= parseFloat(minRating);
+
+    return matchesSearch && matchesCity && matchesSpecialty && matchesRating;
   });
+  // -------------------------------
 
   const cities = Array.from(new Set(clinics.map((c) => c.city)));
   const specialties = Array.from(new Set(clinics.map((c) => c.specialty)));
+  
+  // --- Get first 6 specialties for quick links ---
+  const popularSpecialties = specialties.slice(0, 6);
+  // ---------------------------------------------------
 
   const toggleFavorite = (e: React.MouseEvent, clinicId: string) => {
     e.stopPropagation();
@@ -238,12 +253,12 @@ const ClinicDirectory = () => {
   if (loading) {
     return (
       <div className="min-h-screen w-full bg-transparent">
-        <div className="container mx-auto px-6 py-10">
-          <div className="space-y-8">
-            <Skeleton className="h-[500px] w-full rounded-[3rem] bg-transparent" />
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="container mx-auto px-6 py-8">
+          <div className="space-y-6">
+            <Skeleton className="h-[380px] w-full rounded-[3rem] bg-transparent" />
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3, 4, 5, 6].map((i) => (
-                <Skeleton key={i} className="h-[400px] rounded-3xl bg-transparent" />
+                <Skeleton key={i} className="h-[320px] rounded-3xl bg-transparent" />
               ))}
             </div>
           </div>
@@ -261,271 +276,349 @@ const ClinicDirectory = () => {
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" style={{animationDelay: '4s'}}></div>
       </div>
 
-      <div className="relative z-10 container mx-auto px-6 py-10">
-        {/* Enhanced Hero Section with 3D Elements */}
-        <div className="relative mb-16">
+      <div className="relative z-10 container mx-auto px-6 py-8">
+        {/* Hero Section and Search Filter Side by Side */}
+        <div className="grid lg:grid-cols-[1fr,2fr] gap-6 mb-12">
+          
+          {/* ============================================================
+          ===            START: UPDATED & FILLED FILTER CARD       ===
+          ============================================================
+          */}
           <div 
-            className="relative rounded-[3rem] bg-gradient-to-br from-blue-600 via-sky-600 to-cyan-600 p-1 shadow-2xl"
+            className="relative rounded-[2rem] bg-white border shadow-xl p-6 order-2 lg:order-1 flex flex-col" // Added flex flex-col
             style={{
-              transform: 'perspective(1000px) rotateX(2deg)',
+              transform: 'perspective(2000px) rotateX(1deg)',
               transformStyle: 'preserve-3d'
             }}
           >
-            <div className="relative rounded-[2.9rem] bg-white p-16 overflow-hidden">
-              {/* Floating 3D Elements */}
-              <div className="absolute top-10 right-10 w-32 h-32 opacity-20" style={parallaxStyle}>
-                <div className="w-full h-full rounded-3xl bg-gradient-to-br from-blue-400 to-sky-400 transform rotate-12 animate-float"></div>
-              </div>
-              <div className="absolute bottom-10 left-20 w-24 h-24 opacity-20" style={{...parallaxStyle, animationDelay: '2s'}}>
-                <div className="w-full h-full rounded-3xl bg-gradient-to-br from-cyan-400 to-blue-400 transform -rotate-12 animate-float"></div>
-              </div>
-
-              <div className="relative grid lg:grid-cols-2 gap-16 items-center">
-                <div className="space-y-8">
-                  <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-blue-100 to-sky-100 border border-blue-200 shadow-lg">
-                    <Activity className="w-5 h-5 text-blue-600 animate-pulse" />
-                    <span className="text-sm font-semibold text-blue-900">{t('clinic.directory')}</span>
-                    <Badge className="bg-gradient-to-r from-green-400 to-emerald-400 text-white border-0 shadow-md">
-                      {clinics.length} {t('common.active')}
-                    </Badge>
-                  </div>
-                  
-                  <h1 className="text-6xl lg:text-7xl font-bold text-gray-900 leading-tight">
-                    {/* Translating parts of clinic.findPerfectClinic based on component's split structure */}
-                    {t('clinic.findPerfectClinic').split(' ').slice(0, 2).join(' ')} 
-                    <span className="block bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-600 bg-clip-text text-transparent animate-gradient">
-                      {t('clinic.findPerfectClinic').split(' ').slice(2).join(' ')}
-                    </span>
-                  </h1>
-                  
-                  <p className="text-xl text-gray-600 leading-relaxed max-w-xl">
-                    {t('clinic.browseProviders')}
-                  </p>
-
-                  {/* Stats Cards */}
-                  <div className="grid grid-cols-3 gap-4">
-                    <div 
-                      className="relative p-5 rounded-2xl bg-white shadow-xl border border-blue-100 hover:shadow-2xl transition-all group"
-                      style={{
-                        transform: hoveredCard === 'stat1' ? 'perspective(500px) rotateY(-5deg) scale(1.05)' : '',
-                        transformStyle: 'preserve-3d'
-                      }}
-                      onMouseEnter={() => setHoveredCard('stat1')}
-                      onMouseLeave={() => setHoveredCard(null)}
-                    >
-                      <Building2 className="w-8 h-8 text-blue-600 mb-2 group-hover:scale-110 transition-transform" />
-                      <p className="text-3xl font-bold text-gray-900">{clinics.length}</p>
-                      <p className="text-xs text-gray-500 mt-1">{t('clinic.verifiedClinics')}</p>
-                    </div>
-                    
-                    <div 
-                      className="relative p-5 rounded-2xl bg-gradient-to-br from-blue-500 to-sky-500 text-white shadow-xl hover:shadow-2xl transition-all group"
-                      style={{
-                        transform: hoveredCard === 'stat2' ? 'perspective(500px) rotateX(-5deg) scale(1.05)' : '',
-                        transformStyle: 'preserve-3d'
-                      }}
-                      onMouseEnter={() => setHoveredCard('stat2')}
-                      onMouseLeave={() => setHoveredCard(null)}
-                    >
-                      <Users className="w-8 h-8 mb-2 group-hover:scale-110 transition-transform" />
-                      <p className="text-3xl font-bold">10K+</p>
-                      <p className="text-xs text-blue-100 mt-1">{t('clinic.patientsServed')}</p>
-                    </div>
-
-                    <div 
-                      className="relative p-5 rounded-2xl bg-white shadow-xl border border-blue-100 hover:shadow-2xl transition-all group"
-                      style={{
-                        transform: hoveredCard === 'stat3' ? 'perspective(500px) rotateY(5deg) scale(1.05)' : '',
-                        transformStyle: 'preserve-3d'
-                      }}
-                      onMouseEnter={() => setHoveredCard('stat3')}
-                      onMouseLeave={() => setHoveredCard(null)}
-                    >
-                      <Star className="w-8 h-8 text-yellow-500 mb-2 group-hover:scale-110 transition-transform" />
-                      <p className="text-3xl font-bold text-gray-900">4.8</p>
-                      <p className="text-xs text-gray-500 mt-1">{t('clinic.avgRating')}</p>
-                    </div>
-                  </div>
+            {/* Main Filters Section */}
+            <div className="space-y-5">
+              
+              {/* Card Title */}
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-sky-500 flex items-center justify-center shadow-lg flex-shrink-0">
+                  <Search className="w-6 h-6 text-white" />
                 </div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-xl font-bold text-gray-900">{t('clinic.searchClinics')}</h2>
+                  <p className="text-xs text-gray-600 truncate">{t('clinic.findPerfectProvider')}</p>
+                </div>
+              </div>
 
-                {/* 3D Graphic Cards */}
-                <div className="relative h-[400px] hidden lg:block">
-                  <div 
-                    className="absolute top-0 right-0 w-72 h-44 rounded-3xl bg-gradient-to-br from-blue-500 to-sky-500 shadow-2xl p-6 text-white"
-                    style={{
-                      transform: `perspective(1000px) rotateX(${hoveredCard === 'card1' ? '0' : '10'}deg) rotateY(${hoveredCard === 'card1' ? '0' : '-20'}deg) translateZ(50px)`,
-                      transformStyle: 'preserve-3d',
-                      transition: 'transform 0.3s ease'
-                    }}
-                    onMouseEnter={() => setHoveredCard('card1')}
-                    onMouseLeave={() => setHoveredCard(null)}
-                  >
-                    <Stethoscope className="w-10 h-10 mb-3" />
-                    <h3 className="text-xl font-bold mb-2">{t('clinic.allSpecialtiesText')}</h3>
-                    <p className="text-blue-100">{t('clinic.allSpecialtiesDesc')}</p>
-                  </div>
-
-                  <div 
-                    className="absolute bottom-0 left-0 w-64 h-40 rounded-3xl bg-white shadow-2xl border border-blue-100 p-6"
-                    style={{
-                      transform: `perspective(1000px) rotateX(${hoveredCard === 'card2' ? '0' : '-10'}deg) rotateY(${hoveredCard === 'card2' ? '0' : '15'}deg) translateZ(30px)`,
-                      transformStyle: 'preserve-3d',
-                      transition: 'transform 0.3s ease'
-                    }}
-                    onMouseEnter={() => setHoveredCard('card2')}
-                    onMouseLeave={() => setHoveredCard(null)}
-                  >
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-400 to-emerald-400 flex items-center justify-center">
-                        <Clock className="w-6 h-6 text-white" />
+              {/* Filter Inputs */}
+              <div className="space-y-3 pt-2">
+                
+                {/* Search (Full-width) */}
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder={t('clinic.searchPlaceholder')}
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-11 pr-4 h-12 bg-white/90 backdrop-blur border-2 border-blue-100 text-gray-900 placeholder:text-gray-400 rounded-xl text-sm focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100/50 transition-all"
+                  />
+                </div>
+                
+                {/* 2-Column Grid */}
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Grid Item 1: City */}
+                  <Select value={selectedCity} onValueChange={setSelectedCity}>
+                    <SelectTrigger className="h-12 bg-white/90 backdrop-blur border-2 border-blue-100 text-gray-900 rounded-xl hover:border-blue-300 focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100/50 transition-all text-sm">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-blue-600" />
+                        <SelectValue placeholder={t('clinic.allCities')} />
                       </div>
-                      <div>
-                        <h3 className="font-bold text-gray-900">{t('clinic.instantBooking')}</h3>
-                        <p className="text-xs text-gray-500">{t('clinic.instantBookingDesc')}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      {[1, 2, 3, 4].map((i) => (
-                        <div key={i} className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-50 to-sky-50 border border-blue-100"></div>
+                    </SelectTrigger>
+                    <SelectContent className="bg-white/95 backdrop-blur-xl border-blue-100 rounded-xl">
+                      <SelectItem value="all">
+                        <div className="flex items-center gap-2 py-1">
+                          <Globe className="w-4 h-4 text-blue-600" />
+                          {t('clinic.allCities')}
+                        </div>
+                      </SelectItem>
+                      {cities.map((city) => (
+                        <SelectItem key={city} value={city}>
+                          <div className="flex items-center gap-2 py-1">
+                            <MapPin className="w-4 h-4 text-blue-600" />
+                            {city}
+                          </div>
+                        </SelectItem>
                       ))}
-                    </div>
-                  </div>
+                    </SelectContent>
+                  </Select>
 
-                  {/* Floating icons */}
-                  <div className="absolute top-1/2 right-1/3 w-16 h-16 animate-float">
-                    <div className="w-full h-full rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-400 shadow-xl flex items-center justify-center transform rotate-12">
-                      <Heart className="w-8 h-8 text-white" />
-                    </div>
-                  </div>
+                  {/* Grid Item 2: Specialty */}
+                  <Select value={selectedSpecialty} onValueChange={setSelectedSpecialty}>
+                    <SelectTrigger className="h-12 bg-white/90 backdrop-blur border-2 border-blue-100 text-gray-900 rounded-xl hover:border-blue-300 focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100/50 transition-all text-sm">
+                      <div className="flex items-center gap-2">
+                        <Stethoscope className="w-4 h-4 text-blue-600" />
+                        <SelectValue placeholder={t('clinic.allSpecialties')} />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent className="bg-white/95 backdrop-blur-xl border-blue-100 rounded-xl">
+                      <SelectItem value="all">
+                        <div className="flex items-center gap-2 py-1">
+                          <Layers className="w-4 h-4 text-blue-600" />
+                          {t('clinic.allSpecialties')}
+                        </div>
+                      </SelectItem>
+                      {specialties.map((specialty) => (
+                        <SelectItem key={specialty} value={specialty}>
+                          <div className="flex items-center gap-2 py-1">
+                            <Stethoscope className="w-4 h-4 text-blue-600" />
+                            {specialty}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        {/* Enhanced Search & Filters */}
-        <div 
-          className="relative mb-12 rounded-[2rem] bg-white border shadow-xl p-10"
-          style={{
-            transform: 'perspective(2000px) rotateX(1deg)',
-            transformStyle: 'preserve-3d'
-          }}
-        >
-          <div className="space-y-8">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-sky-500 flex items-center justify-center shadow-lg">
-                  <Search className="w-7 h-7 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-3xl font-bold text-gray-900">{t('clinic.searchClinics')}</h2>
-                  <p className="text-gray-600">{t('clinic.findPerfectProvider')}</p>
-                </div>
+                {/* Rating Filter (Full-width) */}
+                <Select value={minRating} onValueChange={setMinRating}>
+                  <SelectTrigger className="h-12 bg-white/90 backdrop-blur border-2 border-blue-100 text-gray-900 rounded-xl hover:border-blue-300 focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100/50 transition-all text-sm">
+                    <div className="flex items-center gap-2">
+                      <Star className="w-4 h-4 text-blue-600" />
+                      <SelectValue placeholder={t('clinic.minRating', 'Minimum Rating')} />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent className="bg-white/95 backdrop-blur-xl border-blue-100 rounded-xl">
+                    <SelectItem value="all">
+                      <div className="flex items-center gap-2 py-1">
+                        <Layers className="w-4 h-4 text-blue-600" />
+                        {t('clinic.allRatings', 'All Ratings')}
+                      </div>
+                    </SelectItem>
+                    {[4, 3, 2, 1].map((rating) => (
+                      <SelectItem key={rating} value={String(rating)}>
+                        <div className="flex items-center gap-2 py-1">
+                          <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                          {rating} {t('common.andUp', 'and up')}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+
+              {/* Clear Filters Button */}
               <Button 
                 variant="ghost"
-                className="text-gray-600 hover:bg-blue-50 hover:text-blue-600 px-6 py-3 rounded-xl transition-all"
+                className="w-full text-gray-600 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-all text-sm h-10"
                 onClick={() => {
                   setSearchTerm("");
                   setSelectedCity("all");
                   setSelectedSpecialty("all");
+                  setMinRating("all");
                 }}
               >
-                <Filter className="w-5 h-5 mr-2" />
+                <Filter className="w-4 h-4 mr-2" />
                 {t('common.clearFilters')}
               </Button>
             </div>
-
-            <div className="relative group">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-sky-400 rounded-2xl blur-2xl opacity-10 group-hover:opacity-20 transition-opacity"></div>
-              <div className="relative flex items-center">
-                <Search className="absolute left-6 h-6 w-6 text-gray-400" />
-                <Input
-                  placeholder={t('clinic.searchPlaceholder')}
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-16 pr-6 h-20 bg-white/90 backdrop-blur border-2 border-blue-100 text-gray-900 placeholder:text-gray-400 rounded-2xl text-lg focus:border-blue-400 focus:shadow-xl focus:shadow-blue-100/50 transition-all"
-                />
-                <div className="absolute right-4 flex items-center gap-2">
-                  {searchTerm && (
-                    <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-                      {t('common.search')}...
-                    </Badge>
-                  )}
+            
+            {/* Quick Links Section */}
+            <div className="flex-1 flex flex-col justify-end pt-5"> 
+              <div className="border-t border-gray-100 pt-4 space-y-3">
+                <h3 className="text-sm font-semibold text-gray-500 px-1">{t('clinic.popularSpecialties', 'Popular Specialties')}</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {popularSpecialties.map((spec) => (
+                    <Button
+                      key={spec}
+                      variant="outline"
+                      className={`h-auto px-3 py-2 justify-start border-blue-100 rounded-lg transition-all ${
+                        selectedSpecialty === spec 
+                        ? 'bg-blue-100 border-blue-300 shadow-lg' 
+                        : 'bg-white/90 hover:bg-blue-50'
+                      }`}
+                      onClick={() => setSelectedSpecialty(spec)}
+                    >
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center mr-2 flex-shrink-0 ${
+                        selectedSpecialty === spec 
+                        ? 'bg-gradient-to-br from-blue-500 to-sky-500' 
+                        : 'bg-blue-50'
+                      }`}>
+                        <Stethoscope className={`w-4 h-4 ${
+                          selectedSpecialty === spec 
+                          ? 'text-white' 
+                          : 'text-blue-600'
+                        }`} />
+                      </div>
+                      <span className={`text-sm font-medium truncate ${
+                        selectedSpecialty === spec 
+                        ? 'text-blue-800' 
+                        : 'text-gray-800'
+                      }`}>{spec}</span>
+                    </Button>
+                  ))}
                 </div>
               </div>
             </div>
+            
+          </div>
+          {/* ============================================================
+          ===              END: UPDATED & FILLED FILTER CARD       ===
+          ============================================================
+          */}
 
-            <div className="grid md:grid-cols-2 gap-6">
-              <Select value={selectedCity} onValueChange={setSelectedCity}>
-                <SelectTrigger className="h-16 bg-white/90 backdrop-blur border-2 border-blue-100 text-gray-900 rounded-2xl hover:border-blue-300 focus:border-blue-400 focus:shadow-xl focus:shadow-blue-100/50 transition-all text-base">
-                  <div className="flex items-center gap-3">
-                    <MapPin className="w-5 h-5 text-blue-600" />
-                    <SelectValue placeholder={t('clinic.allCities')} />
-                  </div>
-                </SelectTrigger>
-                <SelectContent className="bg-white/95 backdrop-blur-xl border-blue-100 rounded-xl">
-                  <SelectItem value="all">
-                    <div className="flex items-center gap-2 py-1">
-                      <Globe className="w-4 h-4 text-blue-600" />
-                      {t('clinic.allCities')}
-                    </div>
-                  </SelectItem>
-                  {cities.map((city) => (
-                    <SelectItem key={city} value={city}>
-                      <div className="flex items-center gap-2 py-1">
-                        <MapPin className="w-4 h-4 text-blue-600" />
-                        {city}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
 
-              <Select value={selectedSpecialty} onValueChange={setSelectedSpecialty}>
-                <SelectTrigger className="h-16 bg-white/90 backdrop-blur border-2 border-blue-100 text-gray-900 rounded-2xl hover:border-blue-300 focus:border-blue-400 focus:shadow-xl focus:shadow-blue-100/50 transition-all text-base">
-                  <div className="flex items-center gap-3">
-                    <Stethoscope className="w-5 h-5 text-blue-600" />
-                    <SelectValue placeholder={t('clinic.allSpecialties')} />
-                  </div>
-                </SelectTrigger>
-                <SelectContent className="bg-white/95 backdrop-blur-xl border-blue-100 rounded-xl">
-                  <SelectItem value="all">
-                    <div className="flex items-center gap-2 py-1">
-                      <Layers className="w-4 h-4 text-blue-600" />
-                      {t('clinic.allSpecialties')}
+          {/* Hero Section - Right Side (70%) */}
+          <div className="relative order-1 lg:order-2">
+            <div 
+              className="relative rounded-[3rem] bg-gradient-to-br from-blue-600 via-sky-600 to-cyan-600 p-1 shadow-2xl"
+              style={{
+                transform: 'perspective(1000px) rotateX(2deg)',
+                transformStyle: 'preserve-3d'
+              }}
+            >
+              <div className="relative rounded-[2.9rem] bg-white p-8 lg:p-10 overflow-hidden">
+                {/* Floating 3D Elements */}
+                <div className="absolute top-8 right-8 w-24 h-24 opacity-20" style={parallaxStyle}>
+                  <div className="w-full h-full rounded-3xl bg-gradient-to-br from-blue-400 to-sky-400 transform rotate-12 animate-float"></div>
+                </div>
+                <div className="absolute bottom-8 left-16 w-20 h-20 opacity-20" style={{...parallaxStyle, animationDelay: '2s'}}>
+                  <div className="w-full h-full rounded-3xl bg-gradient-to-br from-cyan-400 to-blue-400 transform -rotate-12 animate-float"></div>
+                </div>
+
+                <div className="relative grid lg:grid-cols-2 gap-8 items-center">
+                  <div className="space-y-6">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-100 to-sky-100 border border-blue-200 shadow-lg">
+                      <Activity className="w-4 h-4 text-blue-600 animate-pulse" />
+                      <span className="text-xs font-semibold text-blue-900">{t('clinic.directory')}</span>
+                      <Badge className="bg-gradient-to-r from-green-400 to-emerald-400 text-white border-0 shadow-md text-xs px-2 py-0.5">
+                        {clinics.length} {t('common.active')}
+                      </Badge>
                     </div>
-                  </SelectItem>
-                  {specialties.map((specialty) => (
-                    <SelectItem key={specialty} value={specialty}>
-                      <div className="flex items-center gap-2 py-1">
-                        <Stethoscope className="w-4 h-4 text-blue-600" />
-                        {specialty}
+                    
+                    <h1 className="text-4xl lg:text-5xl font-bold text-gray-900 leading-tight">
+                      {t('clinic.findPerfectClinic').split(' ').slice(0, 2).join(' ')} 
+                      <span className="block bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-600 bg-clip-text text-transparent animate-gradient">
+                        {t('clinic.findPerfectClinic').split(' ').slice(2).join(' ')}
+                      </span>
+                    </h1>
+                    
+                    <p className="text-base text-gray-600 leading-relaxed">
+                      {t('clinic.browseProviders')}
+                    </p>
+
+                    {/* Stats Cards */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div 
+                        className="relative p-4 rounded-xl bg-white shadow-lg border border-blue-100 hover:shadow-xl transition-all group"
+                        style={{
+                          transform: hoveredCard === 'stat1' ? 'perspective(500px) rotateY(-5deg) scale(1.05)' : '',
+                          transformStyle: 'preserve-3d'
+                        }}
+                        onMouseEnter={() => setHoveredCard('stat1')}
+                        onMouseLeave={() => setHoveredCard(null)}
+                      >
+                        <Building2 className="w-6 h-6 text-blue-600 mb-2 group-hover:scale-110 transition-transform" />
+                        <p className="text-2xl font-bold text-gray-900">{clinics.length}</p>
+                        <p className="text-[10px] text-gray-500 mt-1">{t('clinic.verifiedClinics')}</p>
                       </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                      
+                      <div 
+                        className="relative p-4 rounded-xl bg-gradient-to-br from-blue-500 to-sky-500 text-white shadow-lg hover:shadow-xl transition-all group"
+                        style={{
+                          transform: hoveredCard === 'stat2' ? 'perspective(500px) rotateX(-5deg) scale(1.05)' : '',
+                          transformStyle: 'preserve-3d'
+                        }}
+                        onMouseEnter={() => setHoveredCard('stat2')}
+                        onMouseLeave={() => setHoveredCard(null)}
+                      >
+                        <Users className="w-6 h-6 mb-2 group-hover:scale-110 transition-transform" />
+                        <p className="text-2xl font-bold">10K+</p>
+                        <p className="text-[10px] text-blue-100 mt-1">{t('clinic.patientsServed')}</p>
+                      </div>
+
+                      <div 
+                        className="relative p-4 rounded-xl bg-white shadow-lg border border-blue-100 hover:shadow-xl transition-all group"
+                        style={{
+                          transform: hoveredCard === 'stat3' ? 'perspective(500px) rotateY(5deg) scale(1.05)' : '',
+                          transformStyle: 'preserve-3d'
+                        }}
+                        onMouseEnter={() => setHoveredCard('stat3')}
+                        onMouseLeave={() => setHoveredCard(null)}
+                      >
+                        <Star className="w-6 h-6 text-yellow-500 mb-2 group-hover:scale-110 transition-transform" />
+                        <p className="text-2xl font-bold text-gray-900">4.8</p>
+                        <p className="text-[10px] text-gray-500 mt-1">{t('clinic.avgRating')}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3D Graphic Cards */}
+                  <div className="relative h-[320px] hidden lg:block">
+                    <div 
+                      className="absolute top-0 right-0 w-64 h-36 rounded-2xl bg-gradient-to-br from-blue-500 to-sky-500 shadow-2xl p-5 text-white"
+                      style={{
+                        transform: `perspective(1000px) rotateX(${hoveredCard === 'card1' ? '0' : '10'}deg) rotateY(${hoveredCard === 'card1' ? '0' : '-20'}deg) translateZ(50px)`,
+                        transformStyle: 'preserve-3d',
+                        transition: 'transform 0.3s ease'
+                      }}
+                      onMouseEnter={() => setHoveredCard('card1')}
+                      onMouseLeave={() => setHoveredCard(null)}
+                    >
+                      <Stethoscope className="w-8 h-8 mb-2" />
+                      <h3 className="text-lg font-bold mb-1">{t('clinic.allSpecialtiesText')}</h3>
+                      <p className="text-sm text-blue-100">{t('clinic.allSpecialtiesDesc')}</p>
+                    </div>
+
+                    <div 
+                      className="absolute bottom-0 left-0 w-56 h-32 rounded-2xl bg-white shadow-2xl border border-blue-100 p-4"
+                      style={{
+                        transform: `perspective(1000px) rotateX(${hoveredCard === 'card2' ? '0' : '-10'}deg) rotateY(${hoveredCard === 'card2' ? '0' : '15'}deg) translateZ(30px)`,
+                        transformStyle: 'preserve-3d',
+                        transition: 'transform 0.3s ease'
+                      }}
+                      onMouseEnter={() => setHoveredCard('card2')}
+                      onMouseLeave={() => setHoveredCard(null)}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-400 to-emerald-400 flex items-center justify-center">
+                          <Clock className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-gray-900">{t('clinic.instantBooking')}</h3>
+                          <p className="text-[10px] text-gray-500">{t('clinic.instantBookingDesc')}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        {[1, 2, 3, 4].map((i) => (
+                          <div key={i} className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-50 to-sky-50 border border-blue-100"></div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Floating icons */}
+                    <div className="absolute top-1/2 right-1/3 w-14 h-14 animate-float">
+                      <div className="w-full h-full rounded-xl bg-gradient-to-br from-cyan-400 to-blue-400 shadow-xl flex items-center justify-center transform rotate-12">
+                        <Heart className="w-7 h-7 text-white" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Results Count Bar */}
-        <div className="flex items-center justify-between mb-10">
+        <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-            <div className="px-6 py-3 rounded-2xl bg-gradient-to-r from-blue-100 to-sky-100 border border-blue-200 shadow-lg">
-              <p className="text-blue-900 font-bold text-lg">
-                {/* Pluralization for "Clinics Available" */}
+            <div className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-blue-100 to-sky-100 border border-blue-200 shadow-lg">
+              <p className="text-blue-900 font-bold text-base">
                 {t('clinic.clinics', { count: filteredClinics.length, defaultValue: 'Clinics' })} {t('clinic.available')}
               </p>
             </div>
-            {(searchTerm || selectedCity !== "all" || selectedSpecialty !== "all") && (
+            {/* Updated filter check */}
+            {(searchTerm || selectedCity !== "all" || selectedSpecialty !== "all" || minRating !== "all") && (
               <div className="flex items-center gap-2">
                 <Badge className="bg-white border-blue-200 text-blue-600 shadow-md px-3 py-1.5">
                   {t('common.filtersActive')}
                 </Badge>
                 <div className="h-8 w-px bg-blue-200"></div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   {searchTerm && (
                     <Badge className="bg-blue-50 text-blue-700 border-blue-200">
                       "{searchTerm}"
@@ -541,6 +634,11 @@ const ClinicDirectory = () => {
                       {selectedSpecialty}
                     </Badge>
                   )}
+                  {minRating !== "all" && (
+                    <Badge className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                      {minRating}+ {t('common.stars', 'Stars')}
+                    </Badge>
+                  )}
                 </div>
               </div>
             )}
@@ -548,22 +646,23 @@ const ClinicDirectory = () => {
         </div>
 
         {/* Enhanced Clinics Grid with 3D Cards */}
-  {/* Compact Clinics Grid - 4 columns on xl */}
-  {filteredClinics.length === 0 ? (
-          <div className="rounded-2xl bg-white border shadow-lg p-16 text-center">
+        {filteredClinics.length === 0 ? (
+          <div className="rounded-2xl bg-white border shadow-lg p-12 text-center">
             <div className="max-w-md mx-auto">
-              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-100 to-sky-100 flex items-center justify-center mx-auto mb-6">
-                <Search className="w-12 h-12 text-blue-400" />
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-100 to-sky-100 flex items-center justify-center mx-auto mb-5">
+                <Search className="w-10 h-10 text-blue-400" />
               </div>
-              <h3 className="text-3xl font-bold text-gray-900 mb-3">{t('clinic.noClinicsFound')}</h3>
-              <p className="text-lg text-gray-600 mb-8">{t('clinic.tryAdjustingFilters')}</p>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">{t('clinic.noClinicsFound')}</h3>
+              <p className="text-base text-gray-600 mb-6">{t('clinic.tryAdjustingFilters')}</p>
+
               <Button
                 onClick={() => {
                   setSearchTerm("");
                   setSelectedCity("all");
                   setSelectedSpecialty("all");
+                  setMinRating("all");
                 }}
-                className="px-8 py-5 rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white font-bold shadow-lg"
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white font-bold shadow-lg"
               >
                 <Filter className="w-5 h-5 mr-2" />
                 {t('common.resetFilters')}
@@ -602,7 +701,7 @@ const ClinicDirectory = () => {
                     <div className={`absolute -inset-0.5 bg-gradient-to-r from-blue-400 to-sky-400 rounded-2xl blur ${hoveredCard === clinic.id ? 'opacity-20' : 'opacity-0'} transition-opacity duration-300`}></div>
                     
                     <Card 
-                      className="relative h-full bg-white border border-gray-200 rounded-2xl overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-300"
+                      className="relative h-full bg-white border border-gray-200 rounded-2xl overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-300 flex flex-col" // <-- Added flex flex-col
                       onClick={() => navigate(`/clinic/${clinic.id}`)}
                     >
                       {/* Compact Header - 60px */}
@@ -654,7 +753,7 @@ const ClinicDirectory = () => {
                       </div>
 
                       {/* Compact Content */}
-                      <div className="p-3 pt-6 space-y-2.5">
+                      <div className="p-3 pt-6 space-y-2.5 flex-1"> {/* <-- Added flex-1 */}
                         {/* Name & Rating */}
                         <div className="text-center">
                           <h3 className="text-base font-bold text-gray-900 mb-1 line-clamp-1 group-hover:text-blue-600 transition-colors">
@@ -721,15 +820,27 @@ const ClinicDirectory = () => {
                         )}
                       </div>
                       
+                      {/* ============================================================
+                      ===                  START: BUTTON MODIFICATION            ===
+                      ============================================================
+                      */}
                       {/* Footer Button */}
                       <div className="p-3 border-t border-gray-100">
                         <Button 
                           className="w-full bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white font-semibold py-2 h-auto rounded-xl transition-all"
+                          onClick={(e) => {
+                            e.stopPropagation(); // Stop the click from bubbling to the Card
+                            navigate(`/booking/${clinic.id}`); // Navigate to booking flow
+                          }}
                         >
                           {t('clinic.bookAppointment')}
                           <ArrowRight className="w-4 h-4 ml-2" />
                         </Button>
                       </div>
+                      {/* ============================================================
+                      ===                   END: BUTTON MODIFICATION             ===
+                      ============================================================
+                      */}
                     </Card>
                   </div>
                 </div>
@@ -738,7 +849,7 @@ const ClinicDirectory = () => {
           </div>
         )}
       </div>
-      {/* Styles for animation, included as requested */}
+      {/* Styles for animation */}
       <style jsx>{`
         @keyframes float {
           0%, 100% { transform: translateY(0px) rotate(12deg); }
