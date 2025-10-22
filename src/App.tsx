@@ -12,6 +12,7 @@ import Welcome from "./pages/Welcome.tsx";
 // Auth Pages
 import Login from "./pages/auth/Login.tsx";
 import Signup from "./pages/auth/Signup.tsx";
+import StaffSignup from "./pages/auth/StaffSignup.tsx";
 import PatientOnboarding from "./pages/auth/onboarding/PatientOnboarding.tsx";
 import ClinicOnboarding from "./pages/auth/onboarding/ClinicOnboarding.tsx";
 import AcceptInvitation from "./pages/AcceptInvitation.tsx";
@@ -54,6 +55,7 @@ const App = () => (
           {/* ======================================================= */}
           <Route path="/auth/login" element={<Login />} />
           <Route path="/auth/signup" element={<Signup />} />
+          <Route path="/auth/staff-signup" element={<StaffSignup />} />
           <Route path="/auth/onboarding/patient" element={<PatientOnboarding />} />
           <Route path="/auth/onboarding/clinic" element={<ClinicOnboarding />} />
           <Route path="/accept-invitation/:token" element={<AcceptInvitation />} />

@@ -11,7 +11,7 @@ interface Invitation {
   id: string;
   clinic_id: string;
   full_name: string;
-  phone_number: string;
+  email: string;
   status: string;
   clinics: {
     name: string;
@@ -75,32 +75,93 @@ export default function AcceptInvitation() {
     try {
       // Check if user is logged in
       if (!user) {
-        // Redirect to signup with phone pre-filled
-        navigate(`/auth/signup?phone=${encodeURIComponent(invitation.phone_number)}`);
+        // Redirect to staff signup with email, name, and invitation token
+        navigate(`/auth/staff-signup?email=${encodeURIComponent(invitation.email)}&name=${encodeURIComponent(invitation.full_name)}&token=${token}`);
         return;
       }
 
-      // Create staff record
-      const { error: staffError } = await supabase
+      // Check if logged-in user's email matches the invitation
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("email")
+        .eq("id", user.id)
+        .single();
+
+      if (profile && profile.email !== invitation.email) {
+        toast({
+          title: "Wrong account",
+          description: `This invitation is for ${invitation.email}. Please log out and create an account with that email.`,
+          variant: "destructive",
+        });
+        setAccepting(false);
+        return;
+      }
+
+      // Check if user is already staff at this clinic
+      const { data: existingStaff, error: checkStaffError } = await supabase
         .from("clinic_staff")
-        .insert({
-          clinic_id: invitation.clinic_id,
-          user_id: user.id,
-          role: "receptionist",
-        });
+        .select("id")
+        .eq("clinic_id", invitation.clinic_id)
+        .eq("user_id", user.id)
+        .maybeSingle();
 
-      if (staffError) throw staffError;
+      // Ignore "not found" errors, only throw on real errors
+      if (checkStaffError && checkStaffError.code !== 'PGRST116') {
+        console.error("Error checking existing staff:", checkStaffError);
+        throw checkStaffError;
+      }
 
-      // Create user role
-      const { error: roleError } = await supabase
+      if (!existingStaff) {
+        // Create staff record only if doesn't exist
+        console.log("Creating new staff record...");
+        const { error: staffError } = await supabase
+          .from("clinic_staff")
+          .insert({
+            clinic_id: invitation.clinic_id,
+            user_id: user.id,
+            role: "receptionist",
+          });
+
+        if (staffError) {
+          console.error("Error creating staff record:", staffError);
+          throw staffError;
+        }
+      } else {
+        console.log("User is already staff at this clinic");
+      }
+
+      // Check if user role already exists
+      const { data: existingRole, error: checkRoleError } = await supabase
         .from("user_roles")
-        .insert({
-          user_id: user.id,
-          role: "staff",
-          clinic_id: invitation.clinic_id,
-        });
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("clinic_id", invitation.clinic_id)
+        .maybeSingle();
 
-      if (roleError) throw roleError;
+      // Ignore "not found" errors, only throw on real errors
+      if (checkRoleError && checkRoleError.code !== 'PGRST116') {
+        console.error("Error checking existing role:", checkRoleError);
+        throw checkRoleError;
+      }
+
+      if (!existingRole) {
+        // Create user role only if doesn't exist
+        console.log("Creating new user role...");
+        const { error: roleError } = await supabase
+          .from("user_roles")
+          .insert({
+            user_id: user.id,
+            role: "staff",
+            clinic_id: invitation.clinic_id,
+          });
+
+        if (roleError) {
+          console.error("Error creating user role:", roleError);
+          throw roleError;
+        }
+      } else {
+        console.log("User role already exists");
+      }
 
       // Update invitation status
       const { error: updateError } = await supabase
@@ -120,9 +181,10 @@ export default function AcceptInvitation() {
 
       navigate("/clinic/queue");
     } catch (error: any) {
+      console.error("Error accepting invitation:", error);
       toast({
         title: "Failed to accept invitation",
-        description: error.message,
+        description: error.message || "An unexpected error occurred",
         variant: "destructive",
       });
     } finally {
@@ -193,9 +255,13 @@ export default function AcceptInvitation() {
             </div>
           </div>
 
-          {!user && (
+          {!user ? (
             <p className="text-sm text-muted-foreground text-center">
               You'll need to create an account to accept this invitation
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center">
+              Logged in • Ready to accept
             </p>
           )}
 
@@ -209,6 +275,23 @@ export default function AcceptInvitation() {
               user ? "Accept Invitation" : "Create Account & Accept"
             )}
           </Button>
+
+          {user && (
+            <Button 
+              variant="outline" 
+              className="w-full" 
+              onClick={async () => {
+                await supabase.auth.signOut();
+                toast({
+                  title: "Logged out",
+                  description: "You can now sign up with the invited email address",
+                });
+                window.location.reload();
+              }}
+            >
+              Not you? Log out
+            </Button>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -90,7 +90,7 @@ export default function TeamManagement() {
         body: {
           clinicId: clinic.id,
           email: inviteEmail,
-          name: inviteName,
+          fullName: inviteName,
         },
       });
 

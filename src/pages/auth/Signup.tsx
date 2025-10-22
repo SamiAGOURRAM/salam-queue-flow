@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { Activity, User, Building2, Mail, Lock, Phone, UserCircle, ArrowRight, S
 type UserType = "patient" | "clinic_owner";
 
 export default function Signup() {
+  const [searchParams] = useSearchParams();
   const [userType, setUserType] = useState<UserType>("patient");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -20,6 +21,19 @@ export default function Signup() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Pre-fill form from URL parameters (for staff invitations)
+  useEffect(() => {
+    const emailParam = searchParams.get('email');
+    const nameParam = searchParams.get('name');
+    
+    if (emailParam) {
+      setEmail(emailParam);
+    }
+    if (nameParam) {
+      setFullName(nameParam);
+    }
+  }, [searchParams]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
