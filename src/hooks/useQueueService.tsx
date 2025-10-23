@@ -64,6 +64,14 @@ export function useQueueService(options: UseQueueServiceOptions): UseQueueServic
   // ============================================
 
   const refreshQueue = useCallback(async () => {
+    // Skip if no clinic ID (prevents 400 errors)
+    if (!clinicId) {
+      setIsLoading(false);
+      setQueue([]);
+      setSummary(null);
+      return;
+    }
+
     try {
       setIsLoading(true);
       setError(null);
@@ -84,6 +92,7 @@ export function useQueueService(options: UseQueueServiceOptions): UseQueueServic
           AppointmentStatus.WAITING,
           AppointmentStatus.IN_PROGRESS,
         ],
+        includeAbsent: true,
       };
 
       const [queueData, summaryData] = await Promise.all([

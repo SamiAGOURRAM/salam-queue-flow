@@ -236,7 +236,7 @@ const ClinicDetailView = () => {
         <div className="relative mb-8">
           <div className="absolute -inset-1 bg-gradient-to-r from-blue-400 to-sky-400 rounded-3xl blur-2xl opacity-20"></div>
           <Card className="relative backdrop-blur-md bg-white/70 border border-white/40 rounded-3xl overflow-hidden shadow-2xl">
-            {/* Header Gradient Bar */}
+            {/* Header Gradient Bar - Increased height to h-32 */}
             <div className="h-16 bg-gradient-to-br from-blue-400 via-sky-400 to-cyan-400 relative">
               <div className="absolute inset-0 bg-white/20"></div>
               
@@ -255,7 +255,8 @@ const ClinicDetailView = () => {
               </div>
             </div>
 
-            <div className="p-8 -mt-16 relative">
+            {/* Content Section - Adjusted margin to -mt-12 for better logo positioning */}
+            <div className="p-8 -mt-6 relative">
               <div className="flex flex-col md:flex-row gap-6 items-start">
                 {/* Logo */}
                 <div className="w-24 h-24 bg-white rounded-2xl shadow-2xl flex items-center justify-center flex-shrink-0 border-4 border-white relative z-10">
@@ -268,8 +269,8 @@ const ClinicDetailView = () => {
                   )}
                 </div>
 
-                {/* Clinic Info */}
-                <div className="flex-1 space-y-6">
+                {/* Clinic Info - Added pt-2 for better vertical alignment */}
+                <div className="flex-1 space-y-6 pt-2">
                   <div>
                     <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-3">{clinic.name}</h1>
                     <div className="flex flex-wrap items-center gap-3">

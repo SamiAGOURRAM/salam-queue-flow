@@ -107,11 +107,11 @@
   "appointments": {
     "hero": {
       "journey": "Votre parcours de santé",
-      "welcome": "Bon retour, {{name}} !",
+      "welcome": "Bon retour",
       "tagline": "Gérez rapidement vos prochaines visites et trouvez de nouveaux prestataires de soins."
     },
     "total": "Total des rendez-vous",
-    "count": "{{count}} rendez-vous trouvé{{count > 1 ? 's' : ''}}",
+    "count": "{{count}} rendez-vous trouvé",
     "noAppointments": "Aucun rendez-vous trouvé",
     "noCompleted": "Il semble que vous n'ayez pas encore complété de visites.",
     "schedulePrompt": "Prêt(e) à planifier votre prochaine visite ? Commencez par parcourir les cliniques.",

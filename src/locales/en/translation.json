@@ -107,11 +107,11 @@
   "appointments": {
     "hero": {
       "journey": "Your Health Journey",
-      "welcome": "Welcome back, {{name}}!",
+      "welcome": "Welcome back",
       "tagline": "Quickly manage your upcoming visits and find new healthcare providers."
     },
     "total": "Total Appointments",
-    "count": "{{count}} appointment{{count === 1 ? '' : 's'}} found",
+    "count": "{{count}} appointment found",
     "noAppointments": "No appointments found",
     "noCompleted": "It looks like you haven't completed any visits yet.",
     "schedulePrompt": "Ready to schedule your next visit? Start by browsing clinics.",
