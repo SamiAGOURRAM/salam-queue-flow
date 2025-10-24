@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next"; // 🌍 ADD THIS
 import { Activity, User, Building2, Mail, Lock, Phone, UserCircle, ArrowRight, Shield, Zap, Heart, Check } from "lucide-react";
 
 type UserType = "patient" | "clinic_owner";
@@ -21,6 +22,7 @@ export default function Signup() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useTranslation(); // 🌍 ADD THIS
 
   // Pre-fill form from URL parameters (for staff invitations)
   useEffect(() => {
@@ -45,8 +47,8 @@ export default function Signup() {
         // Validate phone number is provided
         if (!phone || !phone.trim()) {
           toast({
-            title: "Phone number required",
-            description: "Please provide a valid phone number.",
+            title: t('auth.signup.phoneRequiredTitle'),
+            description: t('auth.signup.phoneRequiredDesc'),
             variant: "destructive",
           });
           return;
@@ -70,16 +72,16 @@ export default function Signup() {
         if (data.user) {
           if (data.user.identities && data.user.identities.length === 0) {
             toast({
-              title: "Email already registered",
-              description: "Please sign in with your existing account.",
+              title: t('auth.signup.emailExistsTitle'),
+              description: t('auth.signup.emailExistsDesc'),
               variant: "destructive",
             });
             return;
           }
 
           toast({
-            title: "Account created!",
-            description: "Please complete your profile.",
+            title: t('auth.signup.accountCreatedTitle'),
+            description: t('auth.signup.accountCreatedDesc'),
           });
 
           navigate("/auth/onboarding/patient");
@@ -98,15 +100,15 @@ export default function Signup() {
         sessionStorage.setItem('clinicOwnerSignup', JSON.stringify(signupData));
         
         toast({
-          title: "Next step",
-          description: "Please provide your clinic information.",
+          title: t('auth.signup.nextStepTitle'),
+          description: t('auth.signup.nextStepDesc'),
         });
 
         navigate("/auth/onboarding/clinic");
       }
     } catch (error: any) {
       toast({
-        title: "Signup failed",
+        title: t('auth.signup.errorTitle'),
         description: error.message,
         variant: "destructive",
       });
@@ -142,13 +144,13 @@ export default function Signup() {
 
             <div className="space-y-4">
               <h1 className="text-5xl font-bold text-gray-900 leading-tight">
-                Join thousands of
+                {t('auth.signup.joinTitle')}
                 <span className="block bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-600 bg-clip-text text-transparent">
-                  Happy Users
+                  {t('auth.signup.joinSubtitle')}
                 </span>
               </h1>
               <p className="text-xl text-gray-600 leading-relaxed">
-                Start your healthcare journey today. Book appointments, manage visits, and stay connected with your providers.
+                {t('auth.signup.joinDescription')}
               </p>
             </div>
 
@@ -159,8 +161,8 @@ export default function Signup() {
                   <Check className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-900">Free Account</p>
-                  <p className="text-sm text-gray-600">No credit card required, start immediately</p>
+                  <p className="font-semibold text-gray-900">{t('auth.signup.benefit1Title')}</p>
+                  <p className="text-sm text-gray-600">{t('auth.signup.benefit1Desc')}</p>
                 </div>
               </div>
               <div className="flex items-start gap-4 group">
@@ -168,8 +170,8 @@ export default function Signup() {
                   <Check className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-900">Easy Setup</p>
-                  <p className="text-sm text-gray-600">Complete your profile in under 2 minutes</p>
+                  <p className="font-semibold text-gray-900">{t('auth.signup.benefit2Title')}</p>
+                  <p className="text-sm text-gray-600">{t('auth.signup.benefit2Desc')}</p>
                 </div>
               </div>
               <div className="flex items-start gap-4 group">
@@ -177,8 +179,8 @@ export default function Signup() {
                   <Check className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-900">Instant Access</p>
-                  <p className="text-sm text-gray-600">Book appointments right after signup</p>
+                  <p className="font-semibold text-gray-900">{t('auth.signup.benefit3Title')}</p>
+                  <p className="text-sm text-gray-600">{t('auth.signup.benefit3Desc')}</p>
                 </div>
               </div>
             </div>
@@ -204,14 +206,14 @@ export default function Signup() {
               </div>
 
               <div className="space-y-2 text-center mb-8">
-                <h2 className="text-3xl font-bold text-gray-900">Create your account</h2>
-                <p className="text-gray-600">Get started with smart healthcare management</p>
+                <h2 className="text-3xl font-bold text-gray-900">{t('auth.signup.title')}</h2>
+                <p className="text-gray-600">{t('auth.signup.subtitle')}</p>
               </div>
 
               <form onSubmit={handleSignup} className="space-y-6">
                 {/* User Type Selection */}
                 <div className="space-y-3">
-                  <Label className="text-gray-900 font-medium">I am a</Label>
+                  <Label className="text-gray-900 font-medium">{t('auth.signup.iAmA')}</Label>
                   <RadioGroup value={userType} onValueChange={(val) => setUserType(val as UserType)}>
                     <div 
                       className={`flex items-center space-x-3 p-4 border-2 rounded-xl cursor-pointer transition-all ${
@@ -229,8 +231,8 @@ export default function Signup() {
                           <User className="w-5 h-5" />
                         </div>
                         <div>
-                          <p className="font-semibold text-gray-900">Patient</p>
-                          <p className="text-xs text-gray-500">Book appointments and manage visits</p>
+                          <p className="font-semibold text-gray-900">{t('auth.signup.patient')}</p>
+                          <p className="text-xs text-gray-500">{t('auth.signup.patientDesc')}</p>
                         </div>
                       </Label>
                     </div>
@@ -250,8 +252,8 @@ export default function Signup() {
                           <Building2 className="w-5 h-5" />
                         </div>
                         <div>
-                          <p className="font-semibold text-gray-900">Healthcare Provider</p>
-                          <p className="text-xs text-gray-500">Manage your clinic and patients</p>
+                          <p className="font-semibold text-gray-900">{t('auth.signup.healthcareProvider')}</p>
+                          <p className="text-xs text-gray-500">{t('auth.signup.healthcareProviderDesc')}</p>
                         </div>
                       </Label>
                     </div>
@@ -261,12 +263,12 @@ export default function Signup() {
                 {/* Form Fields */}
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="fullName" className="text-gray-900 font-medium">Full Name</Label>
+                    <Label htmlFor="fullName" className="text-gray-900 font-medium">{t('auth.signup.fullName')}</Label>
                     <div className="relative group">
                       <UserCircle className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
                       <Input
                         id="fullName"
-                        placeholder="John Doe"
+                        placeholder={t('auth.signup.fullNamePlaceholder')}
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         className="pl-12 h-12 bg-white border-2 border-blue-100 text-gray-900 rounded-xl focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100 transition-all"
@@ -276,13 +278,13 @@ export default function Signup() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="email" className="text-gray-900 font-medium">Email</Label>
+                    <Label htmlFor="email" className="text-gray-900 font-medium">{t('auth.signup.email')}</Label>
                     <div className="relative group">
                       <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
                       <Input
                         id="email"
                         type="email"
-                        placeholder="you@example.com"
+                        placeholder={t('auth.signup.emailPlaceholder')}
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         className="pl-12 h-12 bg-white border-2 border-blue-100 text-gray-900 rounded-xl focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100 transition-all"
@@ -292,13 +294,13 @@ export default function Signup() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="phone" className="text-gray-900 font-medium">Phone Number</Label>
+                    <Label htmlFor="phone" className="text-gray-900 font-medium">{t('auth.signup.phone')}</Label>
                     <div className="relative group">
                       <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
                       <Input
                         id="phone"
                         type="tel"
-                        placeholder="+212 XXX XXX XXX"
+                        placeholder={t('auth.signup.phonePlaceholder')}
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         className="pl-12 h-12 bg-white border-2 border-blue-100 text-gray-900 rounded-xl focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100 transition-all"
@@ -308,13 +310,13 @@ export default function Signup() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="password" className="text-gray-900 font-medium">Password</Label>
+                    <Label htmlFor="password" className="text-gray-900 font-medium">{t('auth.signup.password')}</Label>
                     <div className="relative group">
                       <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
                       <Input
                         id="password"
                         type="password"
-                        placeholder="••••••••"
+                        placeholder={t('auth.signup.passwordPlaceholder')}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         className="pl-12 h-12 bg-white border-2 border-blue-100 text-gray-900 rounded-xl focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100 transition-all"
@@ -322,7 +324,7 @@ export default function Signup() {
                         minLength={6}
                       />
                     </div>
-                    <p className="text-xs text-gray-500">Must be at least 6 characters</p>
+                    <p className="text-xs text-gray-500">{t('auth.signup.passwordHint')}</p>
                   </div>
                 </div>
 
@@ -334,11 +336,11 @@ export default function Signup() {
                   {loading ? (
                     <span className="flex items-center gap-2">
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      Creating account...
+                      {t('auth.signup.creatingAccount')}
                     </span>
                   ) : (
                     <>
-                      <span>Create Account</span>
+                      <span>{t('auth.signup.createAccount')}</span>
                       <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
                     </>
                   )}
@@ -353,12 +355,10 @@ export default function Signup() {
                   </div>
                 </div>
 
-
-
                 <p className="text-center text-gray-600">
-                  Already have an account?{" "}
+                  {t('auth.signup.haveAccount')}{" "}
                   <Link to="/auth/login" className="text-blue-600 hover:text-blue-700 font-semibold hover:underline">
-                    Sign in
+                    {t('auth.signup.signInLink')}
                   </Link>
                 </p>
               </form>

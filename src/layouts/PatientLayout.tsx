@@ -37,7 +37,7 @@ export default function PatientLayout() {
       icon: User,
     },
     {
-      name: "About", // Keep as is for now
+      name: t('nav.about'), // Keep as is for now
       path: "/welcome",
       icon: Info,
     },
