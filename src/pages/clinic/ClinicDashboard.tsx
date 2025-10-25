@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueueService } from "@/hooks/useQueueService";
@@ -7,51 +7,96 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Activity, Users, Clock, TrendingUp, Calendar, UserPlus, ArrowRight, Sparkles } from "lucide-react";
 import { AppointmentStatus, SkipReason } from "@/services/queue";
+import { Badge } from "@/components/ui/badge";
+
+
+interface Clinic {
+  id: string;
+  name: string;
+  practice_type: string;
+  specialty: string;
+  city: string;
+}
+interface StaffProfile {
+  id: string; // This is the staff_id
+  user_id: string;
+}
+
 
 export default function ClinicDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [clinic, setClinic] = useState<any>(null);
-  const [today] = useState(() => new Date());
+  const [clinic, setClinic] = useState<Clinic | null>(null);
+  const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
 
-  // Fetch real queue data
+  // --- STEP 1: Fetch Clinic and Staff Profile ---
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      if (!user) return;
+
+      // Fetch the clinic owned by the current user
+      const { data: clinicData } = await supabase
+        .from("clinics")
+        .select("id, name, practice_type, specialty, city")
+        .eq("owner_id", user.id)
+        .single();
+      
+      if (clinicData) {
+        setClinic(clinicData);
+
+        // Once we have the clinic, find the staff entry for the current user in that clinic
+        const { data: staffData } = await supabase
+          .from("clinic_staff")
+          .select("id, user_id") // 'id' here is the staff_id we need
+          .eq("clinic_id", clinicData.id)
+          .eq("user_id", user.id)
+          .single();
+        
+        setStaffProfile(staffData);
+      }
+    };
+
+    fetchInitialData();
+  }, [user]);
+
+  // --- STEP 2: Use the new hook with the fetched staffId ---
   const {
-    queue,
-    summary,
+    schedule,
     isLoading: queueLoading,
+    error,
   } = useQueueService({
-    clinicId: clinic?.id || '',
-    date: today,
+    // The hook is now driven by staffId. It will be disabled until staffProfile.id is available.
+    staffId: staffProfile?.id,
     autoRefresh: true,
   });
 
-  // Filter out absent patients for display
-  const activeQueue = queue.filter(p => 
-    (p.status === AppointmentStatus.WAITING || 
-     p.status === AppointmentStatus.SCHEDULED || 
-     p.status === AppointmentStatus.IN_PROGRESS) &&
-    p.skipReason !== SkipReason.PATIENT_ABSENT
-  );
+  // --- STEP 3: Calculate summaries locally using useMemo for efficiency ---
+  const summary = useMemo(() => {
+    if (!schedule) return { waiting: 0, inProgress: 0, completed: 0, averageWaitTime: 0 };
 
-  useEffect(() => {
-    if (user) {
-      fetchClinic();
-    }
-  }, [user]);
+    const waiting = schedule.filter(p => (p.status === AppointmentStatus.WAITING || p.status === AppointmentStatus.SCHEDULED) && p.skipReason !== SkipReason.PATIENT_ABSENT).length;
+    const inProgress = schedule.filter(p => p.status === AppointmentStatus.IN_PROGRESS).length;
+    const completed = schedule.filter(p => p.status === AppointmentStatus.COMPLETED).length;
 
-  const fetchClinic = async () => {
-    const { data } = await supabase
-      .from("clinics")
-      .select("*")
-      .eq("owner_id", user?.id)
-      .single();
+    const completedWithTimes = schedule.filter(e => e.status === AppointmentStatus.COMPLETED && e.checkedInAt && e.actualStartTime);
+    const totalWaitMinutes = completedWithTimes.reduce((sum, entry) => {
+      const waitTime = (new Date(entry.actualStartTime!).getTime() - new Date(entry.checkedInAt!).getTime()) / (1000 * 60);
+      return sum + waitTime;
+    }, 0);
+    const averageWaitTime = completedWithTimes.length > 0 ? Math.round(totalWaitMinutes / completedWithTimes.length) : 0;
 
-    setClinic(data);
-  };
+    return { waiting, inProgress, completed, averageWaitTime };
+  }, [schedule]);
 
-  // Format wait time
+  const activeQueue = useMemo(() => 
+    schedule.filter(p => 
+      (p.status === AppointmentStatus.WAITING || p.status === AppointmentStatus.SCHEDULED || p.status === AppointmentStatus.IN_PROGRESS) &&
+      p.skipReason !== SkipReason.PATIENT_ABSENT
+    ), [schedule]);
+
+  // --- UTILITY FUNCTIONS ---
   const formatWaitTime = (minutes: number) => {
-    if (minutes === 0) return "-";
+    if (!minutes || minutes === 0) return "-";
     if (minutes < 60) return `${minutes}m`;
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
@@ -119,81 +164,53 @@ export default function ClinicDashboard() {
         </div>
       </div>
 
-      {/* Stats Grid - NOW WITH REAL DATA */}
+       {/* Stats Grid - Now using the locally calculated 'summary' */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-500"></div>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
+        <Card className="border-0 shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Today's Queue</CardTitle>
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg">
-              <Users className="w-5 h-5 text-white" />
-            </div>
+            <Users className="w-5 h-5 text-blue-500" />
           </CardHeader>
-          <CardContent className="relative z-10">
-            <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-              {queueLoading ? '...' : summary?.waiting || 0}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-              patients waiting
-              <ArrowRight className="w-3 h-3" />
-            </p>
+          <CardContent>
+            <div className="text-3xl font-bold">{queueLoading ? '...' : summary.waiting}</div>
+            <p className="text-xs text-muted-foreground">patients waiting</p>
           </CardContent>
         </Card>
-
-        <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-amber-500/10 to-orange-500/10 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-500"></div>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
+        <Card className="border-0 shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Avg Wait Time</CardTitle>
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg">
-              <Clock className="w-5 h-5 text-white" />
-            </div>
+            <Clock className="w-5 h-5 text-orange-500" />
           </CardHeader>
-          <CardContent className="relative z-10">
-            <div className="text-3xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
-              {queueLoading ? '...' : formatWaitTime(summary?.averageWaitTime || 0)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {summary?.averageWaitTime ? 'average wait' : 'No data yet'}
-            </p>
+          <CardContent>
+            <div className="text-3xl font-bold">{queueLoading ? '...' : formatWaitTime(summary.averageWaitTime)}</div>
+            <p className="text-xs text-muted-foreground">{summary.averageWaitTime ? 'average wait' : 'No data yet'}</p>
           </CardContent>
         </Card>
-
-        <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-500"></div>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
+        <Card className="border-0 shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Completed Today</CardTitle>
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center shadow-lg">
-              <TrendingUp className="w-5 h-5 text-white" />
-            </div>
+            <TrendingUp className="w-5 h-5 text-green-500" />
           </CardHeader>
-          <CardContent className="relative z-10">
-            <div className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-              {queueLoading ? '...' : summary?.completed || 0}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">appointments</p>
+          <CardContent>
+            <div className="text-3xl font-bold">{queueLoading ? '...' : summary.completed}</div>
+            <p className="text-xs text-muted-foreground">appointments</p>
           </CardContent>
         </Card>
-
-        <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-500"></div>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
+        <Card className="border-0 shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">In Progress</CardTitle>
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg">
-              <Activity className="w-5 h-5 text-white" />
-            </div>
+            <Activity className="w-5 h-5 text-purple-500" />
           </CardHeader>
-          <CardContent className="relative z-10">
-            <div className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-              {queueLoading ? '...' : summary?.inProgress || 0}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">being served</p>
+          <CardContent>
+            <div className="text-3xl font-bold">{queueLoading ? '...' : summary.inProgress}</div>
+            <p className="text-xs text-muted-foreground">being served</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Two Column Layout */}
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Live Queue Status - NOW WITH REAL DATA */}
+                {/* Live Queue Status - NOW WITH REAL DATA & ORIGINAL STYLING */}
         <Card className="lg:col-span-2 border-0 shadow-lg hover:shadow-xl transition-shadow">
           <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30">
             <div className="flex items-center justify-between">
@@ -251,20 +268,24 @@ export default function ClinicDashboard() {
                     <div className={`h-10 w-10 rounded-full flex items-center justify-center font-bold ${
                       index === 0 ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-700'
                     }`}>
-                      {patient.queuePosition}
+                      {/* LOGIC CHANGE: Use position if available, otherwise show time-based info */}
+                      {patient.queuePosition || (patient.startTime && new Date(patient.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) || 'N/A'}
                     </div>
                     <div className="flex-1">
                       <p className="font-semibold">{patient.patient?.fullName || 'Patient'}</p>
                       <p className="text-xs text-muted-foreground">{patient.appointmentType}</p>
                     </div>
                     <div className="text-right">
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        patient.status === AppointmentStatus.IN_PROGRESS
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-orange-100 text-orange-700'
-                      }`}>
+                      <Badge 
+                        variant={patient.status === AppointmentStatus.IN_PROGRESS ? 'default' : 'outline'}
+                        className={
+                          patient.status === AppointmentStatus.IN_PROGRESS
+                            ? 'bg-green-100 text-green-700 border-green-200'
+                            : 'bg-orange-100 text-orange-700 border-orange-200'
+                        }
+                      >
                         {patient.status === AppointmentStatus.IN_PROGRESS ? 'In Progress' : 'Waiting'}
-                      </span>
+                      </Badge>
                     </div>
                   </div>
                 ))}
@@ -272,7 +293,6 @@ export default function ClinicDashboard() {
             )}
           </CardContent>
         </Card>
-
         {/* Quick Actions */}
         <Card className="border-0 shadow-lg">
           <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30">
