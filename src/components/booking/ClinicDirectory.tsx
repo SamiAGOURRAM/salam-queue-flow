@@ -13,52 +13,17 @@ import {
   Building2, Globe, Check, Sparkles, TrendingUp, Filter, 
   Star, Heart, Shield, Award, Users, Activity, ChevronRight,
   ArrowRight, Zap, Timer, DollarSign, Stethoscope, X, Plus,
-  Layers, HeartHandshake, ClipboardCheck, BellRing, Pill
+  Layers, HeartHandshake, ClipboardCheck, BellRing, Pill,
+  Sunrise, Sun, Moon, CalendarDays
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ratingService } from "@/services/rating/RatingService";
 import { favoriteService } from "@/services/favorite/FavoriteService";
 import { useTranslation } from "react-i18next";
-
-interface ClinicSettings {
-  buffer_time?: number;
-  working_hours?: {
-    [key: string]: {
-      open?: string;
-      close?: string;
-      closed?: boolean;
-    };
-  };
-  allow_walk_ins?: boolean;
-  max_queue_size?: number;
-  payment_methods?: {
-    cash?: boolean;
-    card?: boolean;
-    online?: boolean;
-    insurance?: boolean;
-  };
-  appointment_types?: Array<{
-    name: string;
-    label: string;
-    duration: number;
-    price?: number;
-  }>;
-  requires_appointment?: boolean;
-  average_appointment_duration?: number;
-}
-
-interface Clinic {
-  id: string;
-  name: string;
-  name_ar: string | null;
-  specialty: string;
-  city: string;
-  address: string;
-  phone: string;
-  logo_url: string | null;
-  settings: ClinicSettings | null;
-}
+import { useClinicSearch } from "@/hooks/useClinicSearch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { format } from "date-fns";
 
 const ClinicDirectory = () => {
   const navigate = useNavigate();
@@ -67,19 +32,19 @@ const ClinicDirectory = () => {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
   
-  const [clinics, setClinics] = useState<Clinic[]>([]);
-  const [loading, setLoading] = useState(true);
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
   // --- Filter State ---
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<'any' | 'morning' | 'afternoon' | 'evening'>('any');
   const [selectedCity, setSelectedCity] = useState<string>("all");
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>("all");
   const [minRating, setMinRating] = useState<string>("all");
   // --------------------
 
-  // Mouse tracking for parallax
+  // Mouse tracking for parallax effect
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       setMousePosition({ x: e.clientX, y: e.clientY });
@@ -88,54 +53,29 @@ const ClinicDirectory = () => {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // Fetch clinics
-  useEffect(() => {
-    fetchClinics();
-  }, []);
+  // Use the smart search hook (server-side filtering + debouncing)
+  const { data: clinics = [], isLoading: loading } = useClinicSearch({
+    search: searchTerm,
+    city: selectedCity !== 'all' ? selectedCity : undefined,
+    specialty: selectedSpecialty !== 'all' ? selectedSpecialty : undefined,
+    minRating: minRating !== 'all' ? Number(minRating) : undefined,
+    sortBy: 'rating', // Always sort by rating (best first)
+    limit: 100,
+  });
 
-  const fetchClinics = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("clinics")
-        .select("*")
-        .eq("is_active", true)
-        .order("name");
-
-      if (error) throw error;
-      setClinics((data as Clinic[]) ?? []);
-    } catch (error) {
-      console.error("Error fetching clinics:", error);
-      toast({
-        title: t('errors.error'),
-        description: t('errors.failedToLoad') + '. ' + t('errors.tryAgain'),
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch rating stats for all clinics
-  const { data: ratingsMap } = useQuery({
-    queryKey: ['clinic-ratings-all'],
+  // Fetch metadata for filter dropdowns (cities, specialties)
+  const { data: allClinicsMetadata = [] } = useQuery({
+    queryKey: ['clinics-metadata'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('clinic_rating_stats')
-        .select('*');
+        .from('clinics')
+        .select('id, city, specialty')
+        .eq('is_active', true);
       
       if (error) throw error;
-      
-      const map = new Map();
-      data?.forEach(stat => {
-        map.set(stat.clinic_id, {
-          average_rating: stat.average_rating,
-          total_ratings: stat.total_ratings
-        });
-      });
-      return map;
+      return data || [];
     },
-    enabled: clinics.length > 0,
+    staleTime: 10 * 60 * 1000, // Cache for 10 minutes
   });
 
   // Fetch user's favorites
@@ -189,7 +129,7 @@ const ClinicDirectory = () => {
     },
   });
 
-  const getTodaySchedule = (clinic: Clinic) => {
+  const getTodaySchedule = (clinic: typeof clinics[0]) => {
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const today = days[new Date().getDay()];
     const schedule = clinic.settings?.working_hours?.[today];
@@ -204,7 +144,7 @@ const ClinicDirectory = () => {
     };
   };
 
-  const getPaymentMethods = (clinic: Clinic) => {
+  const getPaymentMethods = (clinic: typeof clinics[0]) => {
     const methods = clinic.settings?.payment_methods || {};
     return [
       { name: t('payment.cash'), icon: Wallet, enabled: methods.cash },
@@ -214,28 +154,76 @@ const ClinicDirectory = () => {
     ].filter(m => m.enabled);
   };
 
-  // --- Filtering Logic ---
-  const filteredClinics = clinics.filter((clinic) => {
-    const matchesSearch =
-      searchTerm === "" ||
-      clinic.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      clinic.specialty.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      clinic.city.toLowerCase().includes(searchTerm.toLowerCase());
+  // Check if clinic is open on selected date/time
+  const isClinicAvailableOnDateTime = (clinic: typeof clinics[0]) => {
+    if (!selectedDate) return true; // No date filter, show all
 
-    const matchesCity = selectedCity === "all" || clinic.city === selectedCity;
-    const matchesSpecialty = selectedSpecialty === "all" || clinic.specialty === selectedSpecialty;
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayName = days[selectedDate.getDay()];
+    const schedule = clinic.settings?.working_hours?.[dayName];
 
-    // Rating Filter Logic (uses the 'ratingsMap' from your useQuery)
-    const ratingData = ratingsMap?.get(clinic.id);
-    const averageRating = ratingData?.average_rating || 0;
-    const matchesRating = minRating === "all" || averageRating >= parseFloat(minRating);
+    if (!schedule || schedule.closed) return false;
 
-    return matchesSearch && matchesCity && matchesSpecialty && matchesRating;
-  });
-  // -------------------------------
+    // If no time slot selected, just check if open that day
+    if (selectedTimeSlot === 'any') return true;
 
-  const cities = Array.from(new Set(clinics.map((c) => c.city)));
-  const specialties = Array.from(new Set(clinics.map((c) => c.specialty)));
+    // Check time slot INTERSECTION (any overlap)
+    const openTime = schedule.open || '09:00';
+    const closeTime = schedule.close || '18:00';
+    
+    const [openHour, openMin] = openTime.split(':').map(Number);
+    const [closeHour, closeMin] = closeTime.split(':').map(Number);
+    
+    // Convert to minutes for easier comparison
+    const clinicOpenMinutes = openHour * 60 + openMin;
+    const clinicCloseMinutes = closeHour * 60 + closeMin;
+
+    // Define time slot ranges in minutes
+    let slotStartMinutes: number;
+    let slotEndMinutes: number;
+
+    switch (selectedTimeSlot) {
+      case 'morning': // 8:00-12:00
+        slotStartMinutes = 8 * 60;
+        slotEndMinutes = 12 * 60;
+        break;
+      case 'afternoon': // 12:00-17:00
+        slotStartMinutes = 12 * 60;
+        slotEndMinutes = 17 * 60;
+        break;
+      case 'evening': // 17:00-20:00
+        slotStartMinutes = 17 * 60;
+        slotEndMinutes = 20 * 60;
+        break;
+      default:
+        return true;
+    }
+
+    // Check if ranges intersect: clinic is open during ANY part of the time slot
+    // Two ranges [A, B] and [C, D] intersect if: A < D AND C < B
+    return clinicOpenMinutes < slotEndMinutes && slotStartMinutes < clinicCloseMinutes;
+  };
+
+  // Get formatted schedule for selected date
+  const getScheduleForDate = (clinic: typeof clinics[0]) => {
+    if (!selectedDate) return clinic.today_hours;
+
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayName = days[selectedDate.getDay()];
+    const schedule = clinic.settings?.working_hours?.[dayName];
+
+    if (!schedule || schedule.closed) return t('common.closed');
+    return `${schedule.open} - ${schedule.close}`;
+  };
+
+  // Apply client-side date/time filtering
+  const dateTimeFilteredClinics = clinics.filter(isClinicAvailableOnDateTime);
+
+  // Results are already filtered server-side, we just add date/time filter client-side
+  const filteredClinics = dateTimeFilteredClinics;
+
+  const cities = Array.from(new Set(allClinicsMetadata.map((c) => c.city)));
+  const specialties = Array.from(new Set(allClinicsMetadata.map((c) => c.specialty)));
   
   // --- Get first 6 specialties for quick links ---
   const popularSpecialties = specialties.slice(0, 6);
@@ -285,11 +273,7 @@ const ClinicDirectory = () => {
           ============================================================
           */}
           <div 
-            className="relative rounded-[2rem] bg-white border shadow-xl p-6 order-2 lg:order-1 flex flex-col" // Added flex flex-col
-            style={{
-              transform: 'perspective(2000px) rotateX(1deg)',
-              transformStyle: 'preserve-3d'
-            }}
+            className="relative rounded-[2rem] bg-white border shadow-xl p-6 order-2 lg:order-1 flex flex-col"
           >
             {/* Main Filters Section */}
             <div className="space-y-5">
@@ -305,96 +289,178 @@ const ClinicDirectory = () => {
                 </div>
               </div>
 
-              {/* Filter Inputs */}
-              <div className="space-y-3 pt-2">
-                
-                {/* Search (Full-width) */}
+              {/* PRIMARY: Search Input (Prominent) */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-1">
+                  {t('clinic.whatDoYouNeed', 'What do you need?')}
+                </label>
                 <div className="relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <Input
                     placeholder={t('clinic.searchPlaceholder')}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-11 pr-4 h-12 bg-white/90 backdrop-blur border-2 border-blue-100 text-gray-900 placeholder:text-gray-400 rounded-xl text-sm focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100/50 transition-all"
+                    className="w-full pl-12 pr-4 h-14 bg-white/90 backdrop-blur border-2 border-blue-100 text-gray-900 placeholder:text-gray-400 rounded-xl text-base font-medium focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100/50 transition-all"
                   />
                 </div>
+              </div>
+
+              {/* SECONDARY: When? (Date & Time) */}
+              <div className="space-y-3 pt-2 border-t border-gray-100">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-1">
+                  {t('clinic.whenDoYouNeed', 'When do you need care?')}
+                </label>
+                
+                {/* Date Picker */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={`w-full h-12 justify-start text-left font-medium bg-white/90 backdrop-blur border-2 border-blue-100 rounded-xl hover:border-blue-300 transition-all ${
+                        selectedDate ? 'text-gray-900' : 'text-gray-400'
+                      }`}
+                    >
+                      <CalendarDays className="mr-3 h-5 w-5 text-blue-600" />
+                      {selectedDate ? format(selectedDate, 'PPP') : t('clinic.selectDate', 'Select date (optional)')}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-white border-blue-100 rounded-xl shadow-xl" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={setSelectedDate}
+                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                      initialFocus
+                      className="rounded-xl"
+                    />
+                    {selectedDate && (
+                      <div className="p-3 border-t border-gray-100">
+                        <Button
+                          variant="ghost"
+                          className="w-full text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50"
+                          onClick={() => setSelectedDate(undefined)}
+                        >
+                          <X className="w-4 h-4 mr-2" />
+                          {t('common.clearDate', 'Clear date')}
+                        </Button>
+                      </div>
+                    )}
+                  </PopoverContent>
+                </Popover>
+
+                {/* Time Slot Buttons */}
+                {selectedDate && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant={selectedTimeSlot === 'any' ? 'default' : 'outline'}
+                      className={`h-auto py-3 px-3 flex-col items-start border-2 rounded-xl transition-all ${
+                        selectedTimeSlot === 'any'
+                          ? 'bg-gradient-to-br from-blue-500 to-sky-500 border-blue-400 text-white shadow-lg'
+                          : 'bg-white/90 border-blue-100 text-gray-700 hover:border-blue-300'
+                      }`}
+                      onClick={() => setSelectedTimeSlot('any')}
+                    >
+                      <Clock className="w-4 h-4 mb-1" />
+                      <span className="text-xs font-semibold">{t('clinic.anyTime', 'Any Time')}</span>
+                    </Button>
+                    <Button
+                      variant={selectedTimeSlot === 'morning' ? 'default' : 'outline'}
+                      className={`h-auto py-3 px-3 flex-col items-start border-2 rounded-xl transition-all ${
+                        selectedTimeSlot === 'morning'
+                          ? 'bg-gradient-to-br from-blue-500 to-sky-500 border-blue-400 text-white shadow-lg'
+                          : 'bg-white/90 border-blue-100 text-gray-700 hover:border-blue-300'
+                      }`}
+                      onClick={() => setSelectedTimeSlot('morning')}
+                    >
+                      <Sunrise className="w-4 h-4 mb-1" />
+                      <span className="text-xs font-semibold">{t('clinic.morning', 'Morning')}</span>
+                      <span className="text-[10px] opacity-70">8-12h</span>
+                    </Button>
+                    <Button
+                      variant={selectedTimeSlot === 'afternoon' ? 'default' : 'outline'}
+                      className={`h-auto py-3 px-3 flex-col items-start border-2 rounded-xl transition-all ${
+                        selectedTimeSlot === 'afternoon'
+                          ? 'bg-gradient-to-br from-blue-500 to-sky-500 border-blue-400 text-white shadow-lg'
+                          : 'bg-white/90 border-blue-100 text-gray-700 hover:border-blue-300'
+                      }`}
+                      onClick={() => setSelectedTimeSlot('afternoon')}
+                    >
+                      <Sun className="w-4 h-4 mb-1" />
+                      <span className="text-xs font-semibold">{t('clinic.afternoon', 'Afternoon')}</span>
+                      <span className="text-[10px] opacity-70">12-17h</span>
+                    </Button>
+                    <Button
+                      variant={selectedTimeSlot === 'evening' ? 'default' : 'outline'}
+                      className={`h-auto py-3 px-3 flex-col items-start border-2 rounded-xl transition-all ${
+                        selectedTimeSlot === 'evening'
+                          ? 'bg-gradient-to-br from-blue-500 to-sky-500 border-blue-400 text-white shadow-lg'
+                          : 'bg-white/90 border-blue-100 text-gray-700 hover:border-blue-300'
+                      }`}
+                      onClick={() => setSelectedTimeSlot('evening')}
+                    >
+                      <Moon className="w-4 h-4 mb-1" />
+                      <span className="text-xs font-semibold">{t('clinic.evening', 'Evening')}</span>
+                      <span className="text-[10px] opacity-70">17-20h</span>
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* TERTIARY: Refinement Filters (Smaller, Less Prominent) */}
+              <div className="space-y-3 pt-2 border-t border-gray-100">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-1">
+                  {t('clinic.refineSearch', 'Refine your search')}
+                </label>
                 
                 {/* 2-Column Grid */}
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Grid Item 1: City */}
+                <div className="grid grid-cols-2 gap-2">
+                  {/* City */}
                   <Select value={selectedCity} onValueChange={setSelectedCity}>
-                    <SelectTrigger className="h-12 bg-white/90 backdrop-blur border-2 border-blue-100 text-gray-900 rounded-xl hover:border-blue-300 focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100/50 transition-all text-sm">
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-blue-600" />
-                        <SelectValue placeholder={t('clinic.allCities')} />
-                      </div>
+                    <SelectTrigger className="h-10 bg-white/90 backdrop-blur border border-gray-200 text-gray-900 rounded-lg hover:border-blue-300 transition-all text-sm">
+                      <SelectValue placeholder={t('clinic.allCities')} />
                     </SelectTrigger>
-                    <SelectContent className="bg-white/95 backdrop-blur-xl border-blue-100 rounded-xl">
+                    <SelectContent>
                       <SelectItem value="all">
-                        <div className="flex items-center gap-2 py-1">
-                          <Globe className="w-4 h-4 text-blue-600" />
-                          {t('clinic.allCities')}
-                        </div>
+                        {t('clinic.allCities')}
                       </SelectItem>
                       {cities.map((city) => (
                         <SelectItem key={city} value={city}>
-                          <div className="flex items-center gap-2 py-1">
-                            <MapPin className="w-4 h-4 text-blue-600" />
-                            {city}
-                          </div>
+                          {city}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
 
-                  {/* Grid Item 2: Specialty */}
+                  {/* Specialty */}
                   <Select value={selectedSpecialty} onValueChange={setSelectedSpecialty}>
-                    <SelectTrigger className="h-12 bg-white/90 backdrop-blur border-2 border-blue-100 text-gray-900 rounded-xl hover:border-blue-300 focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100/50 transition-all text-sm">
-                      <div className="flex items-center gap-2">
-                        <Stethoscope className="w-4 h-4 text-blue-600" />
-                        <SelectValue placeholder={t('clinic.allSpecialties')} />
-                      </div>
+                    <SelectTrigger className="h-10 bg-white/90 backdrop-blur border border-gray-200 text-gray-900 rounded-lg hover:border-blue-300 transition-all text-sm">
+                      <SelectValue placeholder={t('clinic.allSpecialties')} />
                     </SelectTrigger>
-                    <SelectContent className="bg-white/95 backdrop-blur-xl border-blue-100 rounded-xl">
+                    <SelectContent>
                       <SelectItem value="all">
-                        <div className="flex items-center gap-2 py-1">
-                          <Layers className="w-4 h-4 text-blue-600" />
-                          {t('clinic.allSpecialties')}
-                        </div>
+                        {t('clinic.allSpecialties')}
                       </SelectItem>
                       {specialties.map((specialty) => (
                         <SelectItem key={specialty} value={specialty}>
-                          <div className="flex items-center gap-2 py-1">
-                            <Stethoscope className="w-4 h-4 text-blue-600" />
-                            {specialty}
-                          </div>
+                          {specialty}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
-                {/* Rating Filter (Full-width) */}
+                {/* Rating Filter (Full-width, smaller) */}
                 <Select value={minRating} onValueChange={setMinRating}>
-                  <SelectTrigger className="h-12 bg-white/90 backdrop-blur border-2 border-blue-100 text-gray-900 rounded-xl hover:border-blue-300 focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100/50 transition-all text-sm">
-                    <div className="flex items-center gap-2">
-                      <Star className="w-4 h-4 text-blue-600" />
-                      <SelectValue placeholder={t('clinic.minRating', 'Minimum Rating')} />
-                    </div>
+                  <SelectTrigger className="h-10 bg-white/90 backdrop-blur border border-gray-200 text-gray-900 rounded-lg hover:border-blue-300 transition-all text-sm">
+                    <SelectValue placeholder={t('clinic.minRating', 'Minimum Rating')} />
                   </SelectTrigger>
-                  <SelectContent className="bg-white/95 backdrop-blur-xl border-blue-100 rounded-xl">
+                  <SelectContent>
                     <SelectItem value="all">
-                      <div className="flex items-center gap-2 py-1">
-                        <Layers className="w-4 h-4 text-blue-600" />
-                        {t('clinic.allRatings', 'All Ratings')}
-                      </div>
+                      {t('clinic.allRatings', 'All Ratings')}
                     </SelectItem>
                     {[4, 3, 2, 1].map((rating) => (
                       <SelectItem key={rating} value={String(rating)}>
-                        <div className="flex items-center gap-2 py-1">
-                          <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                          {rating} {t('common.andUp', 'and up')}
-                        </div>
+                        {rating}+ {t('common.stars', 'stars')}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -407,6 +473,8 @@ const ClinicDirectory = () => {
                 className="w-full text-gray-600 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-all text-sm h-10"
                 onClick={() => {
                   setSearchTerm("");
+                  setSelectedDate(undefined);
+                  setSelectedTimeSlot('any');
                   setSelectedCity("all");
                   setSelectedSpecialty("all");
                   setMinRating("all");
@@ -612,7 +680,7 @@ const ClinicDirectory = () => {
               </p>
             </div>
             {/* Updated filter check */}
-            {(searchTerm || selectedCity !== "all" || selectedSpecialty !== "all" || minRating !== "all") && (
+            {(searchTerm || selectedCity !== "all" || selectedSpecialty !== "all" || minRating !== "all" || selectedDate || selectedTimeSlot !== 'any') && (
               <div className="flex items-center gap-2">
                 <Badge className="bg-white border-blue-200 text-blue-600 shadow-md px-3 py-1.5">
                   {t('common.filtersActive')}
@@ -622,6 +690,12 @@ const ClinicDirectory = () => {
                   {searchTerm && (
                     <Badge className="bg-blue-50 text-blue-700 border-blue-200">
                       "{searchTerm}"
+                    </Badge>
+                  )}
+                  {selectedDate && (
+                    <Badge className="bg-purple-50 text-purple-700 border-purple-200">
+                      📅 {format(selectedDate, 'MMM d')}
+                      {selectedTimeSlot !== 'any' && ` • ${selectedTimeSlot}`}
                     </Badge>
                   )}
                   {selectedCity !== "all" && (
@@ -658,6 +732,8 @@ const ClinicDirectory = () => {
               <Button
                 onClick={() => {
                   setSearchTerm("");
+                  setSelectedDate(undefined);
+                  setSelectedTimeSlot('any');
                   setSelectedCity("all");
                   setSelectedSpecialty("all");
                   setMinRating("all");
@@ -673,13 +749,16 @@ const ClinicDirectory = () => {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-12">
             {filteredClinics.map((clinic, index) => {
               const todaySchedule = getTodaySchedule(clinic);
+              const displaySchedule = selectedDate 
+                ? { isOpen: isClinicAvailableOnDateTime(clinic), hours: getScheduleForDate(clinic) }
+                : todaySchedule;
               const paymentMethods = getPaymentMethods(clinic);
               const allowWalkIns = clinic.settings?.allow_walk_ins;
               const avgDuration = clinic.settings?.average_appointment_duration;
               
-              const ratingData = ratingsMap?.get(clinic.id);
-              const averageRating = ratingData?.average_rating || 0;
-              const totalRatings = ratingData?.total_ratings || 0;
+              // Rating data comes from the server now (no need for separate query)
+              const averageRating = clinic.average_rating || 0;
+              const totalRatings = clinic.total_ratings || 0;
               
               const isFavorite = userFavorites?.includes(clinic.id) || false;
 
@@ -713,9 +792,16 @@ const ClinicDirectory = () => {
                         </div>
                         
                         <div className="absolute top-2 left-2 right-2 flex items-center justify-between z-10">
-                          <Badge className={`${todaySchedule.isOpen ? 'bg-green-500/90' : 'bg-gray-500/90'} backdrop-blur text-white border-0 px-2 py-0.5 text-xs font-semibold`}>
-                            {todaySchedule.isOpen ? t('common.open') : t('common.closed')}
-                          </Badge>
+                          <div className="flex gap-1.5">
+                            <Badge className={`${displaySchedule.isOpen ? 'bg-green-500/90' : 'bg-gray-500/90'} backdrop-blur text-white border-0 px-2 py-0.5 text-xs font-semibold`}>
+                              {displaySchedule.isOpen ? t('common.open') : t('common.closed')}
+                            </Badge>
+                            {selectedDate && displaySchedule.isOpen && (
+                              <Badge className="bg-blue-500/90 backdrop-blur text-white border-0 px-2 py-0.5 text-xs font-semibold">
+                                📅 {format(selectedDate, 'MMM d')}
+                              </Badge>
+                            )}
+                          </div>
                           
                           <button
                             onClick={(e) => toggleFavorite(e, clinic.id)}
@@ -782,9 +868,20 @@ const ClinicDirectory = () => {
                           <div className="flex items-center gap-2">
                             <Clock className="w-4 h-4 text-sky-500 shrink-0" />
                             <span className="line-clamp-1">
-                              {t('time.today')}: {todaySchedule.hours}
+                              {selectedDate 
+                                ? `${format(selectedDate, 'EEE, MMM d')}: ${displaySchedule.hours}`
+                                : `${t('time.today')}: ${displaySchedule.hours}`
+                              }
                             </span>
                           </div>
+                          {selectedDate && displaySchedule.isOpen && (
+                            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-2 py-1.5 -mx-1">
+                              <CalendarDays className="w-4 h-4 text-blue-600 shrink-0" />
+                              <span className="text-xs font-semibold text-blue-700">
+                                {t('clinic.availableOnDate', 'Available on selected date')}
+                              </span>
+                            </div>
+                          )}
                           {allowWalkIns && (
                             <div className="flex items-center gap-2">
                               <Users className="w-4 h-4 text-green-500 shrink-0" />
@@ -850,7 +947,7 @@ const ClinicDirectory = () => {
         )}
       </div>
       {/* Styles for animation */}
-      <style jsx>{`
+      <style>{`
         @keyframes float {
           0%, 100% { transform: translateY(0px) rotate(12deg); }
           50% { transform: translateY(-20px) rotate(12deg); }
