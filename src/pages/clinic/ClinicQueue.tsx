@@ -2,15 +2,18 @@
  * ClinicQueue Page (DEBUGGING VERSION)
  * This version adds console logs to trace the fetching of clinicId and staffId.
  */
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { UserPlus, Calendar } from "lucide-react";
+import { UserPlus, Calendar, XCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { AddWalkInDialog } from "@/components/clinic/AddWalkInDialog";
 import { BookAppointmentDialog } from "@/components/clinic/BookAppointmentDialog";
 import { EnhancedQueueManager } from "@/components/clinic/EnhancedQueueManager";
+import { EndDayConfirmationDialog } from "@/components/clinic/EndDayConfirmationDialog";
+import { useQueueService } from "@/hooks/useQueueService";
+import { AppointmentStatus, SkipReason } from "@/services/queue";
 
 interface StaffProfile {
   id: string; // This is the staff_id
@@ -22,7 +25,32 @@ export default function ClinicQueue() {
   const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
   const [showAddWalkIn, setShowAddWalkIn] = useState(false);
   const [showBookAppointment, setShowBookAppointment] = useState(false);
+  const [showEndDay, setShowEndDay] = useState(false);
   const [queueRefreshKey, setQueueRefreshKey] = useState(0);
+
+  // Get queue stats for End Day dialog
+  const { schedule } = useQueueService({
+    staffId: staffProfile?.id || '',
+    autoRefresh: true,
+  });
+
+  // Calculate summary from schedule
+  const queueSummary = useMemo(() => {
+    if (!schedule || schedule.length === 0) {
+      return { waiting: 0, inProgress: 0, absent: 0, completed: 0 };
+    }
+    
+    const waiting = schedule.filter(p => 
+      (p.status === AppointmentStatus.WAITING || p.status === AppointmentStatus.SCHEDULED) && 
+      p.skipReason !== SkipReason.PATIENT_ABSENT
+    ).length;
+    
+    const inProgress = schedule.filter(p => p.status === AppointmentStatus.IN_PROGRESS).length;
+    const absent = schedule.filter(p => p.skipReason === SkipReason.PATIENT_ABSENT && !p.returnedAt).length;
+    const completed = schedule.filter(p => p.status === AppointmentStatus.COMPLETED).length;
+    
+    return { waiting, inProgress, absent, completed };
+  }, [schedule]);
 
   const fetchClinicAndStaffData = useCallback(async () => {
     // --- DEBUG LOG 1: Check if the function starts and who the user is ---
@@ -96,6 +124,7 @@ export default function ClinicQueue() {
         <div className="flex gap-3 w-full sm:w-auto">
           <Button onClick={() => setShowBookAppointment(true)} size="lg" className="flex-1 sm:flex-none bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg"><Calendar className="w-5 h-5 mr-2" />Book Appointment</Button>
           <Button onClick={() => setShowAddWalkIn(true)} variant="outline" size="lg" className="flex-1 sm:flex-none border-2 hover:border-blue-400 hover:bg-blue-50 shadow-sm"><UserPlus className="w-5 h-5 mr-2" />Add Walk-in</Button>
+          <Button onClick={() => setShowEndDay(true)} variant="outline" size="lg" className="flex-1 sm:flex-none border-2 border-red-300 text-red-700 hover:bg-red-50 hover:border-red-400 shadow-sm"><XCircle className="w-5 h-5 mr-2" />End Day</Button>
         </div>
       </div>
 
@@ -127,6 +156,15 @@ export default function ClinicQueue() {
         clinicId={clinic?.id}
         staffId={staffProfile?.id}
         onSuccess={handleSuccess}
+      />
+      <EndDayConfirmationDialog
+        open={showEndDay}
+        onOpenChange={setShowEndDay}
+        clinicId={clinic?.id || ''}
+        staffId={staffProfile?.id || ''}
+        userId={user?.id || ''}
+        onSuccess={handleSuccess}
+        summary={queueSummary}
       />
     </div>
   );

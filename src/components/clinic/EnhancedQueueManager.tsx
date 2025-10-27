@@ -8,12 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { UserX, Clock, AlertCircle, ChevronRight, Users, CheckCircle, RefreshCw, Play, UserCheck, AlertTriangle, RotateCcw, XCircle } from "lucide-react";
+import { UserX, Clock, AlertCircle, ChevronRight, Users, CheckCircle, RefreshCw, Play, UserCheck, AlertTriangle, RotateCcw } from "lucide-react";
 import { useQueueService } from "@/hooks/useQueueService";
 import { AppointmentStatus, QueueEntry, SkipReason } from "@/services/queue";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
-import { EndDayConfirmationDialog } from "./EndDayConfirmationDialog";
 
 interface EnhancedQueueManagerProps {
   clinicId: string;
@@ -23,7 +22,6 @@ interface EnhancedQueueManagerProps {
 
 export function EnhancedQueueManager({ clinicId, userId, staffId }: EnhancedQueueManagerProps) {
   const [actionLoading, setActionLoading] = useState(false);
-  const [showEndDayDialog, setShowEndDayDialog] = useState(false);
 
   // Destructure all necessary functions from the hook
   const { 
@@ -80,32 +78,6 @@ export function EnhancedQueueManager({ clinicId, userId, staffId }: EnhancedQueu
           <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-slate-600">Absent</p><p className="text-3xl font-bold text-red-600">{summary.absent}</p></div><UserX className="h-10 w-10 text-red-200" /></div></CardContent></Card>
           <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-slate-600">Completed</p><p className="text-3xl font-bold text-slate-600">{summary.completed}</p></div><CheckCircle className="h-10 w-10 text-slate-200" /></div></CardContent></Card>
         </div>
-
-        {/* END DAY BUTTON - Critical Action */}
-        <Card className="border-2 border-red-300 bg-gradient-to-r from-red-50 to-orange-50">
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
-                  <XCircle className="h-5 w-5 text-red-600" />
-                </div>
-                <div>
-                  <p className="font-bold text-red-900">End Day</p>
-                  <p className="text-sm text-red-700">Close queue & finalize all appointments</p>
-                </div>
-              </div>
-              <Button
-                onClick={() => setShowEndDayDialog(true)}
-                disabled={actionLoading}
-                size="lg"
-                className="bg-red-600 hover:bg-red-700 text-white font-bold shadow-lg border-2 border-red-700"
-              >
-                <XCircle className="mr-2 h-5 w-5" />
-                End Day
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Main Content - 2 Columns */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -175,17 +147,6 @@ export function EnhancedQueueManager({ clinicId, userId, staffId }: EnhancedQueu
           </div>
         </div>
       </div>
-
-      {/* End Day Confirmation Dialog */}
-      <EndDayConfirmationDialog
-        open={showEndDayDialog}
-        onOpenChange={setShowEndDayDialog}
-        clinicId={clinicId}
-        staffId={staffId}
-        userId={userId}
-        onSuccess={refreshQueue}
-        summary={summary}
-      />
     </div>
   );
 }

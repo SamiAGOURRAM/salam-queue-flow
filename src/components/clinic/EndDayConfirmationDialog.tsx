@@ -149,7 +149,8 @@ export function EndDayConfirmationDialog({
     }
   };
 
-  const canProceed = summary.waiting > 0 || summary.inProgress > 0 || summary.absent > 0;
+  // Only allow end day if there are active patients to process
+  const hasActivePatients = summary.waiting > 0 || summary.inProgress > 0 || summary.absent > 0;
 
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
@@ -198,7 +199,14 @@ export function EndDayConfirmationDialog({
                       Impact Summary for {new Date().toLocaleDateString()}
                     </h3>
                     
-                    <div className="grid grid-cols-2 gap-4">
+                    {preview.totalAppointments === 0 ? (
+                      <div className="text-center py-8">
+                        <p className="text-gray-500 mb-2">No appointments for today</p>
+                        <p className="text-sm text-gray-400">You can still close the day to mark it as completed</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-2 gap-4">
                       {/* What will happen */}
                       <div className="space-y-3">
                         <p className="text-sm font-semibold text-orange-900 uppercase tracking-wide">Will Change:</p>
@@ -260,6 +268,8 @@ export function EndDayConfirmationDialog({
                         <span className="text-3xl font-bold text-gray-900">{preview.totalAppointments}</span>
                       </div>
                     </div>
+                    </>
+                    )}
                   </CardContent>
                 </Card>
               )}
@@ -283,12 +293,22 @@ export function EndDayConfirmationDialog({
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <Button
                 onClick={() => setStep('confirm')}
-                disabled={!canProceed}
+                disabled={!hasActivePatients}
                 className="bg-orange-600 hover:bg-orange-700"
               >
                 Continue to Confirmation
               </Button>
             </AlertDialogFooter>
+            
+            {/* Info message when no patients to process */}
+            {!hasActivePatients && (
+              <div className="mt-2 -mb-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-900 text-center">
+                  ℹ️ <strong>End Day is not needed</strong> - There are no waiting, in-progress, or absent patients to finalize.
+                  {preview && preview.completed > 0 && ` All ${preview.completed} patients have been completed.`}
+                </p>
+              </div>
+            )}
           </>
         ) : (
           <>
