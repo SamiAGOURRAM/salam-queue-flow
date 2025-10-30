@@ -5,8 +5,10 @@ import {
   Star, Sparkles, TrendingUp,
   Pill, LineChart, Layers, BellRing
 } from "lucide-react";
+import { useTranslation } from "react-i18next"; // ADDED
 
 const WelcomePage = () => {
+  const { t } = useTranslation(); // ADDED
   const [hoveredFeature, setHoveredFeature] = useState(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
@@ -21,6 +23,24 @@ const WelcomePage = () => {
   const parallaxStyle = {
     transform: `translate(${mousePosition.x * 0.01}px, ${mousePosition.y * 0.01}px)`,
   };
+
+  // UPDATED: Features array with translations
+  const features = [
+    { icon: Clock, title: t('about.features.queue.title'), desc: t('about.features.queue.desc'), color: "blue" },
+    { icon: Calendar, title: t('about.features.scheduling.title'), desc: t('about.features.scheduling.desc'), color: "sky" },
+    { icon: Users, title: t('about.features.portal.title'), desc: t('about.features.portal.desc'), color: "cyan" },
+    { icon: Shield, title: t('about.features.security.title'), desc: t('about.features.security.desc'), color: "blue" },
+    { icon: LineChart, title: t('about.features.analytics.title'), desc: t('about.features.analytics.desc'), color: "sky" },
+    { icon: BellRing, title: t('about.features.notifications.title'), desc: t('about.features.notifications.desc'), color: "cyan" },
+  ];
+
+  // UPDATED: Stats array with translations
+  const stats = [
+    { value: "50K+", label: t('about.stats.patients'), icon: Users },
+    { value: "2K+", label: t('about.stats.clinics'), icon: Building2 },
+    { value: "99.9%", label: t('about.stats.uptime'), icon: Shield },
+    { value: "4.9", label: t('about.stats.rating'), icon: Star },
+  ];
 
   return (
     <div className="min-h-screen w-full bg-transparent overflow-hidden">
@@ -37,22 +57,15 @@ const WelcomePage = () => {
         <div className="container mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-5xl font-bold text-gray-900 mb-4">
-              Everything You Need to
+              {t('about.hero.title')}
               <span className="block bg-gradient-to-r from-blue-600 to-sky-600 bg-clip-text text-transparent">
-                Streamline Patient Care
+                {t('about.hero.subtitle')}
               </span>
             </h2>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {[
-              { icon: Clock, title: "Real-Time Queue", desc: "Live updates on patient wait times", color: "blue" },
-              { icon: Calendar, title: "Smart Scheduling", desc: "AI-powered appointment optimization", color: "sky" },
-              { icon: Users, title: "Patient Portal", desc: "Self-service check-in and updates", color: "cyan" },
-              { icon: Shield, title: "Data Security", desc: "Medical-grade encryption", color: "blue" },
-              { icon: LineChart, title: "Analytics Dashboard", desc: "Insights to improve efficiency", color: "sky" },
-              { icon: BellRing, title: "Instant Notifications", desc: "SMS and app alerts for patients", color: "cyan" },
-            ].map((feature, index) => (
+            {features.map((feature, index) => (
               <div 
                 key={index}
                 className="group relative"
@@ -90,12 +103,7 @@ const WelcomePage = () => {
             <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
             
             <div className="relative z-10 grid md:grid-cols-4 gap-8 text-white">
-              {[
-                { value: "50K+", label: "Patients Served", icon: Users },
-                { value: "2K+", label: "Clinics Active", icon: Building2 },
-                { value: "99.9%", label: "Uptime", icon: Shield },
-                { value: "4.9", label: "User Rating", icon: Star },
-              ].map((stat, index) => (
+              {stats.map((stat, index) => (
                 <div 
                   key={index} 
                   className="text-center group"
@@ -120,16 +128,13 @@ const WelcomePage = () => {
         <div className="container mx-auto text-center">
           <div className="max-w-3xl mx-auto space-y-8">
             <h2 className="text-5xl font-bold text-gray-900">
-              Our Mission
+              {t('about.mission.title')}
               <span className="block bg-gradient-to-r from-blue-600 to-sky-600 bg-clip-text text-transparent">
-                Better Healthcare for Everyone
+                {t('about.mission.subtitle')}
               </span>
             </h2>
             <p className="text-xl text-gray-600 leading-relaxed">
-              INTIDAR is dedicated to revolutionizing healthcare delivery through innovative technology. 
-              We believe that efficient queue management and seamless appointment scheduling shouldn't be a luxury—
-              it should be the standard. Our platform empowers clinics to deliver exceptional patient experiences 
-              while optimizing their operations.
+              {t('about.mission.description')}
             </p>
           </div>
         </div>
@@ -141,12 +146,12 @@ const WelcomePage = () => {
           <div className="flex items-center gap-2">
             <Heart className="w-5 h-5 text-blue-600" />
             <span className="font-semibold text-gray-900">INTIDAR</span>
-            <span>© 2025 All rights reserved</span>
+            <span>{t('about.footer.copyright')}</span>
           </div>
           <div className="flex gap-6">
-            <button className="hover:text-blue-600 transition-colors">Privacy</button>
-            <button className="hover:text-blue-600 transition-colors">Terms</button>
-            <button className="hover:text-blue-600 transition-colors">Contact</button>
+            <button className="hover:text-blue-600 transition-colors">{t('about.footer.privacy')}</button>
+            <button className="hover:text-blue-600 transition-colors">{t('about.footer.terms')}</button>
+            <button className="hover:text-blue-600 transition-colors">{t('about.footer.contact')}</button>
           </div>
         </div>
       </footer>

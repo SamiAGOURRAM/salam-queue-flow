@@ -17,41 +17,116 @@
     "active": "Actif",
     "filtersActive": "Filtres actifs",
     "success": "Succès",
-    "friend": "ami(e)"
+    "friend": "ami"
   },
   "nav": {
     "home": "Accueil",
+    "about": "À propos",
     "clinics": "Parcourir les cliniques",
     "appointments": "Mes rendez-vous",
     "profile": "Profil",
     "settings": "Paramètres",
-    "logout": "Déconnexion",
-    "login": "Connexion",
+    "logout": "Se déconnecter",
+    "login": "Se connecter",
     "signup": "S'inscrire"
   },
+  "auth": {
+    "loginRequired": "Connexion requise",
+    "pleaseLogin": "Veuillez vous connecter pour continuer",
+    "loginToSaveFavorites": "Veuillez vous connecter pour enregistrer vos favoris",
+    "login": {
+      "title": "Bon retour",
+      "subtitle": "Connectez-vous à votre compte pour continuer",
+      "email": "Email",
+      "emailPlaceholder": "vous@exemple.com",
+      "password": "Mot de passe",
+      "passwordPlaceholder": "••••••••",
+      "rememberMe": "Se souvenir de moi",
+      "forgotPassword": "Mot de passe oublié ?",
+      "signIn": "Se connecter",
+      "signingIn": "Connexion...",
+      "orContinueWith": "Ou continuer avec",
+      "google": "Google",
+      "github": "GitHub",
+      "noAccount": "Vous n'avez pas de compte ?",
+      "signUpLink": "S'inscrire",
+      "welcomeTitle": "Bienvenue à",
+      "welcomeSubtitle": "L'Excellence en santé",
+      "welcomeDescription": "Connectez-vous avec les meilleurs prestataires de santé, réservez instantanément et gérez votre parcours de santé en toute simplicité.",
+      "feature1Title": "Sécurisé et privé",
+      "feature1Desc": "Vos données sont protégées",
+      "feature2Title": "Réservation instantanée",
+      "feature2Desc": "Réservez 24h/24 et 7j/7",
+      "feature3Title": "Soins de qualité",
+      "feature3Desc": "Prestataires de santé vérifiés",
+      "successTitle": "Bon retour !",
+      "successDescription": "Vous êtes connecté avec succès.",
+      "errorTitle": "Échec de connexion"
+    },
+    "signup": {
+      "title": "Créer votre compte",
+      "subtitle": "Commencez avec une gestion intelligente de la santé",
+      "fullName": "Nom complet",
+      "fullNamePlaceholder": "Jean Dupont",
+      "email": "Email",
+      "emailPlaceholder": "vous@exemple.com",
+      "phone": "Numéro de téléphone",
+      "phonePlaceholder": "+212 XXX XXX XXX",
+      "password": "Mot de passe",
+      "passwordPlaceholder": "••••••••",
+      "passwordHint": "Minimum 6 caractères",
+      "iAmA": "Je suis",
+      "patient": "Patient",
+      "patientDesc": "Réserver des rendez-vous et gérer les visites",
+      "healthcareProvider": "Professionnel de santé",
+      "healthcareProviderDesc": "Gérer votre clinique et vos patients",
+      "createAccount": "Créer un compte",
+      "creatingAccount": "Création du compte...",
+      "haveAccount": "Vous avez déjà un compte ?",
+      "signInLink": "Se connecter",
+      "joinTitle": "Rejoignez des milliers",
+      "joinSubtitle": "d'utilisateurs satisfaits",
+      "joinDescription": "Commencez votre parcours de santé aujourd'hui. Réservez des rendez-vous, gérez vos visites et restez connecté avec vos prestataires.",
+      "benefit1Title": "Compte gratuit",
+      "benefit1Desc": "Aucune carte bancaire requise, démarrez immédiatement",
+      "benefit2Title": "Configuration facile",
+      "benefit2Desc": "Complétez votre profil en quelques minutes",
+      "benefit3Title": "Support 24/7",
+      "benefit3Desc": "Nous sommes là pour vous aider à tout moment",
+      "phoneRequiredTitle": "Numéro de téléphone requis",
+      "phoneRequiredDesc": "Veuillez fournir un numéro de téléphone valide.",
+      "emailExistsTitle": "Email déjà enregistré",
+      "emailExistsDesc": "Veuillez vous connecter avec votre compte existant.",
+      "accountCreatedTitle": "Compte créé !",
+      "accountCreatedDesc": "Veuillez compléter votre profil.",
+      "nextStepTitle": "Étape suivante",
+      "nextStepDesc": "Veuillez fournir les informations de votre clinique.",
+      "errorTitle": "Échec de l'inscription"
+    }
+  },
   "clinic": {
-    "directory": "Répertoire de santé",
+    "directory": "Annuaire de santé",
     "searchClinics": "Rechercher des cliniques",
     "findPerfectClinic": "Trouvez votre clinique idéale",
-    "browseProviders": "Parcourez les prestataires de soins de santé les mieux notés avec disponibilité en temps réel. Réservez des rendez-vous instantanément et évitez les files d'attente.",
+    "browseProviders": "Parcourez les prestataires de santé les mieux notés avec disponibilité en temps réel. Réservez instantanément et évitez les files d'attente.",
     "allClinics": "Toutes les cliniques",
     "allCities": "Toutes les villes",
     "allSpecialties": "Toutes les spécialités",
     "verifiedClinics": "Cliniques vérifiées",
     "patientsServed": "Patients servis",
     "avgRating": "Note moyenne",
-    "rating": "Note",
+    "rating": "Évaluation",
     "clinics": "Cliniques",
     "clinic_one": "Clinique",
     "clinic_other": "Cliniques",
     "available": "Disponible",
     "noClinicsFound": "Aucune clinique trouvée",
     "tryAdjustingFilters": "Essayez d'ajuster vos critères de recherche",
-    "findPerfectProvider": "Trouvez le prestataire de soins idéal",
+    "findPerfectProvider": "Trouvez le prestataire de santé parfait",
     "searchPlaceholder": "Rechercher par nom, spécialité ou lieu...",
-    "bookAppointment": "Prendre rendez-vous",
+    "bookAppointment": "Réserver un rendez-vous",
     "bookNow": "Réserver maintenant",
-    "openNow": "OUVERT",
+    "openNow": "OUVERT MAINTENANT",
     "newClinic": "Nouvelle clinique",
     "allSpecialtiesText": "Toutes les spécialités",
     "allSpecialtiesDesc": "Trouvez des médecins dans tous les domaines médicaux",
@@ -76,18 +151,13 @@
     "city": "Ville",
     "address": "Adresse",
     "phone": "Téléphone",
-    "location": "Emplacement"
+    "location": "Localisation"
   },
   "time": {
-    "hours": "Horaires",
+    "hours": "Heures",
     "today": "Aujourd'hui",
     "schedule": "Horaire",
     "workingHours": "Heures de travail"
-  },
-  "auth": {
-    "loginRequired": "Connexion requise",
-    "pleaseLogin": "Veuillez vous connecter pour continuer",
-    "loginToSaveFavorites": "Veuillez vous connecter pour enregistrer les favoris"
   },
   "favorites": {
     "addedToFavorites": "Ajouté aux favoris",
@@ -108,15 +178,15 @@
     "hero": {
       "journey": "Votre parcours de santé",
       "welcome": "Bon retour",
-      "tagline": "Gérez rapidement vos prochaines visites et trouvez de nouveaux prestataires de soins."
+      "tagline": "Gérez rapidement vos visites à venir et trouvez de nouveaux prestataires de santé."
     },
     "total": "Total des rendez-vous",
     "count": "{{count}} rendez-vous trouvé",
     "noAppointments": "Aucun rendez-vous trouvé",
-    "noCompleted": "Il semble que vous n'ayez pas encore complété de visites.",
-    "schedulePrompt": "Prêt(e) à planifier votre prochaine visite ? Commencez par parcourir les cliniques.",
-    "goToQueue": "Aller à la file d'attente",
-    "queuePosition": "Position n°{{position}}",
+    "noCompleted": "Il semble que vous n'ayez pas encore terminé de visites.",
+    "schedulePrompt": "Prêt à planifier votre prochaine visite ? Commencez par parcourir les cliniques.",
+    "goToQueue": "Aller à la file",
+    "queuePosition": "Position #{{position}}",
     "leaveReview": "Laisser un avis",
     "dateFormat": "d MMM yyyy",
     "filter": {
@@ -131,12 +201,12 @@
       "in_progress": "En cours",
       "completed": "Terminé",
       "cancelled": "Annulé",
-      "no_show": "Absence"
+      "no_show": "Absent"
     },
     "type": {
       "initial_consultation": "Consultation initiale",
       "follow_up": "Suivi",
-      "general_checkup": "Bilan de santé général",
+      "general_checkup": "Examen général",
       "emergency": "Visite d'urgence"
     },
     "recentActivity": {
@@ -148,18 +218,68 @@
   },
   "profile": {
     "tagline": "Gérez vos informations personnelles et les détails de votre compte.",
-    "personalInfoTitle": "Informations Personnelles",
+    "personalInfoTitle": "Informations personnelles",
     "personalInfoDesc": "Mettez à jour les détails de votre profil",
-    "fullName": "Nom Complet",
+    "fullName": "Nom complet",
     "fullNamePlaceholder": "Jean Dupont",
-    "phonePlaceholder": "+33...",
-    "emailReadOnly": "Adresse E-mail (Lecture Seule)",
-    "emailNote": "L'e-mail est lié à votre compte et ne peut pas être modifié ici.",
+    "phonePlaceholder": "+212...",
+    "emailReadOnly": "Adresse email (lecture seule)",
+    "emailNote": "L'email est lié à votre compte et ne peut pas être modifié ici.",
     "cityPlaceholder": "Casablanca",
     "saveChanges": "Enregistrer les modifications",
     "saveSuccess": "Profil mis à jour avec succès",
     "saveError": "Échec de la mise à jour du profil",
-    "favoritesTitle": "Mes Cliniques Favorites",
+    "favoritesTitle": "Mes cliniques favorites",
     "removeFavoriteError": "Échec de la suppression du favori : {{error}}"
+  },
+  "about": {
+    "hero": {
+      "title": "Tout ce dont vous avez besoin pour",
+      "subtitle": "Rationaliser les soins aux patients",
+      "description": "INTIDAR révolutionne la prestation de soins de santé grâce à une technologie innovante, faisant de la gestion efficace des files d'attente et de la planification transparente des rendez-vous la norme pour tous."
+    },
+    "features": {
+      "queue": {
+        "title": "File d'attente en temps réel",
+        "desc": "Mises à jour en direct des temps d'attente"
+      },
+      "scheduling": {
+        "title": "Planification intelligente",
+        "desc": "Optimisation des rendez-vous par IA"
+      },
+      "portal": {
+        "title": "Portail patient",
+        "desc": "Enregistrement en libre-service"
+      },
+      "security": {
+        "title": "Sécurité des données",
+        "desc": "Chiffrement de niveau médical"
+      },
+      "analytics": {
+        "title": "Tableau de bord analytique",
+        "desc": "Insights pour améliorer l'efficacité"
+      },
+      "notifications": {
+        "title": "Notifications instantanées",
+        "desc": "Alertes SMS et application"
+      }
+    },
+    "stats": {
+      "patients": "Patients servis",
+      "clinics": "Cliniques actives",
+      "uptime": "Disponibilité",
+      "rating": "Évaluation des utilisateurs"
+    },
+    "mission": {
+      "title": "Notre mission",
+      "subtitle": "De meilleurs soins de santé pour tous",
+      "description": "INTIDAR se consacre à révolutionner la prestation de soins de santé grâce à une technologie innovante. Nous croyons que la gestion efficace des files d'attente et la planification transparente des rendez-vous ne devraient pas être un luxe, mais la norme. Notre plateforme permet aux cliniques d'offrir des expériences exceptionnelles aux patients tout en optimisant leurs opérations."
+    },
+    "footer": {
+      "copyright": "© 2025 Tous droits réservés",
+      "privacy": "Confidentialité",
+      "terms": "Conditions",
+      "contact": "Contact"
+    }
   }
 }

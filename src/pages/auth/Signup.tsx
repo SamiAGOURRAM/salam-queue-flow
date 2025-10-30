@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher"; // 🌍 ADD THIS
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next"; // 🌍 ADD THIS
@@ -119,6 +120,9 @@ export default function Signup() {
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-blue-50 via-white to-sky-50 relative overflow-hidden">
+      <div className="fixed top-6 right-6 z-50">
+        <LanguageSwitcher />
+      </div>
       {/* Animated Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse"></div>

@@ -22,9 +22,52 @@ export class QueueRepository {
   /**
    * Get all queue entries for a clinic on a specific date
    */
-  async getDailySchedule(staffId: string, targetDate: string): Promise<{ operating_mode: string; schedule: any[] }> {
-    try {
-      logger.debug('Fetching daily schedule for staff via RPC', { staffId, targetDate });
+/**
+ * Get all queue entries for a clinic on a specific date
+ * @param staffId - Staff ID (used to get clinic_id for now)
+ * @param targetDate - Target date in YYYY-MM-DD format
+ * @param useClinicWide - If true, shows all clinic appointments (default: true for now)
+ */
+async getDailySchedule(
+  staffId: string, 
+  targetDate: string,
+  useClinicWide: boolean = true  // ← DEFAULT TO CLINIC-WIDE
+): Promise<{ operating_mode: string; schedule: any[] }> {
+  try {
+    if (useClinicWide) {
+      // ======= CLINIC-WIDE MODE (CURRENT) =======
+      logger.debug('Fetching clinic-wide daily schedule via RPC', { staffId, targetDate });
+
+      // First, get the clinic_id from the staff_id
+      const { data: staffData, error: staffError } = await supabase
+        .from('clinic_staff')
+        .select('clinic_id')
+        .eq('id', staffId)
+        .single();
+
+      if (staffError || !staffData) {
+        logger.error('Failed to get clinic from staff', staffError);
+        throw new DatabaseError('Failed to get clinic from staff', staffError);
+      }
+
+      // Call the NEW clinic-wide function
+      const { data, error } = await supabase.rpc('get_daily_schedule_for_clinic', {
+        p_clinic_id: staffData.clinic_id,
+        p_target_date: targetDate,
+      });
+
+      if (error) {
+        logger.error('Failed to fetch clinic-wide schedule via RPC', error);
+        throw new DatabaseError('Failed to fetch schedule', error);
+      }
+
+      return data ? 
+        { ...data, schedule: this.mapToQueueEntries(data.schedule || []) } : 
+        { operating_mode: 'clinic_wide', schedule: [] };
+
+    } else {
+      // ======= STAFF-SPECIFIC MODE (FOR FUTURE) =======
+      logger.debug('Fetching staff-specific daily schedule via RPC', { staffId, targetDate });
 
       const { data, error } = await supabase.rpc('get_daily_schedule_for_staff', {
         p_staff_id: staffId,
@@ -32,22 +75,21 @@ export class QueueRepository {
       });
 
       if (error) {
-        logger.error('Failed to fetch daily schedule via RPC', error);
+        logger.error('Failed to fetch staff schedule via RPC', error);
         throw new DatabaseError('Failed to fetch schedule', error);
       }
 
-      // The RPC function returns a single JSON object with the mode and schedule array.
-      // If no data, provide a default structure to prevent frontend errors.
       return data ? 
         { ...data, schedule: this.mapToQueueEntries(data.schedule || []) } : 
-        { operating_mode: 'none', schedule: [] };
-
-    } catch (error) {
-      if (error instanceof DatabaseError) throw error;
-      logger.error('Unexpected error fetching daily schedule', error as Error);
-      throw new DatabaseError('Unexpected error fetching daily schedule', error as Error);
+        { operating_mode: 'staff_specific', schedule: [] };
     }
+
+  } catch (error) {
+    if (error instanceof DatabaseError) throw error;
+    logger.error('Unexpected error fetching daily schedule', error as Error);
+    throw new DatabaseError('Unexpected error fetching daily schedule', error as Error);
   }
+}
 
   // ============================================
   // DEPRECATED & CORE QUEUE OPERATIONS

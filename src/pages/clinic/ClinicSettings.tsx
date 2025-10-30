@@ -330,118 +330,223 @@ export default function ClinicSettings() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="schedule" className="space-y-6">
-            <Card className="shadow-lg border-0 bg-white">
-              <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30">
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <Clock className="w-5 h-5" />
-                  Working Hours
-                </CardTitle>
-                <CardDescription className="text-base">Set your clinic's operating hours for each day</CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-3">
-                {days.map((day) => (
-                  <div key={day} className="flex items-center gap-4 p-4 border rounded-lg">
-                    <div className="w-32">
-                      <Label className="capitalize">{day}</Label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        checked={!workingHours[day]?.closed}
-                        onCheckedChange={(checked) =>
-                          updateDayHours(day, "closed", !checked)
-                        }
-                      />
-                      <span className="text-sm text-muted-foreground">Open</span>
-                    </div>
-                    {!workingHours[day]?.closed && (
-                      <div className="flex items-center gap-2 ml-auto">
-                        <Input
-                          type="time"
-                          value={workingHours[day]?.open || "09:00"}
-                          onChange={(e) => updateDayHours(day, "open", e.target.value)}
-                          className="w-32"
-                        />
-                        <span>to</span>
-                        <Input
-                          type="time"
-                          value={workingHours[day]?.close || "18:00"}
-                          onChange={(e) => updateDayHours(day, "close", e.target.value)}
-                          className="w-32"
-                        />
-                      </div>
-                    )}
+          <TabsContent value="schedule">
+  <Card className="shadow-lg border-0 bg-white">
+    <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30">
+      <CardTitle className="text-xl flex items-center gap-2">
+        <Clock className="w-5 h-5 text-blue-600" />
+        Working Hours
+      </CardTitle>
+      <CardDescription className="text-base">
+        Set your clinic's opening and closing hours for each day
+      </CardDescription>
+    </CardHeader>
+    <CardContent className="pt-6 space-y-4">
+      {/* Days of the Week */}
+      {days.map((day) => {
+        const dayData = workingHours[day] || { closed: false, open: "09:00", close: "18:00" };
+        const isClosed = dayData.closed ?? false;
+
+        return (
+          <div 
+            key={day} 
+            className="p-4 border-2 rounded-xl hover:border-blue-200 transition-all bg-gradient-to-r from-gray-50 to-blue-50/20"
+          >
+            <div className="flex flex-col md:flex-row md:items-center gap-4">
+              {/* Day Name & Toggle */}
+              <div className="flex items-center justify-between md:w-48">
+                <Label className="text-base font-semibold capitalize">
+                  {day}
+                </Label>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-medium ${isClosed ? 'text-red-600' : 'text-green-600'}`}>
+                    {isClosed ? 'Closed' : 'Open'}
+                  </span>
+                  <Switch
+                    checked={!isClosed}
+                    onCheckedChange={(checked) => {
+                      updateDayHours(day, "closed", !checked);
+                    }}
+                    className="data-[state=checked]:bg-green-500"
+                  />
+                </div>
+              </div>
+
+              {/* Time Inputs */}
+              {!isClosed && (
+                <div className="flex items-center gap-3 flex-1">
+                  {/* Opening Time */}
+                  <div className="flex-1">
+                    <Label className="text-xs text-gray-600 mb-1 block">
+                      Opens
+                    </Label>
+                    <Input
+                      type="time"
+                      value={dayData.open || "09:00"}
+                      onChange={(e) => updateDayHours(day, "open", e.target.value)}
+                      className="h-11 text-center font-medium"
+                    />
                   </div>
-                ))}
-              </CardContent>
-            </Card>
 
-            <Card className="shadow-lg border-0 bg-white">
-              <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30">
-                <CardTitle className="text-xl">Appointment Settings</CardTitle>
-                <CardDescription className="text-base">Configure appointment timing and queue limits</CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="avgDuration" className="text-sm font-medium">Average Appointment Duration (minutes)</Label>
-                  <Input
-                    id="avgDuration"
-                    type="number"
-                    value={avgDuration}
-                    onChange={(e) => setAvgDuration(parseInt(e.target.value))}
-                    min="5"
-                    max="120"
-                    className="h-11"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="bufferTime" className="text-sm font-medium">Buffer Time Between Appointments (minutes)</Label>
-                  <Input
-                    id="bufferTime"
-                    type="number"
-                    value={bufferTime}
-                    onChange={(e) => setBufferTime(parseInt(e.target.value))}
-                    min="0"
-                    max="30"
-                    className="h-11"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="maxQueue" className="text-sm font-medium">Maximum Queue Size</Label>
-                  <Input
-                    id="maxQueue"
-                    type="number"
-                    value={maxQueueSize}
-                    onChange={(e) => setMaxQueueSize(parseInt(e.target.value))}
-                    min="10"
-                    max="200"
-                    className="h-11"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <Label>Allow Walk-in Patients</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Accept patients without appointments
-                    </p>
+                  {/* Arrow */}
+                  <div className="mt-5">
+                    <svg 
+                      width="20" 
+                      height="20" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      strokeWidth="2" 
+                      className="text-gray-400"
+                    >
+                      <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
                   </div>
-                  <Switch checked={allowWalkIns} onCheckedChange={setAllowWalkIns} />
-                </div>
 
-                <Button 
-                  onClick={handleSaveSchedule} 
-                  disabled={saving} 
-                  className="w-full h-11 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg"
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  {saving ? "Saving..." : "Save Schedule Settings"}
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
+                  {/* Closing Time */}
+                  <div className="flex-1">
+                    <Label className="text-xs text-gray-600 mb-1 block">
+                      Closes
+                    </Label>
+                    <Input
+                      type="time"
+                      value={dayData.close || "18:00"}
+                      onChange={(e) => updateDayHours(day, "close", e.target.value)}
+                      className="h-11 text-center font-medium"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Closed Message */}
+              {isClosed && (
+                <div className="flex-1 text-center py-2 px-4 bg-red-50 rounded-lg">
+                  <p className="text-sm text-red-600 font-medium">
+                    Clinic closed on this day
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Quick Actions */}
+      <div className="flex gap-3 pt-4 border-t">
+        <Button
+          variant="outline"
+          onClick={() => {
+            const updated: WorkingHours = {};
+            days.forEach(day => {
+              updated[day] = { closed: false, open: "09:00", close: "18:00" };
+            });
+            setWorkingHours(updated);
+            toast({
+              title: "Schedule Reset",
+              description: "All days set to 9:00 AM - 6:00 PM",
+            });
+          }}
+          className="flex-1"
+        >
+          Reset to Default
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => {
+            const updated: WorkingHours = {};
+            days.forEach(day => {
+              if (day === 'saturday' || day === 'sunday') {
+                updated[day] = { closed: true };
+              } else {
+                updated[day] = { closed: false, open: "09:00", close: "18:00" };
+              }
+            });
+            setWorkingHours(updated);
+            toast({
+              title: "Weekend Closed",
+              description: "Saturday & Sunday marked as closed",
+            });
+          }}
+          className="flex-1"
+        >
+          Close Weekends
+        </Button>
+      </div>
+
+      {/* Other Settings */}
+      <div className="space-y-4 pt-6 border-t">
+        {/* Allow Walk-ins */}
+        <div className="flex items-center justify-between p-4 border rounded-xl bg-gradient-to-r from-gray-50 to-blue-50/20">
+          <div>
+            <Label className="text-base font-semibold">Walk-ins Allowed</Label>
+            <p className="text-sm text-muted-foreground">
+              Allow patients without appointments
+            </p>
+          </div>
+          <Switch
+            checked={allowWalkIns}
+            onCheckedChange={setAllowWalkIns}
+          />
+        </div>
+
+        {/* Average Duration */}
+        <div>
+          <Label className="text-base font-semibold mb-2 block">
+            Average Appointment Duration (minutes)
+          </Label>
+          <Input
+            type="number"
+            value={avgDuration}
+            onChange={(e) => setAvgDuration(parseInt(e.target.value) || 15)}
+            min="5"
+            max="120"
+            className="h-11"
+          />
+        </div>
+
+        {/* Buffer Time */}
+        <div>
+          <Label className="text-base font-semibold mb-2 block">
+            Buffer Time Between Appointments (minutes)
+          </Label>
+          <Input
+            type="number"
+            value={bufferTime}
+            onChange={(e) => setBufferTime(parseInt(e.target.value) || 0)}
+            min="0"
+            max="60"
+            className="h-11"
+          />
+        </div>
+
+        {/* Max Queue Size */}
+        <div>
+          <Label className="text-base font-semibold mb-2 block">
+            Maximum Queue Size
+          </Label>
+          <Input
+            type="number"
+            value={maxQueueSize}
+            onChange={(e) => setMaxQueueSize(parseInt(e.target.value) || 50)}
+            min="1"
+            max="200"
+            className="h-11"
+          />
+        </div>
+      </div>
+
+      {/* Save Button */}
+      <Button
+        onClick={handleSaveSchedule}
+        disabled={saving}
+        className="w-full h-12 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg hover:shadow-xl transition-all"
+      >
+        <Save className="w-5 h-5 mr-2" />
+        {saving ? "Saving..." : "Save Schedule Settings"}
+      </Button>
+    </CardContent>
+  </Card>
+</TabsContent>
 
           <TabsContent value="appointments">
             <Card className="shadow-lg border-0 bg-white">

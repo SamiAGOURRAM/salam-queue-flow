@@ -5,11 +5,33 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, Activity, Search, MapPin, Building2, Sparkles, ArrowRight, X, MessageSquare } from "lucide-react";
+import { 
+  Calendar, 
+  Clock, 
+  Activity, 
+  Search, 
+  MapPin, 
+  Building2, 
+  Sparkles, 
+  ArrowRight, 
+  X, 
+  MessageSquare,
+  XCircle 
+} from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import ReviewModal from "@/components/ReviewModal";
-import { useTranslation } from "react-i18next"; // Added hook
+import { useTranslation } from "react-i18next";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Appointment {
   id: string;
@@ -26,12 +48,12 @@ interface Appointment {
   };
 }
 
-type FilterType = 'all' | 'upcoming' | 'completed' | null;
+type FilterType = 'all' | 'upcoming' | 'completed' | 'cancelled' | null;
 
 export default function PatientDashboard() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const { t } = useTranslation(); // Initialize hook
+  const { t } = useTranslation();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
@@ -45,11 +67,19 @@ export default function PatientDashboard() {
     name: string;
   } | null>(null);
 
+  // Cancel Confirmation State
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [appointmentToCancel, setAppointmentToCancel] = useState<{
+    id: string;
+    clinic_name: string;
+    date: string;
+    time: string;
+  } | null>(null);
+
   useEffect(() => {
     if (!loading && !user) {
       // Handle navigation if necessary
     } else if (user) {
-      // Call both fetch functions
       fetchPatientProfile();
       fetchAppointments();
     }
@@ -108,6 +138,97 @@ export default function PatientDashboard() {
     }
   };
 
+  const handleCancelAppointment = async () => {
+    if (!appointmentToCancel) return;
+  
+    try {
+      console.log("🚫 Starting cancellation for appointment:", appointmentToCancel.id);
+  
+      // Delete the appointment and return the deleted record to verify it worked
+      const { data: deletedData, error: deleteError } = await supabase
+        .from("appointments")
+        .delete()
+        .eq("id", appointmentToCancel.id)
+        .eq("patient_id", user?.id)  // Ensure we own this appointment
+        .select()  // Return the deleted row(s)
+        .single();  // Expect exactly one row
+  
+      console.log("🗑️ Delete result:", { deletedData, deleteError });
+  
+      // Check if deletion actually happened
+      if (deleteError || !deletedData) {
+        console.error("❌ Delete failed:", deleteError || "No data returned - RLS likely blocked deletion");
+        
+        // If we can't delete, update status instead
+        const { error: updateError } = await supabase
+          .from("appointments")
+          .update({ 
+            status: "cancelled",
+            cancellation_reason: "patient_request",
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", appointmentToCancel.id)
+          .eq("patient_id", user?.id);
+  
+        if (updateError) throw updateError;
+  
+        setAppointments(prev => 
+          prev.map(apt => 
+            apt.id === appointmentToCancel.id 
+              ? { ...apt, status: "cancelled" }
+              : apt
+          )
+        );
+  
+        toast({
+          title: "⚠️ Appointment Cancelled", 
+          description: "Your appointment has been marked as cancelled.",
+          variant: "default",
+        });
+      } else {
+        // Deletion was successful
+        console.log("✅ Actually deleted:", deletedData);
+        
+        setAppointments(prev => 
+          prev.filter(apt => apt.id !== appointmentToCancel.id)
+        );
+  
+        toast({
+          title: "✅ Appointment Cancelled",
+          description: `Your appointment at ${appointmentToCancel.clinic_name} has been cancelled and the slot is now available.`,
+        });
+      }
+  
+      setCancelDialogOpen(false);
+      setAppointmentToCancel(null);
+  
+    } catch (error: any) {
+      console.error("❌ Error in cancellation:", error);
+      toast({
+        title: "Cancellation Failed",
+        description: error.message || "Failed to cancel appointment. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const confirmCancel = (
+    appointmentId: string, 
+    clinicName: string,
+    date: string,
+    time: string,
+    e: React.MouseEvent
+  ) => {
+    e.stopPropagation();
+    setAppointmentToCancel({
+      id: appointmentId,
+      clinic_name: clinicName,
+      date: date,
+      time: time
+    });
+    setCancelDialogOpen(true);
+  };
+
   const getUpcomingAppointments = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -122,6 +243,10 @@ export default function PatientDashboard() {
 
   const getCompletedAppointments = () => {
     return appointments.filter(apt => apt.status === 'completed');
+  };
+
+  const getCancelledAppointments = () => {
+    return appointments.filter(apt => apt.status === 'cancelled');
   };
 
   const getRecentAppointments = () => {
@@ -139,14 +264,14 @@ export default function PatientDashboard() {
         return getUpcomingAppointments();
       case 'completed':
         return getCompletedAppointments();
+      case 'cancelled':
+        return getCancelledAppointments();
       default:
-        // Default to upcoming if no filter is set (matches original logic)
         return getUpcomingAppointments();
     }
   };
 
   const getStatusBadge = (status: string) => {
-    // NOTE: Using assumed 'appointments.status' keys
     const variants: Record<string, { labelKey: string, className: string }> = {
       scheduled: { labelKey: "scheduled", className: "bg-blue-500 text-white" },
       confirmed: { labelKey: "confirmed", className: "bg-indigo-500 text-white" },
@@ -158,9 +283,11 @@ export default function PatientDashboard() {
     };
     
     const config = variants[status] || { labelKey: status, className: "bg-gray-300 text-gray-800" };
-    return <Badge className={`text-xs font-semibold rounded-full px-3 py-1 ${config.className}`}>
-      {t(`appointments.status.${config.labelKey}`, { defaultValue: config.labelKey.replace(/_/g, ' ') })} 
-    </Badge>;
+    return (
+      <Badge className={`text-xs font-semibold rounded-full px-3 py-1 ${config.className}`}>
+        {t(`appointments.status.${config.labelKey}`, { defaultValue: config.labelKey.replace(/_/g, ' ') })} 
+      </Badge>
+    );
   };
 
   const getFilterTitle = () => {
@@ -170,14 +297,16 @@ export default function PatientDashboard() {
       case 'upcoming':
         return t('appointments.filter.upcoming', { defaultValue: 'Upcoming Appointments' }); 
       case 'completed':
-        return t('appointments.filter.completed', { defaultValue: 'Completed Appointments' }); 
+        return t('appointments.filter.completed', { defaultValue: 'Completed Appointments' });
+      case 'cancelled':
+        return t('appointments.filter.cancelled', { defaultValue: 'Cancelled Appointments' });
       default:
         return t('appointments.filter.upcoming', { defaultValue: 'Upcoming Appointments' });
     }
   };
 
-  // Review Modal Handlers
-  const handleOpenReviewModal = (clinicId: string, clinicName: string) => {
+  const handleOpenReviewModal = (clinicId: string, clinicName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     setSelectedClinicForReview({ id: clinicId, name: clinicName });
     setReviewModalOpen(true);
   };
@@ -189,10 +318,10 @@ export default function PatientDashboard() {
 
   const upcomingAppointments = getUpcomingAppointments();
   const completedAppointments = getCompletedAppointments();
+  const cancelledAppointments = getCancelledAppointments();
   const recentAppointments = getRecentAppointments();
   const displayedAppointments = getFilteredAppointments();
 
-  // Use an empty string if no name is found, otherwise fallback to a generic term 'friend'
   const displayName = patientFullName || user?.user_metadata?.first_name || t('common.friend', { defaultValue: 'friend' });
 
   if (loading) {
@@ -228,7 +357,9 @@ export default function PatientDashboard() {
         <div className="relative z-10">
           <div className="flex items-center gap-2 mb-3">
             <Sparkles className="w-5 h-5 text-amber-300" />
-            <span className="text-sm font-medium text-blue-100 uppercase tracking-widest">{t('appointments.hero.journey', { defaultValue: 'Your Health Journey' })}</span> 
+            <span className="text-sm font-medium text-blue-100 uppercase tracking-widest">
+              {t('appointments.hero.journey', { defaultValue: 'Your Health Journey' })}
+            </span> 
           </div>
           <h1 className="text-4xl md:text-6xl font-extrabold mb-3 leading-tight">
             {t('appointments.hero.welcome', { defaultValue: 'Welcome back' })} <span className="text-amber-200">{displayName}</span> 👋
@@ -262,7 +393,7 @@ export default function PatientDashboard() {
         </div>
       </div>
 
-      {/* Stats Cards - Now Clickable */}
+      {/* Stats Cards - Clickable */}
       <div className="grid gap-6 md:grid-cols-3 mb-10">
         <Card 
           className={`border-0 shadow-xl transition-all overflow-hidden group cursor-pointer relative ${
@@ -372,6 +503,8 @@ export default function PatientDashboard() {
                 <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
                   {activeFilter === 'completed' ? 
                     t('appointments.noCompleted', { defaultValue: "It looks like you haven't completed any visits yet." }) 
+                    : activeFilter === 'cancelled' ?
+                    "You haven't cancelled any appointments."
                     : t('appointments.schedulePrompt', { defaultValue: "Ready to schedule your next visit? Start by finding a clinic." }) 
                   }
                 </p>
@@ -390,7 +523,6 @@ export default function PatientDashboard() {
                     key={apt.id}
                     className="group p-5 border border-gray-100 rounded-xl hover:border-blue-400 hover:shadow-2xl transition-all cursor-pointer bg-white"
                     onClick={() => {
-                      // Only navigate to queue for active appointments
                       if (['scheduled', 'waiting', 'confirmed', 'in_progress'].includes(apt.status)) {
                         navigate(`/patient/queue/${apt.id}`);
                       }
@@ -426,41 +558,54 @@ export default function PatientDashboard() {
                       </Badge>
                     </div>
                     
-                    {/* UPDATED SECTION WITH REVIEW BUTTON */}
-                    <div className="pt-3 border-t">
-                      <div className="flex items-center justify-between">
-                        {apt.queue_position && ['scheduled', 'waiting', 'confirmed', 'in_progress'].includes(apt.status) ? (
-                          <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50 font-bold">
-                            {t('appointments.queuePosition', { position: apt.queue_position, defaultValue: `Position #${apt.queue_position}` })} 
-                          </Badge>
-                        ) : (
-                          <div className="h-6"></div>
-                        )}
-                        
-                        {/* Active appointments - Go to Queue */}
-                        {['scheduled', 'waiting', 'confirmed', 'in_progress'].includes(apt.status) && (
-                          <div className="flex items-center gap-1 text-blue-600 group-hover:gap-2 transition-all">
-                            <p className="text-sm font-bold">{t('appointments.goToQueue', { defaultValue: 'Go to Queue' })}</p> 
+                    {/* Actions Section */}
+                    <div className="pt-3 border-t space-y-3">
+                      {/* Queue Position */}
+                      {apt.queue_position && ['scheduled', 'waiting', 'confirmed', 'in_progress'].includes(apt.status) && (
+                        <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50 font-bold">
+                          Position #{apt.queue_position}
+                        </Badge>
+                      )}
+                      
+                      {/* Active appointments - Buttons Row */}
+                      {['scheduled', 'waiting', 'confirmed', 'in_progress'].includes(apt.status) && (
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1 text-blue-600 group-hover:gap-2 transition-all flex-1">
+                            <p className="text-sm font-bold">Go to Queue</p>
                             <ArrowRight className="w-4 h-4" />
                           </div>
-                        )}
-                        
-                        {/* Completed appointments - Leave Review button */}
-                        {apt.status === 'completed' && (
+                          
+                          {/* Cancel Button */}
                           <Button
                             size="sm"
                             variant="outline"
-                            className="border-amber-300 text-amber-700 hover:bg-amber-50 font-bold gap-2 ml-auto"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenReviewModal(apt.clinic_id, apt.clinic.name);
-                            }}
+                            className="border-red-300 text-red-700 hover:bg-red-50 hover:border-red-400 font-bold gap-2 transition-all"
+                            onClick={(e) => confirmCancel(
+                              apt.id, 
+                              apt.clinic.name,
+                              format(new Date(apt.appointment_date), 'MMM d, yyyy'),
+                              apt.scheduled_time,
+                              e
+                            )}
                           >
-                            <MessageSquare className="w-4 h-4" />
-                            {t('appointments.leaveReview', { defaultValue: 'Leave Review' })} 
+                            <XCircle className="w-4 h-4" />
+                            Cancel
                           </Button>
-                        )}
-                      </div>
+                        </div>
+                      )}
+                      
+                      {/* Completed appointments - Leave Review button */}
+                      {apt.status === 'completed' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-amber-300 text-amber-700 hover:bg-amber-50 font-bold gap-2 w-full"
+                          onClick={(e) => handleOpenReviewModal(apt.clinic_id, apt.clinic.name, e)}
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                          Leave Review
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -519,6 +664,44 @@ export default function PatientDashboard() {
           </Card>
         )}
       </div>
+
+      {/* Cancel Confirmation Dialog */}
+      <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-xl">
+              <XCircle className="w-6 h-6 text-red-600" />
+              Cancel Appointment?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-base space-y-3 pt-2">
+              <p>Are you sure you want to cancel this appointment?</p>
+              {appointmentToCancel && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2 text-sm">
+                  <p className="font-semibold text-red-900">{appointmentToCancel.clinic_name}</p>
+                  <p className="text-red-700">
+                    <span className="font-medium">{appointmentToCancel.date}</span> at <span className="font-medium">{appointmentToCancel.time}</span>
+                  </p>
+                </div>
+              )}
+              <p className="text-sm text-muted-foreground">This action cannot be undone. The clinic will be notified.</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setCancelDialogOpen(false);
+              setAppointmentToCancel(null);
+            }}>
+              No, Keep It
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancelAppointment}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Yes, Cancel Appointment
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Review Modal */}
       {selectedClinicForReview && (

@@ -225,8 +225,7 @@ const ClinicDirectory = () => {
   const cities = Array.from(new Set(allClinicsMetadata.map((c) => c.city)));
   const specialties = Array.from(new Set(allClinicsMetadata.map((c) => c.specialty)));
   
-  // --- Get first 6 specialties for quick links ---
-  const popularSpecialties = specialties.slice(0, 6);
+ 
   // ---------------------------------------------------
 
   const toggleFavorite = (e: React.MouseEvent, clinicId: string) => {
@@ -273,7 +272,7 @@ const ClinicDirectory = () => {
           ============================================================
           */}
           <div 
-            className="relative rounded-[2rem] bg-white border shadow-xl p-6 order-2 lg:order-1 flex flex-col"
+            className="relative rounded-[2rem] h-full  bg-white border shadow-xl p-6 order-2 lg:order-1 flex flex-col"
           >
             {/* Main Filters Section */}
             <div className="space-y-5">
@@ -485,43 +484,6 @@ const ClinicDirectory = () => {
               </Button>
             </div>
             
-            {/* Quick Links Section */}
-            <div className="flex-1 flex flex-col justify-end pt-5"> 
-              <div className="border-t border-gray-100 pt-4 space-y-3">
-                <h3 className="text-sm font-semibold text-gray-500 px-1">{t('clinic.popularSpecialties', 'Popular Specialties')}</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {popularSpecialties.map((spec) => (
-                    <Button
-                      key={spec}
-                      variant="outline"
-                      className={`h-auto px-3 py-2 justify-start border-blue-100 rounded-lg transition-all ${
-                        selectedSpecialty === spec 
-                        ? 'bg-blue-100 border-blue-300 shadow-lg' 
-                        : 'bg-white/90 hover:bg-blue-50'
-                      }`}
-                      onClick={() => setSelectedSpecialty(spec)}
-                    >
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center mr-2 flex-shrink-0 ${
-                        selectedSpecialty === spec 
-                        ? 'bg-gradient-to-br from-blue-500 to-sky-500' 
-                        : 'bg-blue-50'
-                      }`}>
-                        <Stethoscope className={`w-4 h-4 ${
-                          selectedSpecialty === spec 
-                          ? 'text-white' 
-                          : 'text-blue-600'
-                        }`} />
-                      </div>
-                      <span className={`text-sm font-medium truncate ${
-                        selectedSpecialty === spec 
-                        ? 'text-blue-800' 
-                        : 'text-gray-800'
-                      }`}>{spec}</span>
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </div>
             
           </div>
           {/* ============================================================

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { UserPlus, Mail, Trash2, Users } from "lucide-react";
+import { UserPlus, Mail, Trash2, Users, Sparkles, Shield, Activity } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -137,10 +137,15 @@ export default function TeamManagement() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto"></div>
-          <p className="text-sm text-muted-foreground">Loading team data...</p>
+      <div className="flex items-center justify-center py-20">
+        <div className="text-center space-y-6">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center mx-auto animate-pulse">
+            <Users className="w-10 h-10 text-blue-600" />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Loading team data...</h3>
+            <p className="text-gray-500">Please wait a moment</p>
+          </div>
         </div>
       </div>
     );
@@ -148,11 +153,16 @@ export default function TeamManagement() {
 
   if (!clinic) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>No Clinic Found</CardTitle>
-            <CardDescription>You don't have a clinic associated with your account.</CardDescription>
+      <div className="flex items-center justify-center py-20">
+        <Card className="w-full max-w-md shadow-xl border-0">
+          <CardHeader className="text-center pb-6">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-red-100 to-orange-100 flex items-center justify-center mx-auto mb-4">
+              <Users className="w-10 h-10 text-red-600" />
+            </div>
+            <CardTitle className="text-2xl">No Clinic Found</CardTitle>
+            <CardDescription className="text-base mt-2">
+              You don't have a clinic associated with your account.
+            </CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -160,16 +170,19 @@ export default function TeamManagement() {
   }
 
   return (
-    <div className="space-y-8">
-      {/* Page Header */}
+    <div className="space-y-6">
+      {/* Clean Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h2 className="text-3xl font-bold tracking-tight">Your Team</h2>
-          <p className="text-base text-muted-foreground">Manage staff members and send invitations</p>
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Your Team</h1>
+          <p className="text-base text-gray-600">Manage staff members and send invitations</p>
         </div>
         <Dialog open={showInvite} onOpenChange={setShowInvite}>
           <DialogTrigger asChild>
-            <Button size="lg" className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg">
+            <Button 
+              size="lg" 
+              className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg hover:shadow-xl transition-all rounded-xl"
+            >
               <UserPlus className="w-5 h-5 mr-2" />
               Invite Staff Member
             </Button>
@@ -221,59 +234,119 @@ export default function TeamManagement() {
         </Dialog>
       </div>
 
+      {/* Team Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="group relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-white to-blue-50/50 rounded-2xl p-5">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-500/10 to-transparent rounded-full blur-2xl"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-gray-600">Total Members</span>
+              <div className="p-2 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 group-hover:scale-110 transition-transform">
+                <Users className="w-4 h-4 text-blue-600" />
+              </div>
+            </div>
+            <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+              {staff.length}
+            </div>
+          </div>
+        </div>
+
+        <div className="group relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-white to-green-50/50 rounded-2xl p-5">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-green-500/10 to-transparent rounded-full blur-2xl"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-gray-600">Active Staff</span>
+              <div className="p-2 rounded-lg bg-gradient-to-br from-green-100 to-emerald-200 group-hover:scale-110 transition-transform">
+                <Activity className="w-4 h-4 text-green-600" />
+              </div>
+            </div>
+            <div className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+              {staff.filter(s => s.is_active).length}
+            </div>
+          </div>
+        </div>
+
+        <div className="group relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-white to-purple-50/50 rounded-2xl p-5">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-purple-500/10 to-transparent rounded-full blur-2xl"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-gray-600">Clinic</span>
+              <div className="p-2 rounded-lg bg-gradient-to-br from-purple-100 to-purple-200 group-hover:scale-110 transition-transform">
+                <Sparkles className="w-4 h-4 text-purple-600" />
+              </div>
+            </div>
+            <div className="text-lg font-bold text-gray-900 truncate">
+              {clinic?.name || "Your Clinic"}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Staff List Card */}
-      <Card className="shadow-lg border-0 bg-white">
-        <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30 pb-4">
+      <Card className="relative overflow-hidden shadow-xl border-0 bg-white rounded-2xl">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-500/5 to-transparent rounded-full blur-3xl"></div>
+        <CardHeader className="border-b bg-gradient-to-r from-blue-50/50 via-sky-50/30 to-cyan-50/50 relative z-10 pb-6">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-xl">Staff Members</CardTitle>
-              <CardDescription className="text-base mt-1">
+              <CardTitle className="text-2xl font-bold">Staff Members</CardTitle>
+              <CardDescription className="text-base mt-2 text-gray-600">
                 {staff.length} active team {staff.length === 1 ? "member" : "members"}
               </CardDescription>
             </div>
-            <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-              <Users className="h-6 w-6 text-blue-600" />
+            <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center">
+              <Users className="h-7 w-7 text-blue-600" />
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-6">
+        <CardContent className="pt-6 relative z-10">
           {staff.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="h-20 w-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                <UserPlus className="w-10 h-10 text-gray-400" />
+            <div className="text-center py-20">
+              <div className="h-24 w-24 rounded-2xl bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center mx-auto mb-6">
+                <UserPlus className="w-12 h-12 text-blue-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No staff members yet</h3>
-              <p className="text-gray-500 mb-6">Invite your first team member to get started</p>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">No staff members yet</h3>
+              <p className="text-gray-500 mb-6 text-base">Invite your first team member to get started</p>
               <Button 
                 onClick={() => setShowInvite(true)}
-                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg hover:shadow-xl transition-all rounded-xl"
               >
                 <UserPlus className="w-4 h-4 mr-2" />
                 Invite Staff Member
               </Button>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {staff.map((member) => (
                 <div
                   key={member.id}
-                  className="group flex items-center justify-between p-5 border-2 border-gray-100 rounded-xl hover:border-blue-200 hover:shadow-md transition-all duration-200 bg-white"
+                  className="group flex items-center justify-between p-6 border-2 border-gray-100 rounded-2xl hover:border-blue-300 hover:bg-blue-50/50 hover:shadow-lg transition-all duration-200 bg-white"
                 >
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold text-lg shadow-md">
-                      {(member.profile?.full_name || "U").charAt(0).toUpperCase()}
+                  <div className="flex items-center gap-5 flex-1">
+                    <div className="relative">
+                      <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold text-xl shadow-lg group-hover:scale-110 transition-transform">
+                        {(member.profile?.full_name || "U").charAt(0).toUpperCase()}
+                      </div>
+                      {member.is_active && (
+                        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full"></div>
+                      )}
                     </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg text-gray-900">{member.profile?.full_name || "Unknown"}</h3>
-                      <p className="text-sm text-gray-500">{member.profile?.email}</p>
-                      <div className="flex items-center gap-2 mt-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-lg text-gray-900 truncate">
+                        {member.profile?.full_name || "Unknown"}
+                      </h3>
+                      <p className="text-sm text-gray-500 truncate">{member.profile?.email}</p>
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <Badge 
-                          variant={member.is_active ? "default" : "secondary"}
-                          className={member.is_active ? "bg-green-100 text-green-700 border-green-200" : ""}
+                          className={
+                            member.is_active 
+                              ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0 shadow-sm" 
+                              : "bg-gray-100 text-gray-600 border-gray-200"
+                          }
                         >
                           {member.is_active ? "Active" : "Inactive"}
                         </Badge>
-                        <Badge variant="outline" className="border-blue-200 text-blue-700">
+                        <Badge className="bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-700 border-blue-200">
+                          <Shield className="w-3 h-3 mr-1" />
                           {member.role || "Staff"}
                         </Badge>
                       </div>
@@ -283,7 +356,7 @@ export default function TeamManagement() {
                     variant="ghost"
                     size="icon"
                     onClick={() => handleRemoveStaff(member.id)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 hover:bg-red-50"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl h-10 w-10"
                   >
                     <Trash2 className="w-5 h-5" />
                   </Button>

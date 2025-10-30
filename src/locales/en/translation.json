@@ -231,5 +231,55 @@
     "saveError": "Failed to update profile",
     "favoritesTitle": "My Favorite Clinics",
     "removeFavoriteError": "Failed to remove favorite: {{error}}"
+  },
+  "about": {
+    "hero": {
+      "title": "Everything You Need to",
+      "subtitle": "Streamline Patient Care",
+      "description": "INTIDAR revolutionizes healthcare delivery through innovative technology, making efficient queue management and seamless appointment scheduling the standard for everyone."
+    },
+    "features": {
+      "queue": {
+        "title": "Real-Time Queue",
+        "desc": "Live updates on patient wait times"
+      },
+      "scheduling": {
+        "title": "Smart Scheduling",
+        "desc": "AI-powered appointment optimization"
+      },
+      "portal": {
+        "title": "Patient Portal",
+        "desc": "Self-service check-in and updates"
+      },
+      "security": {
+        "title": "Data Security",
+        "desc": "Medical-grade encryption"
+      },
+      "analytics": {
+        "title": "Analytics Dashboard",
+        "desc": "Insights to improve efficiency"
+      },
+      "notifications": {
+        "title": "Instant Notifications",
+        "desc": "SMS and app alerts for patients"
+      }
+    },
+    "stats": {
+      "patients": "Patients Served",
+      "clinics": "Clinics Active",
+      "uptime": "Uptime",
+      "rating": "User Rating"
+    },
+    "mission": {
+      "title": "Our Mission",
+      "subtitle": "Better Healthcare for Everyone",
+      "description": "INTIDAR is dedicated to revolutionizing healthcare delivery through innovative technology. We believe that efficient queue management and seamless appointment scheduling shouldn't be a luxury—it should be the standard. Our platform empowers clinics to deliver exceptional patient experiences while optimizing their operations."
+    },
+    "footer": {
+      "copyright": "© 2025 All rights reserved",
+      "privacy": "Privacy",
+      "terms": "Terms",
+      "contact": "Contact"
+    }
   }
 }
