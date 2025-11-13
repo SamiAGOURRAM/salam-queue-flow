@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserPlus, Mail, Trash2, Users, Sparkles, Shield, Activity } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -25,8 +26,26 @@ export default function TeamManagement() {
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
+  const [inviteRole, setInviteRole] = useState("receptionist");
+  const [showCustomRole, setShowCustomRole] = useState(false);
+  const [customRole, setCustomRole] = useState("");
   const [sending, setSending] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Predefined staff roles
+  const PREDEFINED_ROLES = [
+    { value: "doctor", label: "Doctor" },
+    { value: "surgeon", label: "Surgeon" },
+    { value: "nurse", label: "Nurse" },
+    { value: "receptionist", label: "Receptionist" },
+    { value: "lab_technician", label: "Lab Technician" },
+    { value: "pharmacist", label: "Pharmacist" },
+    { value: "radiologist", label: "Radiologist" },
+    { value: "dentist", label: "Dentist" },
+    { value: "anesthesiologist", label: "Anesthesiologist" },
+    { value: "physiotherapist", label: "Physiotherapist" },
+    { value: "other", label: "Other (specify)" },
+  ];
 
   useEffect(() => {
     const fetchData = async () => {
@@ -60,6 +79,7 @@ export default function TeamManagement() {
           if (staffError) {
             console.error("Staff fetch error:", staffError);
           } else if (staffData) {
+            console.log("Fetched staff data:", staffData);
             setStaff(staffData);
           }
         }
@@ -83,27 +103,49 @@ export default function TeamManagement() {
       return;
     }
 
+    // Validate role
+    const finalRole = showCustomRole ? customRole.trim() : inviteRole;
+    if (!finalRole) {
+      toast({
+        title: "Error",
+        description: "Please select or specify a role",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSending(true);
     try {
       // Call edge function to send invitation
+      const invitationBody = {
+        clinicId: clinic.id,
+        email: inviteEmail,
+        fullName: inviteName,
+        role: finalRole,
+      };
+      
+      console.log("Sending invitation with body:", invitationBody);
+      
       const { data, error } = await supabase.functions.invoke("send-staff-invitation", {
-        body: {
-          clinicId: clinic.id,
-          email: inviteEmail,
-          fullName: inviteName,
-        },
+        body: invitationBody,
       });
+      
+      console.log("Invitation response:", { data, error });
 
       if (error) throw error;
 
       toast({
         title: "Success",
-        description: "Invitation sent successfully",
+        description: `Invitation sent to ${inviteName} as ${finalRole.replace(/_/g, ' ')}`,
       });
 
+      // Reset all fields
       setShowInvite(false);
       setInviteEmail("");
       setInviteName("");
+      setInviteRole("receptionist");
+      setShowCustomRole(false);
+      setCustomRole("");
     } catch (error) {
       console.error("Error sending invitation:", error);
       toast({
@@ -216,9 +258,54 @@ export default function TeamManagement() {
                   className="h-11"
                 />
               </div>
+              
+              {/* Role Selection */}
+              <div className="space-y-2">
+                <Label htmlFor="staff-role" className="text-sm font-medium">Role</Label>
+                <Select
+                  value={inviteRole}
+                  onValueChange={(value) => {
+                    setInviteRole(value);
+                    setShowCustomRole(value === "other");
+                    if (value !== "other") setCustomRole("");
+                  }}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PREDEFINED_ROLES.map((role) => (
+                      <SelectItem key={role.value} value={role.value}>
+                        {role.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Custom Role Input (conditional) */}
+              {showCustomRole && (
+                <div className="space-y-2">
+                  <Label htmlFor="custom-role" className="text-sm font-medium">
+                    Specify Role
+                  </Label>
+                  <Input
+                    id="custom-role"
+                    value={customRole}
+                    onChange={(e) => setCustomRole(e.target.value)}
+                    placeholder="e.g., Medical Assistant, Consultant"
+                    className="h-11"
+                  />
+                </div>
+              )}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setShowInvite(false)}>
+              <Button variant="outline" onClick={() => {
+                setShowInvite(false);
+                setInviteRole("receptionist");
+                setShowCustomRole(false);
+                setCustomRole("");
+              }}>
                 Cancel
               </Button>
               <Button 
@@ -347,7 +434,7 @@ export default function TeamManagement() {
                         </Badge>
                         <Badge className="bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-700 border-blue-200">
                           <Shield className="w-3 h-3 mr-1" />
-                          {member.role || "Staff"}
+                          <span className="capitalize">{member.role?.replace(/_/g, ' ') || "Staff"}</span>
                         </Badge>
                       </div>
                     </div>

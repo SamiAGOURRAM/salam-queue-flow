@@ -11,7 +11,9 @@ interface Invitation {
   id: string;
   clinic_id: string;
   full_name: string;
-  email: string;
+  email?: string;
+  phone_number?: string;
+  role: string;
   status: string;
   clinics: {
     name: string;
@@ -56,6 +58,8 @@ export default function AcceptInvitation() {
         throw new Error("This invitation has expired");
       }
 
+      console.log("Fetched invitation data:", data);
+      console.log("Invitation role:", data.role);
       setInvitation(data as Invitation);
     } catch (error: any) {
       toast({
@@ -83,14 +87,17 @@ export default function AcceptInvitation() {
       // Check if logged-in user's email matches the invitation
       const { data: profile } = await supabase
         .from("profiles")
-        .select("email")
+        .select("email, phone_number")
         .eq("id", user.id)
         .single();
 
-      if (profile && profile.email !== invitation.email) {
+      const invitationContact = invitation.email || invitation.phone_number;
+      const profileContact = profile?.email || profile?.phone_number;
+
+      if (profile && invitationContact && profileContact && profileContact !== invitationContact) {
         toast({
           title: "Wrong account",
-          description: `This invitation is for ${invitation.email}. Please log out and create an account with that email.`,
+          description: `This invitation is for ${invitationContact}. Please log out and create an account with that contact.`,
           variant: "destructive",
         });
         setAccepting(false);
@@ -113,13 +120,13 @@ export default function AcceptInvitation() {
 
       if (!existingStaff) {
         // Create staff record only if doesn't exist
-        console.log("Creating new staff record...");
+        console.log("Creating new staff record with role:", invitation.role);
         const { error: staffError } = await supabase
           .from("clinic_staff")
           .insert({
             clinic_id: invitation.clinic_id,
             user_id: user.id,
-            role: "receptionist",
+            role: invitation.role,
           });
 
         if (staffError) {
@@ -236,7 +243,7 @@ export default function AcceptInvitation() {
           </div>
           <CardTitle>You're Invited!</CardTitle>
           <CardDescription>
-            Join <strong>{invitation.clinics.name}</strong> as a receptionist
+            Join <strong>{invitation.clinics.name}</strong> as a <strong className="capitalize">{invitation.role.replace(/_/g, ' ')}</strong>
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -248,6 +255,10 @@ export default function AcceptInvitation() {
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Specialty</span>
               <span className="font-medium">{invitation.clinics.specialty}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">Your Role</span>
+              <span className="font-medium capitalize">{invitation.role.replace(/_/g, ' ')}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Your Name</span>

@@ -30,12 +30,13 @@ serve(async (req) => {
       throw new Error("Unauthorized");
     }
 
-    const { clinicId, email, fullName } = await req.json();
+    const { clinicId, email, fullName, role = 'receptionist' } = await req.json();
 
     console.log("Invitation request received:", {
       clinicId,
       email,
       fullName,
+      role,
       userId: user.id,
     });
 
@@ -57,6 +58,16 @@ serve(async (req) => {
     const invitationToken = crypto.randomUUID();
 
     // Create invitation record
+    console.log("Inserting invitation with data:", {
+      clinic_id: clinicId,
+      invited_by: user.id,
+      email: email,
+      full_name: fullName,
+      role: role,
+      invitation_token: invitationToken,
+      status: "pending",
+    });
+
     const { data: invitation, error: inviteError } = await supabase
       .from("staff_invitations")
       .insert({
@@ -64,6 +75,7 @@ serve(async (req) => {
         invited_by: user.id,
         email: email,
         full_name: fullName,
+        role: role,
         invitation_token: invitationToken,
         status: "pending",
       })
@@ -74,6 +86,8 @@ serve(async (req) => {
       console.error("Error creating invitation:", inviteError);
       throw new Error("Failed to create invitation");
     }
+
+    console.log("Invitation created successfully:", invitation);
 
     // Send Email using Brevo (free 300 emails/day)
     const brevoApiKey = Deno.env.get("BREVO_API_KEY");
@@ -115,11 +129,11 @@ serve(async (req) => {
           <div class="content">
             <h2>You're Invited!</h2>
             <p>Hello <strong>${fullName}</strong>,</p>
-            <p>You've been invited to join <strong>${clinic.name}</strong> as a receptionist on QueueMed.</p>
+            <p>You've been invited to join <strong>${clinic.name}</strong> as a <strong style="text-transform: capitalize;">${role.replace(/_/g, ' ')}</strong> on QueueMed.</p>
             
             <div class="info-box">
               <p><strong>Clinic:</strong> ${clinic.name}</p>
-              <p><strong>Role:</strong> Receptionist</p>
+              <p><strong>Role:</strong> <span style="text-transform: capitalize;">${role.replace(/_/g, ' ')}</span></p>
             </div>
 
             <p>Click the button below to accept your invitation and complete your registration:</p>
@@ -160,7 +174,7 @@ serve(async (req) => {
               name: fullName,
             },
           ],
-          subject: `Invitation to join ${clinic.name} on QueueMed`,
+          subject: `Invitation to join ${clinic.name} as ${role.replace(/_/g, ' ')} on QueueMed`,
           htmlContent: emailHtml,
         }),
       });
