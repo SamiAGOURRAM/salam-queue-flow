@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
   Heart, Building, ChevronRight, Trash2 
 } from "lucide-react";
 import { useTranslation } from "react-i18next"; // CRITICAL REQUIREMENT: Added hook
+import type { Database } from "@/integrations/supabase/types";
 
 // Define a type for the clinic data we'll fetch
 interface FavoriteClinic {
@@ -23,6 +24,10 @@ interface FavoriteClinic {
   logo_url: string | null;
   specialty: string;
 }
+
+type ProfileRowWithCity = Database["public"]["Tables"]["profiles"]["Row"] & {
+  city?: string | null;
+};
 
 export default function PatientProfile() {
   const { user } = useAuth();
@@ -36,28 +41,23 @@ export default function PatientProfile() {
   const [email, setEmail]              = useState("");
   const [city, setCity]                = useState("");
 
-  useEffect(() => {
-    if (user) {
-      fetchProfile();
-      setEmail(user.email || ""); 
-    }
-  }, [user]);
-
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
+    if (!user?.id) return;
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .eq("id", user?.id)
+        .eq("id", user.id)
         .single();
 
       if (error) throw error;
 
       if (data) {
-        setFullName(data.full_name || "");
-        setPhone(data.phone_number || "");
-        setCity(data.city || "");
+        const profileRow = data as ProfileRowWithCity;
+        setFullName(profileRow.full_name || "");
+        setPhone(profileRow.phone_number || "");
+        setCity(profileRow.city || "");
       }
     } catch (error) {
       console.error("Error fetching profile:", error);
@@ -69,7 +69,14 @@ export default function PatientProfile() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, t]);
+
+  useEffect(() => {
+    if (user) {
+      fetchProfile();
+      setEmail(user.email || ""); 
+    }
+  }, [user, fetchProfile]);
 
   const handleSave = async () => {
     try {
@@ -89,11 +96,15 @@ export default function PatientProfile() {
         title: t('common.success', { defaultValue: 'Success' }), // Assumed common.success key
         description: t('profile.saveSuccess', { defaultValue: 'Profile updated successfully' }), // Translated
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error updating profile:", error);
+      const description =
+        error instanceof Error
+          ? error.message
+          : t('profile.saveError', { defaultValue: 'Failed to update profile' });
       toast({
         title: t('errors.error'), // Translated
-        description: error.message || t('profile.saveError', { defaultValue: 'Failed to update profile' }), // Translated
+        description, // Translated
         variant: "destructive",
       });
     } finally {

@@ -107,10 +107,14 @@ export default function Signup() {
 
         navigate("/auth/onboarding/clinic");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const description =
+        error instanceof Error
+          ? error.message
+          : t('auth.signup.errorDescription', { defaultValue: 'Unable to sign up' });
       toast({
         title: t('auth.signup.errorTitle'),
-        description: error.message,
+        description,
         variant: "destructive",
       });
     } finally {

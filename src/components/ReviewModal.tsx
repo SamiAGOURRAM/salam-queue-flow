@@ -55,7 +55,7 @@ export default function ReviewModal({ isOpen, onClose, clinicId, clinicName }: R
   });
 
   // Fetch all reviews with pagination
-  const { data: reviewsData, isLoading: loadingReviews } = useQuery({
+  const { data: reviewsData, isLoading: loadingReviews } = useQuery<{ data: ClinicRating[]; count: number }>({
     queryKey: ["clinic-reviews", clinicId, currentPage],
     queryFn: () => {
       const offset = (currentPage - 1) * reviewsPerPage;
@@ -105,10 +105,11 @@ export default function ReviewModal({ isOpen, onClose, clinicId, clinicName }: R
       });
       setIsEditing(false);
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const description = error instanceof Error ? error.message : "Failed to submit review";
       toast({
         title: "Error",
-        description: error.message || "Failed to submit review",
+        description,
         variant: "destructive",
       });
     },
@@ -134,10 +135,11 @@ export default function ReviewModal({ isOpen, onClose, clinicId, clinicName }: R
       setReviewText("");
       setIsEditing(true);
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const description = error instanceof Error ? error.message : "Failed to delete review";
       toast({
         title: "Error",
-        description: error.message || "Failed to delete review",
+        description,
         variant: "destructive",
       });
     },

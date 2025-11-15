@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +20,12 @@ interface QueueInfo {
   checked_in_at: string | null;
 }
 
+type QueueInfoRecord = Omit<QueueInfo, "clinic_name"> & {
+  clinics: {
+    name: string;
+  } | null;
+};
+
 export default function MyQueue() {
   const { appointmentId } = useParams();
   const { user, loading } = useAuth();
@@ -28,13 +34,59 @@ export default function MyQueue() {
   const [loadingQueue, setLoadingQueue] = useState(true);
   const [timeToLeave, setTimeToLeave] = useState<number | null>(null);
 
+  const fetchQueueInfo = useCallback(async () => {
+    if (!appointmentId) return;
+    try {
+      const { data, error } = await supabase
+        .from("appointments")
+        .select(`
+          id,
+          queue_position,
+          predicted_start_time,
+          predicted_wait_time,
+          status,
+          scheduled_time,
+          appointment_type,
+          checked_in_at,
+          clinics:clinic_id (name)
+        `)
+        .eq("id", appointmentId)
+        .single();
+
+      if (error) throw error;
+
+      const record = data as QueueInfoRecord;
+
+      setQueueInfo({
+        id: record.id,
+        clinic_name: record.clinics?.name || 'Unknown Clinic',
+        queue_position: record.queue_position,
+        predicted_start_time: record.predicted_start_time,
+        predicted_wait_time: record.predicted_wait_time,
+        status: record.status,
+        scheduled_time: record.scheduled_time,
+        appointment_type: record.appointment_type,
+        checked_in_at: record.checked_in_at
+      });
+    } catch (error) {
+      console.error("Error fetching queue info:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load queue information",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingQueue(false);
+    }
+  }, [appointmentId]);
+
   useEffect(() => {
     if (!loading && !user) {
       navigate("/auth/login");
     } else if (user && appointmentId) {
       fetchQueueInfo();
     }
-  }, [user, loading, appointmentId, navigate]);
+  }, [user, loading, appointmentId, navigate, fetchQueueInfo]);
 
   useEffect(() => {
     if (!appointmentId) return;
@@ -59,7 +111,7 @@ export default function MyQueue() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [appointmentId]);
+  }, [appointmentId, fetchQueueInfo]);
 
   useEffect(() => {
     if (!queueInfo?.predicted_start_time) return;
@@ -78,48 +130,7 @@ export default function MyQueue() {
     return () => clearInterval(interval);
   }, [queueInfo?.predicted_start_time]);
 
-  const fetchQueueInfo = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("appointments")
-        .select(`
-          id,
-          queue_position,
-          predicted_start_time,
-          predicted_wait_time,
-          status,
-          scheduled_time,
-          appointment_type,
-          checked_in_at,
-          clinics:clinic_id (name)
-        `)
-        .eq("id", appointmentId)
-        .single();
-
-      if (error) throw error;
-
-      setQueueInfo({
-        id: data.id,
-        clinic_name: (data as any).clinics?.name || 'Unknown Clinic',
-        queue_position: data.queue_position,
-        predicted_start_time: data.predicted_start_time,
-        predicted_wait_time: data.predicted_wait_time,
-        status: data.status,
-        scheduled_time: data.scheduled_time,
-        appointment_type: data.appointment_type,
-        checked_in_at: data.checked_in_at
-      });
-    } catch (error) {
-      console.error("Error fetching queue info:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load queue information",
-        variant: "destructive"
-      });
-    } finally {
-      setLoadingQueue(false);
-    }
-  };
+  
 
   const handleCheckIn = async () => {
     try {

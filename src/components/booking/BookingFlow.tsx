@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -35,6 +35,8 @@ interface Clinic {
   };
 }
 
+const ACTIVE_STATUSES = ["scheduled", "waiting", "in_progress"] as const;
+
 const BookingFlow = () => {
   const { clinicId } = useParams();
   const navigate = useNavigate();
@@ -60,58 +62,8 @@ const BookingFlow = () => {
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
   const [totalInQueue, setTotalInQueue] = useState<number | null>(null);
 
-  // Valid appointment statuses based on your enum
-  const ACTIVE_STATUSES = ["scheduled", "waiting", "in_progress"];
-
-  // Fetch clinic data on mount
-  useEffect(() => {
-    if (clinicId) {
-      fetchClinic();
-    }
-  }, [clinicId]);
-
-  // Fetch booked slots when date changes
-  useEffect(() => {
-    if (selectedDate && clinicId) {
-      fetchBookedSlots(selectedDate);
-    }
-  }, [selectedDate, clinicId]);
-
-  // Reset selected time when date or appointment type changes
-  useEffect(() => {
-    setSelectedTime("");
-  }, [selectedDate, appointmentType]);
-
-  // Set up real-time subscription for slot updates
-  useEffect(() => {
-    if (!clinicId || !selectedDate) return;
-
-    const channel = supabase
-      .channel(`appointments-${clinicId}-${format(selectedDate, "yyyy-MM-dd")}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'appointments',
-          filter: `clinic_id=eq.${clinicId}`,
-        },
-        (payload) => {
-          console.log("Real-time appointment change:", payload);
-          // Refetch booked slots when appointments change
-          fetchBookedSlots(selectedDate);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [clinicId, selectedDate]);
-
-  // ==================== API FUNCTIONS ====================
-
-  const fetchClinic = async () => {
+  const fetchClinic = useCallback(async () => {
+    if (!clinicId) return;
     try {
       const { data, error } = await supabase
         .from("clinics")
@@ -129,9 +81,9 @@ const BookingFlow = () => {
         variant: "destructive",
       });
     }
-  };
+  }, [clinicId, toast]);
 
-  const fetchBookedSlots = async (date: Date) => {
+  const fetchBookedSlots = useCallback(async (date: Date) => {
     if (!clinicId) return;
     
     setIsLoadingSlots(true);
@@ -181,7 +133,48 @@ const BookingFlow = () => {
     } finally {
       setIsLoadingSlots(false);
     }
-  };
+  }, [clinicId]);
+
+  useEffect(() => {
+    if (clinicId) {
+      fetchClinic();
+    }
+  }, [clinicId, fetchClinic]);
+
+  useEffect(() => {
+    if (selectedDate && clinicId) {
+      fetchBookedSlots(selectedDate);
+    }
+  }, [selectedDate, clinicId, fetchBookedSlots]);
+
+  useEffect(() => {
+    setSelectedTime("");
+  }, [selectedDate, appointmentType]);
+
+  useEffect(() => {
+    if (!clinicId || !selectedDate) return;
+
+    const channel = supabase
+      .channel(`appointments-${clinicId}-${format(selectedDate, "yyyy-MM-dd")}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'appointments',
+          filter: `clinic_id=eq.${clinicId}`,
+        },
+        (payload) => {
+          console.log("Real-time appointment change:", payload);
+          fetchBookedSlots(selectedDate);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [clinicId, selectedDate, fetchBookedSlots]);
 
   const checkSlotAvailability = async (date: Date, time: string): Promise<boolean> => {
     if (!clinicId) return false;
@@ -447,11 +440,15 @@ const BookingFlow = () => {
         description: "Your appointment has been successfully booked.",
       });
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("❌ Booking failed:", error);
+      const description =
+        error instanceof Error
+          ? error.message
+          : "Failed to book appointment. Please try again.";
       toast({
         title: "Booking Failed",
-        description: error.message || "Failed to book appointment. Please try again.",
+        description,
         variant: "destructive",
       });
     }

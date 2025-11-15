@@ -3,7 +3,7 @@
  * This version restores the crucial check for an existing guest patient,
  * fixing the "duplicate key" database error.
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,10 @@ interface AppointmentType {
   duration: number;
 }
 
+interface ClinicSettingsShape {
+  appointment_types?: AppointmentType[];
+}
+
 export function AddWalkInDialog({ open, onOpenChange, clinicId, staffId, onSuccess }: AddWalkInDialogProps) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -37,22 +41,26 @@ export function AddWalkInDialog({ open, onOpenChange, clinicId, staffId, onSucce
   
   const { createAppointment, checkInPatient } = useQueueService({ staffId });
 
+  const fetchClinicSettings = useCallback(async () => {
+    if (!clinicId) return;
+    try {
+      const { data } = await supabase.from("clinics").select("settings").eq("id", clinicId).single();
+      const settings = (data?.settings as ClinicSettingsShape) || {};
+      const types = settings.appointment_types || [];
+      setAppointmentTypes(types);
+      if (types.length > 0) {
+        setAppointmentType((current) => current || types[0].name);
+      }
+    } catch (error) {
+      logger.error("Error fetching clinic settings", error);
+    }
+  }, [clinicId]);
+
   useEffect(() => {
     if (open && clinicId) {
       fetchClinicSettings();
     }
-  }, [open, clinicId]);
-
-  const fetchClinicSettings = async () => {
-    try {
-      const { data } = await supabase.from("clinics").select("settings").eq("id", clinicId).single();
-      const types = (data?.settings as any)?.appointment_types || [];
-      setAppointmentTypes(types);
-      if (!appointmentType && types.length > 0) setAppointmentType(types[0].name);
-    } catch (error) {
-      logger.error("Error fetching clinic settings", error);
-    }
-  };
+  }, [open, clinicId, fetchClinicSettings]);
 
   // This is the fully corrected handleSubmit function
   const handleSubmit = async (e: React.FormEvent) => {
@@ -116,9 +124,11 @@ export function AddWalkInDialog({ open, onOpenChange, clinicId, staffId, onSucce
       
       onSuccess();
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Error adding walk-in', error);
-      toast({ title: "Error", description: error.message || "Failed to add walk-in patient", variant: "destructive" });
+      const description =
+        error instanceof Error ? error.message : "Failed to add walk-in patient";
+      toast({ title: "Error", description, variant: "destructive" });
     } finally {
       setLoading(false);
     }

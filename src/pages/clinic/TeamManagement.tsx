@@ -18,11 +18,24 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import type { Database } from "@/integrations/supabase/types";
+
+type ClinicRow = Database["public"]["Tables"]["clinics"]["Row"];
+type ClinicStaffRow = Database["public"]["Tables"]["clinic_staff"]["Row"];
+
+interface StaffMember extends ClinicStaffRow {
+  profile?: {
+    id: string;
+    full_name: string | null;
+    email: string | null;
+    phone_number: string | null;
+  } | null;
+}
 
 export default function TeamManagement() {
   const { user } = useAuth();
-  const [clinic, setClinic] = useState<any>(null);
-  const [staff, setStaff] = useState<any[]>([]);
+  const [clinic, setClinic] = useState<ClinicRow | null>(null);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
@@ -80,7 +93,8 @@ export default function TeamManagement() {
             console.error("Staff fetch error:", staffError);
           } else if (staffData) {
             console.log("Fetched staff data:", staffData);
-            setStaff(staffData);
+            const typedStaff = Array.isArray(staffData) ? (staffData as StaffMember[]) : [];
+            setStaff(typedStaff);
           }
         }
       } catch (error) {
@@ -109,6 +123,15 @@ export default function TeamManagement() {
       toast({
         title: "Error",
         description: "Please select or specify a role",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!clinic) {
+      toast({
+        title: "Clinic not loaded",
+        description: "Please wait for clinic data to load and try again.",
         variant: "destructive",
       });
       return;

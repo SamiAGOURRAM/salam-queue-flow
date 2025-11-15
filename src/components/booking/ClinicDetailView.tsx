@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -28,15 +28,15 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+interface WorkingHoursEntry {
+  open?: string;
+  close?: string;
+  closed?: boolean;
+}
+
 interface ClinicSettings {
   buffer_time?: number;
-  working_hours?: {
-    [key: string]: {
-      open?: string;
-      close?: string;
-      closed?: boolean;
-    };
-  };
+  working_hours?: Record<string, WorkingHoursEntry>;
   allow_walk_ins?: boolean;
   max_queue_size?: number;
   payment_methods?: {
@@ -65,7 +65,7 @@ interface Clinic {
   phone: string;
   email: string | null;
   logo_url: string | null;
-  settings: any;
+  settings: ClinicSettings | null;
 }
 
 interface Staff {
@@ -78,6 +78,13 @@ interface Staff {
   };
 }
 
+interface StaffRecord {
+  id: string;
+  role: string;
+  specialization: string | null;
+  user_id: string;
+}
+
 const ClinicDetailView = () => {
   const { clinicId } = useParams();
   const navigate = useNavigate();
@@ -86,13 +93,8 @@ const ClinicDetailView = () => {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (clinicId) {
-      fetchClinicDetails();
-    }
-  }, [clinicId]);
-
-  const fetchClinicDetails = async () => {
+  const fetchClinicDetails = useCallback(async () => {
+    if (!clinicId) return;
     try {
       setLoading(true);
 
@@ -114,10 +116,12 @@ const ClinicDetailView = () => {
 
       if (staffError) throw staffError;
 
+      const staffRows = (staffData as StaffRecord[]) || [];
+
       // Fetch profile data for each staff member
-      if (staffData && staffData.length > 0) {
+      if (staffRows.length > 0) {
         const staffWithProfiles = await Promise.all(
-          staffData.map(async (member) => {
+          staffRows.map(async (member) => {
             const { data: profile } = await supabase
               .from("profiles")
               .select("full_name")
@@ -130,7 +134,7 @@ const ClinicDetailView = () => {
             };
           })
         );
-        setStaff(staffWithProfiles as any);
+        setStaff(staffWithProfiles as Staff[]);
       }
     } catch (error) {
       console.error("Error fetching clinic details:", error);
@@ -142,7 +146,13 @@ const ClinicDetailView = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [clinicId, toast]);
+
+  useEffect(() => {
+    if (clinicId) {
+      fetchClinicDetails();
+    }
+  }, [clinicId, fetchClinicDetails]);
 
   const getTodaySchedule = () => {
     if (!clinic?.settings?.working_hours) return { isOpen: false, hours: "Closed" };
@@ -433,7 +443,7 @@ const ClinicDetailView = () => {
                   Working Hours
                 </h2>
                 <div className="grid sm:grid-cols-2 gap-3">
-                  {Object.entries(clinic.settings.working_hours).map(([day, hours]: [string, any]) => {
+                  {Object.entries(clinic.settings.working_hours).map(([day, hours]) => {
                     const isToday = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][new Date().getDay()] === day;
                     return (
                       <div 

@@ -54,10 +54,14 @@ export default function Login() {
           description: t('auth.login.successDescription'),
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const description =
+        error instanceof Error
+          ? error.message
+          : t('auth.login.errorDescription', { defaultValue: 'Unable to sign in' });
       toast({
         title: t('auth.login.errorTitle'),
-        description: error.message,
+        description,
         variant: "destructive",
       });
     } finally {

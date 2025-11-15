@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import type { Database } from "@/integrations/supabase/types";
 
 interface SignupData {
   email: string;
@@ -17,10 +18,23 @@ interface SignupData {
   userType: string;
 }
 
+type ClinicInsert = Database["public"]["Tables"]["clinics"]["Insert"];
+
+interface ClinicFormData {
+  name: string;
+  name_ar: string;
+  practice_type: NonNullable<ClinicInsert["practice_type"]>;
+  specialty: string;
+  address: string;
+  city: string;
+  phone: string;
+  email: string;
+}
+
 export default function ClinicOnboarding() {
   const [step, setStep] = useState(1);
   const [signupData, setSignupData] = useState<SignupData | null>(null);
-  const [clinicData, setClinicData] = useState({
+  const [clinicData, setClinicData] = useState<ClinicFormData>({
     name: "",
     name_ar: "",
     practice_type: "solo_practice",
@@ -124,19 +138,21 @@ export default function ClinicOnboarding() {
       console.log("Clinic data:", clinicData);
 
       // Create clinic
+      const clinicPayload: ClinicInsert = {
+        name: clinicData.name,
+        name_ar: clinicData.name_ar || clinicData.name,
+        specialty: clinicData.specialty,
+        address: clinicData.address,
+        city: clinicData.city,
+        phone: clinicData.phone,
+        email: clinicData.email || currentUser.email,
+        practice_type: clinicData.practice_type,
+        owner_id: currentUser.id,
+      };
+
       const { data: clinic, error: clinicError } = await supabase
         .from("clinics")
-        .insert({
-          name: clinicData.name,
-          name_ar: clinicData.name_ar || clinicData.name,
-          specialty: clinicData.specialty,
-          address: clinicData.address,
-          city: clinicData.city,
-          phone: clinicData.phone,
-          email: clinicData.email || currentUser.email,
-          practice_type: clinicData.practice_type as any,
-          owner_id: currentUser.id,
-        } as any)
+        .insert(clinicPayload)
         .select()
         .single();
 
@@ -185,11 +201,15 @@ export default function ClinicOnboarding() {
       });
 
       navigate("/clinic/dashboard");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Onboarding error:", error);
+      const description =
+        error instanceof Error
+          ? error.message
+          : "Failed to complete setup. Please try again.";
       toast({
         title: "Error",
-        description: error.message || "Failed to complete setup. Please try again.",
+        description,
         variant: "destructive",
       });
     } finally {

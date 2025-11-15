@@ -18,6 +18,13 @@ import { toast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
+interface EndDaySummaryResult {
+  summary?: {
+    markedNoShow?: number;
+    markedCompleted?: number;
+  };
+}
+
 interface EndDayConfirmationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -44,18 +51,6 @@ interface ClosurePreview {
   willMarkCompleted: number;
 }
 
-/**
- * End Day Confirmation Dialog
- * World-class ERP pattern inspired by Epic EpicCare day closure
- * 
- * Features:
- * - Multi-step confirmation with impact preview
- * - Visual warning system with critical colors
- * - Detailed summary of what will happen
- * - Reason/notes capture for audit trail
- * - Checkbox confirmation to prevent accidental clicks
- * - Full RPC integration with atomic transaction
- */
 export function EndDayConfirmationDialog({
   open,
   onOpenChange,
@@ -83,14 +78,14 @@ export function EndDayConfirmationDialog({
       
       // Fetch preview from RPC
       try {
-        const { data, error } = await supabase.rpc('get_day_closure_preview', {
+        const { data, error } = await supabase.rpc<ClosurePreview>('get_day_closure_preview', {
           p_staff_id: staffId,
           p_clinic_id: clinicId,
           p_closure_date: new Date().toISOString().split('T')[0],
-        } as any);
+        });
 
         if (error) throw error;
-        setPreview(data as unknown as ClosurePreview);
+        setPreview(data ?? null);
       } catch (error) {
         console.error('Failed to load preview:', error);
         toast({
@@ -117,18 +112,18 @@ export function EndDayConfirmationDialog({
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc('end_day_for_staff', {
+      const { data, error } = await supabase.rpc<EndDaySummaryResult>('end_day_for_staff', {
         p_staff_id: staffId,
         p_clinic_id: clinicId,
         p_closure_date: new Date().toISOString().split('T')[0],
         p_performed_by: userId,
         p_reason: reason || 'End of day closure',
         p_notes: notes || null,
-      } as any);
+      });
 
       if (error) throw error;
 
-      const result = data as any;
+      const result = data ?? {};
       toast({
         title: "✅ Day Closed Successfully",
         description: `${result?.summary?.markedNoShow || 0} marked no-show, ${result?.summary?.markedCompleted || 0} completed`,
@@ -137,11 +132,13 @@ export function EndDayConfirmationDialog({
 
       onOpenChange(false);
       onSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('End day failed:', error);
+      const description =
+        error instanceof Error ? error.message : "Failed to summarize the day";
       toast({
         title: "❌ End Day Failed",
-        description: error.message || "An unexpected error occurred",
+        description,
         variant: "destructive",
       });
     } finally {

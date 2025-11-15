@@ -20,14 +20,18 @@ import {
   AppointmentStatus,
   QueueActionType,
   SkipReason,
+  WaitTimePredictionRecord,
 } from './models/QueueModels';
 import { QueueEventFactory, QueueEventType } from './events/QueueEvents';
+import { QueueEstimatorFactory } from './estimators/QueueEstimatorFactory';
 
 export class QueueService {
   private repository: QueueRepository;
+  private estimatorFactory: QueueEstimatorFactory;
 
   constructor(repository?: QueueRepository) {
     this.repository = repository || new QueueRepository();
+    this.estimatorFactory = new QueueEstimatorFactory();
   }
 
   // ============================================
@@ -42,8 +46,12 @@ export class QueueService {
     logger.info('Fetching daily schedule for staff', { staffId, targetDate });
     try {
       const scheduleData = await this.repository.getDailySchedule(staffId, targetDate);
-      logger.debug(`Retrieved schedule for staff ${staffId} with mode ${scheduleData.operating_mode}`, { count: scheduleData.schedule.length });
-      return scheduleData;
+      const enrichedSchedule = await this.applyWaitTimeEstimates(staffId, scheduleData.schedule);
+      logger.debug(`Retrieved schedule for staff ${staffId} with mode ${scheduleData.operating_mode}`, { count: enrichedSchedule.length });
+      return {
+        ...scheduleData,
+        schedule: enrichedSchedule,
+      };
     } catch (error) {
       logger.error('Failed to fetch daily schedule', error as Error, { staffId, targetDate });
       throw error;
@@ -267,5 +275,56 @@ export class QueueService {
   async getQueueSummary(): Promise<QueueSummary> {
     logger.warn('QueueService.getQueueSummary is deprecated. Summaries are now derived on the client.');
     return {} as QueueSummary;
+  }
+
+  private async applyWaitTimeEstimates(staffId: string, schedule: QueueEntry[]): Promise<QueueEntry[]> {
+    if (!schedule.length) return schedule;
+
+    const clinicConfig = await this.repository.getClinicEstimationConfigByStaffId(staffId);
+    if (!clinicConfig) return schedule;
+
+    try {
+      const historicalSnapshots = await this.repository.getHistoricalFeatureSnapshots(clinicConfig.clinicId);
+      const estimator = this.estimatorFactory.getEstimator(clinicConfig);
+      const estimation = await estimator.estimate({
+        clinicConfig,
+        schedule,
+        currentTime: new Date(),
+        historicalSnapshots,
+      });
+
+      const predictionMap = new Map(estimation.predictions.map(pred => [pred.appointmentId, pred]));
+      const updatedSchedule = schedule.map(entry => {
+        const prediction = predictionMap.get(entry.id);
+        if (!prediction) return entry;
+        return {
+          ...entry,
+          estimatedWaitTime: prediction.estimatedMinutes,
+          etaSource: prediction.mode,
+          etaUpdatedAt: new Date(estimation.metadata.generatedAt),
+          predictionMode: prediction.mode,
+          predictionConfidence: prediction.confidence,
+        };
+      });
+
+      const records: WaitTimePredictionRecord[] = estimation.predictions.map(pred => ({
+        appointmentId: pred.appointmentId,
+        clinicId: pred.clinicId,
+        estimatedMinutes: pred.estimatedMinutes,
+        lowerConfidence: pred.lowerConfidence,
+        upperConfidence: pred.upperConfidence,
+        confidenceScore: pred.confidence,
+        mode: pred.mode,
+        modelVersion: estimation.metadata.version,
+        featureHash: pred.featureHash,
+        features: pred.featureSnapshot,
+      }));
+
+      await this.repository.recordWaitTimePredictions(records);
+      return updatedSchedule;
+    } catch (error) {
+      logger.error('Failed to apply wait time estimates', error as Error, { staffId });
+      return schedule;
+    }
   }
 }

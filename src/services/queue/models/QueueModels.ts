@@ -82,6 +82,15 @@ export interface QueueEntry {
   checkedInAt?: Date;
   actualStartTime?: Date;
   actualEndTime?: Date;
+  startTime?: Date;
+  endTime?: Date;
+  estimatedDurationMinutes?: number;
+  estimatedWaitTime?: number;
+  predictionMode?: EstimationMode;
+  predictionConfidence?: number;
+  predictedStartTime?: Date;
+  etaSource?: EstimationMode;
+  etaUpdatedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
   
@@ -91,7 +100,6 @@ export interface QueueEntry {
   
   // Relations (optional - populated on demand)
   patient?: Patient;
-  estimatedWaitTime?: number; // in minutes
 }
 
 /**
@@ -155,6 +163,55 @@ export interface QueueSummary {
   averageWaitTime: number;
   currentQueueLength: number;
 }
+
+// ============================================
+// ESTIMATION & CONFIGURATION MODELS
+// ============================================
+
+export type EstimationMode = 'basic' | 'ml' | 'hybrid';
+
+export interface ClinicEstimationConfig {
+  clinicId: string;
+  estimationMode: EstimationMode;
+  averageAppointmentDuration: number;
+  etaBufferMinutes: number;
+  etaRefreshIntervalSec: number;
+  mlEnabled: boolean;
+  mlModelVersion?: string;
+  mlEndpointUrl?: string;
+  rawSettings?: Record<string, unknown>;
+}
+
+export interface WaitTimePredictionRecord {
+  appointmentId: string;
+  clinicId: string;
+  estimatedMinutes: number;
+  lowerConfidence?: number;
+  upperConfidence?: number;
+  confidenceScore?: number;
+  mode: EstimationMode;
+  modelVersion?: string;
+  featureHash?: string;
+  features?: Record<string, unknown>;
+}
+
+export interface WaitTimeFeatureSnapshot {
+  clinicId: string;
+  hashedAppointmentId: string;
+  hashedPatientId?: string;
+  featureSchemaVersion: string;
+  features: Record<string, unknown>;
+  labelWaitTime?: number;
+  labelServiceDuration?: number;
+  dataWindowStart?: Date;
+  dataWindowEnd?: Date;
+  biasFlag?: boolean;
+  driftScore?: number;
+  processingPurpose?: string;
+  createdAt?: Date;
+}
+
+export type WaitTimeFeatureSnapshotInput = Omit<WaitTimeFeatureSnapshot, 'createdAt'>;
 
 // ============================================
 // VALUE OBJECTS

@@ -85,7 +85,7 @@ export function useQueueService(options: UseQueueServiceOptions) {
 
   // --- ACTION IMPLEMENTATIONS WRAPPED WITH TOASTS AND REFRESH ---
 
-  const performAction = useCallback(async <T>(action: Promise<T>, messages: { success: string, error: string }): Promise<T> => {
+  const performAction = useCallback(async <T,>(action: Promise<T>, messages: { success: string; error: string }): Promise<T> => {
     try {
       const result = await action;
       toast({ title: messages.success });

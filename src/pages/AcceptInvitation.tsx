@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -30,11 +30,7 @@ export default function AcceptInvitation() {
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
 
-  useEffect(() => {
-    fetchInvitation();
-  }, [token]);
-
-  const fetchInvitation = async () => {
+  const fetchInvitation = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("staff_invitations")
@@ -61,16 +57,21 @@ export default function AcceptInvitation() {
       console.log("Fetched invitation data:", data);
       console.log("Invitation role:", data.role);
       setInvitation(data as Invitation);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const description = error instanceof Error ? error.message : "Invitation not found";
       toast({
         title: "Invalid invitation",
-        description: error.message,
+        description,
         variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [token, toast]);
+
+  useEffect(() => {
+    fetchInvitation();
+  }, [fetchInvitation]);
 
   const handleAccept = async () => {
     if (!invitation) return;
@@ -187,11 +188,12 @@ export default function AcceptInvitation() {
       });
 
       navigate("/clinic/queue");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error accepting invitation:", error);
+      const description = error instanceof Error ? error.message : "An unexpected error occurred";
       toast({
         title: "Failed to accept invitation",
-        description: error.message || "An unexpected error occurred",
+        description,
         variant: "destructive",
       });
     } finally {

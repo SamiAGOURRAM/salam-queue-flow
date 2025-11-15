@@ -47,7 +47,7 @@ export function EnhancedQueueManager({ clinicId, userId, staffId }: EnhancedQueu
   }, [schedule]);
 
   // Action handlers are all correct
-  const handleAction = async (action: Promise<any>) => {
+  const handleAction = async (action: Promise<unknown>) => {
     setActionLoading(true);
     try { await action; } 
     catch (error) { console.error("Queue action failed:", error); } 

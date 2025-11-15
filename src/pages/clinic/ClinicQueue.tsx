@@ -19,9 +19,13 @@ interface StaffProfile {
   id: string; // This is the staff_id
 }
 
+interface ClinicInfo {
+  id: string;
+}
+
 export default function ClinicQueue() {
   const { user, isClinicOwner, isStaff } = useAuth();
-  const [clinic, setClinic] = useState<any>(null);
+  const [clinic, setClinic] = useState<ClinicInfo | null>(null);
   const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
   const [showAddWalkIn, setShowAddWalkIn] = useState(false);
   const [showBookAppointment, setShowBookAppointment] = useState(false);

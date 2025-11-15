@@ -275,12 +275,6 @@ salam-queue-flow/
 │   ├── functions/             # Edge Functions
 │   └── migrations/            # Database migrations
 │
-├── docs/                      # 🆕 Architecture docs
-│   ├── EXECUTIVE_SUMMARY.md
-│   ├── ARCHITECTURE_ANALYSIS.md
-│   ├── IMPLEMENTATION_GUIDE.md
-│   ├── MIGRATION_ROADMAP.md
-│   └── ARCHITECTURE_DIAGRAMS.md
 │
 └── README.md                  # This file
 ```
@@ -335,17 +329,7 @@ docker-compose up
 
 ---
 
-## 🔐 Environment Variables
 
-```bash
-# .env
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-
-# Supabase Secrets (Edge Functions)
-TWILIO_ACCOUNT_SID=your-twilio-sid
-TWILIO_AUTH_TOKEN=your-twilio-token
-TWILIO_PHONE_NUMBER=+1234567890
 ```
 
 ---
@@ -382,11 +366,6 @@ TWILIO_PHONE_NUMBER=+1234567890
 
 ## 👥 Team
 
-- **Architecture**: [Your Team]
-- **Backend**: [Your Team]
-- **Frontend**: [Your Team]
-- **DevOps**: [Your Team]
-
 ---
 
 ## 📄 License
@@ -395,23 +374,5 @@ Internal Use Only - [Your Organization]
 
 ---
 
-## 🆘 Need Help?
-
-### Documentation
-- **Start here**: [ARCHITECTURE_README.md](./ARCHITECTURE_README.md)
-- **Quick overview**: [EXECUTIVE_SUMMARY.md](./EXECUTIVE_SUMMARY.md)
-- **Implementation**: [IMPLEMENTATION_GUIDE.md](./IMPLEMENTATION_GUIDE.md)
-- **Timeline**: [MIGRATION_ROADMAP.md](./MIGRATION_ROADMAP.md)
-
-### Support
-- **Slack**: #architecture
-- **Office Hours**: Tuesdays/Thursdays 3-5pm
-- **Issues**: [GitHub Issues](https://github.com/your-org/your-repo/issues)
-
----
-
-**Status**: 🚀 Ready for Architecture Transformation  
-**Next Step**: Read [ARCHITECTURE_README.md](./ARCHITECTURE_README.md)  
-**Questions?**: See [EXECUTIVE_SUMMARY.md](./EXECUTIVE_SUMMARY.md#faq)
 
 **Let's build something great! 💪**

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,22 +13,18 @@ import {
   LayoutDashboard,
   LogOut
 } from "lucide-react";
+import type { Database } from "@/integrations/supabase/types";
+
+type ClinicRow = Database["public"]["Tables"]["clinics"]["Row"];
 
 export default function ClinicLayout() {
   const { user, loading, isClinicOwner, isStaff, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [clinic, setClinic] = useState<any>(null);
+  const [clinic, setClinic] = useState<ClinicRow | null>(null);
 
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate("/auth/login");
-    } else if (user) {
-      fetchClinic();
-    }
-  }, [user, loading]);
-
-  const fetchClinic = async () => {
+  const fetchClinic = useCallback(async () => {
+    if (!user) return;
     try {
       let query = supabase.from("clinics").select("*");
 
@@ -52,7 +48,15 @@ export default function ClinicLayout() {
     } catch (error) {
       console.error("Error fetching clinic:", error);
     }
-  };
+  }, [isClinicOwner, user]);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/auth/login");
+    } else if (user) {
+      fetchClinic();
+    }
+  }, [user, loading, navigate, fetchClinic]);
 
   const navigationItems = [
     {

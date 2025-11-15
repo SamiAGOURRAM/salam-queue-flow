@@ -13,6 +13,9 @@ import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
+const APPOINTMENT_TYPES = ["consultation", "follow_up", "procedure", "emergency"] as const;
+type AppointmentTypeOption = typeof APPOINTMENT_TYPES[number];
+
 interface BookAppointmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -32,7 +35,7 @@ export function BookAppointmentDialog({
   const [phone, setPhone] = useState("");
   const [date, setDate] = useState<Date | undefined>(preselectedDate);
   const [time, setTime] = useState("");
-  const [appointmentType, setAppointmentType] = useState("consultation");
+  const [appointmentType, setAppointmentType] = useState<AppointmentTypeOption>("consultation");
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -56,7 +59,7 @@ export function BookAppointmentDialog({
     setLoading(true);
     try {
       // Check if patient exists or create new profile
-      let { data: existingProfile } = await supabase
+      const { data: existingProfile } = await supabase
         .from("profiles")
         .select("id")
         .eq("phone_number", phone)
@@ -104,7 +107,7 @@ export function BookAppointmentDialog({
           staff_id: staffData?.user_id || clinicId,
           appointment_date: format(date, "yyyy-MM-dd"),
           scheduled_time: time,
-          appointment_type: appointmentType as any,
+          appointment_type: appointmentType,
           reason_for_visit: reason,
           status: "scheduled",
           booking_method: "receptionist",
@@ -127,10 +130,10 @@ export function BookAppointmentDialog({
       setReason("");
       onOpenChange(false);
       onSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Failed to book appointment",
         variant: "destructive",
       });
     } finally {
@@ -213,15 +216,16 @@ export function BookAppointmentDialog({
 
           <div className="space-y-2">
             <Label htmlFor="type">Appointment Type</Label>
-            <Select value={appointmentType} onValueChange={setAppointmentType}>
+            <Select value={appointmentType} onValueChange={(value) => setAppointmentType(value as AppointmentTypeOption)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="consultation">Consultation</SelectItem>
-                <SelectItem value="follow_up">Follow-up</SelectItem>
-                <SelectItem value="procedure">Procedure</SelectItem>
-                <SelectItem value="emergency">Emergency</SelectItem>
+                {APPOINTMENT_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type.replace("_", " ")}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,16 +10,20 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Activity, Save, Clock, Settings } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import type { Database } from "@/integrations/supabase/types";
+
+interface WorkingDayConfig {
+  available?: boolean;
+  closed?: boolean;
+  open?: string;
+  close?: string;
+  slots?: Array<{ start: string; end: string }>;
+}
 
 interface WorkingHours {
-  [day: string]: {
-    available?: boolean;
-    closed?: boolean;
-    open?: string;
-    close?: string;
-    slots?: Array<{ start: string; end: string }>;
-  };
+  [day: string]: WorkingDayConfig;
 }
+
 interface AppointmentType {
   name: string;
   duration: number;
@@ -27,10 +31,50 @@ interface AppointmentType {
   price?: number;  // NEW: Add this field
 }
 
+interface PaymentMethods {
+  cash: boolean;
+  card: boolean;
+  insurance: boolean;
+  online: boolean;
+}
+
+type ClinicRow = Database["public"]["Tables"]["clinics"]["Row"];
+
+interface ClinicSettingsShape {
+  working_hours?: WorkingHours;
+  allow_walk_ins?: boolean;
+  average_appointment_duration?: number;
+  buffer_time?: number;
+  max_queue_size?: number;
+  payment_methods?: PaymentMethods;
+  appointment_types?: AppointmentType[];
+}
+
+const defaultAppointmentTypes: AppointmentType[] = [
+  { name: "consultation", duration: 15, label: "Consultation", price: undefined },
+  { name: "follow_up", duration: 10, label: "Follow-up", price: undefined },
+  { name: "procedure", duration: 30, label: "Procedure", price: undefined },
+  { name: "emergency", duration: 20, label: "Emergency", price: undefined },
+];
+
+const defaultPaymentMethods: PaymentMethods = {
+  cash: true,
+  card: false,
+  insurance: false,
+  online: false,
+};
+
+const parseClinicSettings = (settings: ClinicRow["settings"] | null): ClinicSettingsShape => {
+  if (!settings || typeof settings !== "object") {
+    return {};
+  }
+  return settings as ClinicSettingsShape;
+};
+
 export default function ClinicSettings() {
   const { user, loading, isClinicOwner, signOut } = useAuth();
   const navigate = useNavigate();
-  const [clinic, setClinic] = useState<any>(null);
+  const [clinic, setClinic] = useState<ClinicRow | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Basic Info State
@@ -48,28 +92,15 @@ export default function ClinicSettings() {
   const [avgDuration, setAvgDuration] = useState(15);
   const [bufferTime, setBufferTime] = useState(5);
   const [maxQueueSize, setMaxQueueSize] = useState(50);
-  const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([
-    { name: "consultation", duration: 15, label: "Consultation", price: undefined },
-    { name: "follow_up", duration: 10, label: "Follow-up", price: undefined },
-    { name: "procedure", duration: 30, label: "Procedure", price: undefined },
-    { name: "emergency", duration: 20, label: "Emergency", price: undefined },
-  ]);
+  const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>(() => [...defaultAppointmentTypes]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethods>(() => ({ ...defaultPaymentMethods }));
 
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate("/auth/login");
-      return;
-    }
-    if (user) {
-      fetchClinic();
-    }
-  }, [user, loading, navigate]);
-
-  const fetchClinic = async () => {
+  const fetchClinic = useCallback(async () => {
+    if (!user?.id) return;
     const { data, error } = await supabase
       .from("clinics")
       .select("*")
-      .eq("owner_id", user?.id)
+      .eq("owner_id", user.id)
       .single();
 
     if (error) {
@@ -91,28 +122,36 @@ export default function ClinicSettings() {
       setAddress(data.address || "");
       setCity(data.city || "");
 
-      const settings = (data.settings as any) || {};
-      setWorkingHours((settings.working_hours as WorkingHours) || {});
+      const settings = parseClinicSettings(data.settings);
+      setWorkingHours(settings.working_hours || {});
       setAllowWalkIns(settings.allow_walk_ins ?? true);
       setAvgDuration(settings.average_appointment_duration || 15);
       setBufferTime(settings.buffer_time || 5);
       setMaxQueueSize(settings.max_queue_size || 50);
-      setPaymentMethods(settings.payment_methods || {
-        cash: true,
-        card: false,
-        insurance: false,
-        online: false,
-      });
-      setAppointmentTypes(settings.appointment_types || [
-        { name: "consultation", duration: 15, label: "Consultation", price: undefined },
-        { name: "follow_up", duration: 10, label: "Follow-up", price: undefined },
-        { name: "procedure", duration: 30, label: "Procedure", price: undefined },
-        { name: "emergency", duration: 20, label: "Emergency", price: undefined },
-      ]);
+      setPaymentMethods(settings.payment_methods || { ...defaultPaymentMethods });
+      setAppointmentTypes(settings.appointment_types || [...defaultAppointmentTypes]);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/auth/login");
+      return;
+    }
+    if (user) {
+      fetchClinic();
+    }
+  }, [user, loading, navigate, fetchClinic]);
 
   const handleSaveBasicInfo = async () => {
+    if (!clinic) {
+      toast({
+        title: "Clinic not loaded",
+        description: "Please try again once the clinic data is available.",
+        variant: "destructive",
+      });
+      return;
+    }
     setSaving(true);
     try {
       const { error } = await supabase
@@ -134,10 +173,10 @@ export default function ClinicSettings() {
         title: "Success",
         description: "Basic information updated",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Failed to update clinic info",
         variant: "destructive",
       });
     } finally {
@@ -146,10 +185,19 @@ export default function ClinicSettings() {
   };
 
   const handleSaveSchedule = async () => {
+    if (!clinic) {
+      toast({
+        title: "Clinic not loaded",
+        description: "Please try again once the clinic data is available.",
+        variant: "destructive",
+      });
+      return;
+    }
     setSaving(true);
     try {
-      const updatedSettings = {
-        ...(clinic.settings as any),
+      const existingSettings = parseClinicSettings(clinic.settings);
+      const updatedSettings: ClinicSettingsShape = {
+        ...existingSettings,
         working_hours: workingHours,
         allow_walk_ins: allowWalkIns,
         average_appointment_duration: avgDuration,
@@ -170,10 +218,10 @@ export default function ClinicSettings() {
         title: "Success",
         description: "Schedule settings updated",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Failed to update schedule",
         variant: "destructive",
       });
     } finally {
@@ -181,7 +229,11 @@ export default function ClinicSettings() {
     }
   };
 
-  const updateDayHours = (day: string, field: string, value: any) => {
+  const updateDayHours = (
+    day: string,
+    field: keyof WorkingDayConfig,
+    value: WorkingDayConfig[keyof WorkingDayConfig]
+  ) => {
     setWorkingHours((prev) => ({
       ...prev,
       [day]: {
@@ -190,13 +242,6 @@ export default function ClinicSettings() {
       },
     }));
   };
-
-  const [paymentMethods, setPaymentMethods] = useState({
-    cash: true,
-    card: false,
-    insurance: false,
-    online: false,
-  });
 
   const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 

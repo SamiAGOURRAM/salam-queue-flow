@@ -14,6 +14,36 @@ import {
   SendNotificationDTO,
 } from './models/NotificationModels';
 
+type NotificationInsertPayload = {
+  clinic_id: string;
+  patient_id: string;
+  appointment_id?: string | null;
+  channel: NotificationChannel;
+  type: NotificationType;
+  phone_number?: string | null;
+  email?: string | null;
+  message: string;
+  status: NotificationStatus;
+  metadata?: Record<string, unknown> | null;
+};
+
+type NotificationUpdatePayload = {
+  status?: NotificationStatus;
+  sent_at?: string | null;
+  delivered_at?: string | null;
+  failure_reason?: string | null;
+  metadata?: Record<string, unknown> | null;
+};
+
+type NotificationRow = NotificationInsertPayload & {
+  id: string;
+  sent_at?: string | null;
+  delivered_at?: string | null;
+  failure_reason?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export class NotificationService {
   /**
    * Send a notification
@@ -76,22 +106,28 @@ export class NotificationService {
   private async sendSMS(dto: SendNotificationDTO, message: string): Promise<Notification> {
     try {
       // Create notification record
+      const insertPayload: NotificationInsertPayload = {
+        clinic_id: dto.clinicId,
+        patient_id: dto.patientId,
+        appointment_id: dto.appointmentId ?? null,
+        channel: dto.channel,
+        type: dto.type,
+        phone_number: dto.phoneNumber ?? null,
+        message,
+        status: NotificationStatus.PENDING,
+      };
+
       const { data: notificationRecord, error: insertError } = await supabase
         .from('notifications')
-        .insert({
-          clinic_id: dto.clinicId,
-          patient_id: dto.patientId,
-          appointment_id: dto.appointmentId,
-          channel: dto.channel as any,
-          type: dto.type as any,
-          phone_number: dto.phoneNumber,
-          message,
-          status: NotificationStatus.PENDING as any,
-        } as any)
+        .insert(insertPayload)
         .select()
         .single();
 
-      if (insertError) throw new DatabaseError('Failed to create notification record', insertError);
+      if (insertError || !notificationRecord) {
+        throw new DatabaseError('Failed to create notification record', insertError);
+      }
+
+      const baseRecord = notificationRecord as NotificationRow;
 
       // Send SMS via Edge Function
       try {
@@ -99,21 +135,23 @@ export class NotificationService {
           body: {
             to: dto.phoneNumber,
             message,
-            notification_id: notificationRecord.id,
+            notification_id: baseRecord.id,
           },
         });
 
         if (error) throw error;
 
         // Update status to sent
+        const updatePayload: NotificationUpdatePayload = {
+          status: NotificationStatus.SENT,
+          sent_at: new Date().toISOString(),
+          metadata: (data as Record<string, unknown> | null) ?? null,
+        };
+
         const { data: updated, error: updateError } = await supabase
           .from('notifications')
-          .update({
-            status: NotificationStatus.SENT,
-            sent_at: new Date().toISOString(),
-            metadata: data,
-          })
-          .eq('id', notificationRecord.id)
+          .update(updatePayload)
+          .eq('id', baseRecord.id)
           .select()
           .single();
 
@@ -121,19 +159,23 @@ export class NotificationService {
           logger.warn('Failed to update notification status', { error: updateError });
         }
 
-        return this.mapToNotification(updated || notificationRecord);
+        const persistedRecord = (updated as NotificationRow | null) ?? baseRecord;
+        return this.mapToNotification(persistedRecord);
 
-      } catch (smsError: any) {
+      } catch (smsError: unknown) {
+        const errorMessage = smsError instanceof Error ? smsError.message : 'Unknown SMS error';
         // Update status to failed
+        const failurePayload: NotificationUpdatePayload = {
+          status: NotificationStatus.FAILED,
+          failure_reason: errorMessage,
+        };
+
         await supabase
           .from('notifications')
-          .update({
-            status: NotificationStatus.FAILED,
-            failure_reason: smsError.message,
-          })
-          .eq('id', notificationRecord.id);
+          .update(failurePayload)
+          .eq('id', baseRecord.id);
 
-        throw new ExternalServiceError('Twilio', 'Failed to send SMS', smsError);
+        throw new ExternalServiceError('Twilio', 'Failed to send SMS', smsError instanceof Error ? smsError : undefined);
       }
       
     } catch (error) {
@@ -149,24 +191,28 @@ export class NotificationService {
     logger.warn('Email sending not implemented yet', { email: dto.email });
     
     // Create notification record as pending
+    const insertPayload: NotificationInsertPayload = {
+      clinic_id: dto.clinicId,
+      patient_id: dto.patientId,
+      appointment_id: dto.appointmentId ?? null,
+      channel: dto.channel,
+      type: dto.type,
+      email: dto.email ?? null,
+      message,
+      status: NotificationStatus.PENDING,
+    };
+
     const { data, error } = await supabase
       .from('notifications')
-      .insert({
-        clinic_id: dto.clinicId,
-        patient_id: dto.patientId,
-        appointment_id: dto.appointmentId,
-        channel: dto.channel as any,
-        type: dto.type as any,
-        email: dto.email,
-        message,
-        status: NotificationStatus.PENDING as any,
-      } as any)
+      .insert(insertPayload)
       .select()
       .single();
 
-    if (error) throw new DatabaseError('Failed to create notification record', error);
-    
-    return this.mapToNotification(data);
+    if (error || !data) {
+      throw new DatabaseError('Failed to create notification record', error);
+    }
+
+    return this.mapToNotification(data as NotificationRow);
   }
 
   /**
@@ -175,24 +221,28 @@ export class NotificationService {
   private async sendWhatsApp(dto: SendNotificationDTO, message: string): Promise<Notification> {
     logger.warn('WhatsApp sending not implemented yet', { phoneNumber: dto.phoneNumber });
     
+    const insertPayload: NotificationInsertPayload = {
+      clinic_id: dto.clinicId,
+      patient_id: dto.patientId,
+      appointment_id: dto.appointmentId ?? null,
+      channel: dto.channel,
+      type: dto.type,
+      phone_number: dto.phoneNumber ?? null,
+      message,
+      status: NotificationStatus.PENDING,
+    };
+
     const { data, error } = await supabase
       .from('notifications')
-      .insert({
-        clinic_id: dto.clinicId,
-        patient_id: dto.patientId,
-        appointment_id: dto.appointmentId,
-        channel: dto.channel as any,
-        type: dto.type as any,
-        phone_number: dto.phoneNumber,
-        message,
-        status: NotificationStatus.PENDING as any,
-      } as any)
+      .insert(insertPayload)
       .select()
       .single();
 
-    if (error) throw new DatabaseError('Failed to create notification record', error);
-    
-    return this.mapToNotification(data);
+    if (error || !data) {
+      throw new DatabaseError('Failed to create notification record', error);
+    }
+
+    return this.mapToNotification(data as NotificationRow);
   }
 
   /**
@@ -201,23 +251,27 @@ export class NotificationService {
   private async sendPush(dto: SendNotificationDTO, message: string): Promise<Notification> {
     logger.warn('Push notifications not implemented yet');
     
+    const insertPayload: NotificationInsertPayload = {
+      clinic_id: dto.clinicId,
+      patient_id: dto.patientId,
+      appointment_id: dto.appointmentId ?? null,
+      channel: dto.channel,
+      type: dto.type,
+      message,
+      status: NotificationStatus.PENDING,
+    };
+
     const { data, error } = await supabase
       .from('notifications')
-      .insert({
-        clinic_id: dto.clinicId,
-        patient_id: dto.patientId,
-        appointment_id: dto.appointmentId,
-        channel: dto.channel as any,
-        type: dto.type as any,
-        message,
-        status: NotificationStatus.PENDING as any,
-      } as any)
+      .insert(insertPayload)
       .select()
       .single();
 
-    if (error) throw new DatabaseError('Failed to create notification record', error);
-    
-    return this.mapToNotification(data);
+    if (error || !data) {
+      throw new DatabaseError('Failed to create notification record', error);
+    }
+
+    return this.mapToNotification(data as NotificationRow);
   }
 
   /**
@@ -281,7 +335,7 @@ export class NotificationService {
   /**
    * Map database row to Notification model
    */
-  private mapToNotification(data: any): Notification {
+  private mapToNotification(data: NotificationRow): Notification {
     return {
       id: data.id,
       clinicId: data.clinic_id,
@@ -296,7 +350,7 @@ export class NotificationService {
       sentAt: data.sent_at ? new Date(data.sent_at) : undefined,
       deliveredAt: data.delivered_at ? new Date(data.delivered_at) : undefined,
       failureReason: data.failure_reason,
-      metadata: data.metadata,
+      metadata: data.metadata ?? undefined,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
     };

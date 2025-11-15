@@ -14,9 +14,109 @@ import {
   QueueActionType,
   CreateQueueEntryDTO,
   UpdateQueueEntryDTO,
+  ClinicEstimationConfig,
+  EstimationMode,
+  WaitTimePredictionRecord,
+  WaitTimeFeatureSnapshot,
+  WaitTimeFeatureSnapshotInput,
 } from '../models/QueueModels';
-import { DatabaseError, NotFoundError } from '../../shared/errors';
+import { DatabaseError } from '../../shared/errors';
 import { logger } from '../../shared/logging/Logger';
+
+type PatientProfile = {
+  id: string;
+  full_name?: string | null;
+  phone_number?: string | null;
+  email?: string | null;
+};
+
+type GuestPatientProfile = {
+  id: string;
+  full_name?: string | null;
+  phone_number?: string | null;
+};
+
+type ClinicInfo = {
+  id: string;
+  name?: string | null;
+  settings?: Record<string, unknown> | null;
+  estimation_mode?: string | null;
+  ml_enabled?: boolean | null;
+  ml_model_version?: string | null;
+  ml_endpoint_url?: string | null;
+  eta_buffer_minutes?: number | null;
+  eta_refresh_interval_sec?: number | null;
+};
+
+type RawAppointmentRow = {
+  id: string;
+  clinic_id: string;
+  patient_id?: string | null;
+  guest_patient_id?: string | null;
+  staff_id?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  appointment_date?: string | null;
+  scheduled_time?: string | null;
+  queue_position?: number | null;
+  status?: AppointmentStatus | null;
+  appointment_type?: string | null;
+  is_present?: boolean | null;
+  marked_absent_at?: string | null;
+  returned_at?: string | null;
+  checked_in_at?: string | null;
+  actual_start_time?: string | null;
+  actual_end_time?: string | null;
+  estimated_duration?: number | null;
+  predicted_wait_time?: number | null;
+  prediction_mode?: string | null;
+  prediction_confidence?: number | null;
+  predicted_start_time?: string | null;
+  last_prediction_update?: string | null;
+  created_at: string;
+  updated_at: string;
+  is_guest?: boolean | null;
+  original_queue_position?: number | null;
+  skip_count?: number | null;
+  skip_reason?: string | null;
+  override_by?: string | null;
+  patient?: PatientProfile | null;
+  guest_patient?: GuestPatientProfile | null;
+  clinic?: ClinicInfo | null;
+};
+
+type RawAbsentPatientRow = {
+  id: string;
+  appointment_id: string;
+  clinic_id: string;
+  patient_id?: string | null;
+  marked_absent_at: string;
+  returned_at?: string | null;
+  new_position?: number | null;
+  notification_sent?: boolean | null;
+  grace_period_ends_at?: string | null;
+  auto_cancelled?: boolean | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type RawQueueOverrideRow = {
+  id: string;
+  clinic_id: string;
+  appointment_id: string;
+  skipped_patient_ids?: string[] | null;
+  action_type: QueueActionType | string;
+  performed_by: string;
+  reason?: string | null;
+  previous_position?: number | null;
+  new_position?: number | null;
+  created_at: string;
+};
+
+type ClinicScheduleResponse = {
+  operating_mode?: string;
+  schedule?: RawAppointmentRow[] | null;
+};
 
 export class QueueRepository {
   /**
@@ -32,7 +132,7 @@ async getDailySchedule(
   staffId: string, 
   targetDate: string,
   useClinicWide: boolean = true  // ← DEFAULT TO CLINIC-WIDE
-): Promise<{ operating_mode: string; schedule: any[] }> {
+): Promise<{ operating_mode: string; schedule: QueueEntry[] }> {
   try {
     if (useClinicWide) {
       // ======= CLINIC-WIDE MODE (CURRENT) =======
@@ -61,9 +161,7 @@ async getDailySchedule(
         throw new DatabaseError('Failed to fetch schedule', error);
       }
 
-      return data ? 
-        { ...data, schedule: this.mapToQueueEntries(data.schedule || []) } : 
-        { operating_mode: 'clinic_wide', schedule: [] };
+      return this.mapScheduleResponse(data, 'clinic_wide');
 
     } else {
       // ======= STAFF-SPECIFIC MODE (FOR FUTURE) =======
@@ -79,9 +177,7 @@ async getDailySchedule(
         throw new DatabaseError('Failed to fetch schedule', error);
       }
 
-      return data ? 
-        { ...data, schedule: this.mapToQueueEntries(data.schedule || []) } : 
-        { operating_mode: 'staff_specific', schedule: [] };
+      return this.mapScheduleResponse(data, 'staff_specific');
     }
 
   } catch (error) {
@@ -90,6 +186,158 @@ async getDailySchedule(
     throw new DatabaseError('Unexpected error fetching daily schedule', error as Error);
   }
 }
+
+  async getClinicEstimationConfigByStaffId(staffId: string): Promise<ClinicEstimationConfig | null> {
+    try {
+      const { data, error } = await supabase
+        .from('clinic_staff')
+        .select(`
+          clinic_id,
+          clinic:clinics (
+            id,
+            settings,
+            estimation_mode,
+            ml_enabled,
+            ml_model_version,
+            ml_endpoint_url,
+            eta_buffer_minutes,
+            eta_refresh_interval_sec
+          )
+        `)
+        .eq('id', staffId)
+        .single();
+
+      if (error || !data || !data.clinic) {
+        logger.warn('Clinic estimation config not found for staff', { staffId, error });
+        return null;
+      }
+
+      const settings = (data.clinic.settings as Record<string, unknown> | null) || {};
+      const coerceNumber = (value: unknown): number | undefined => {
+        if (typeof value === 'number') return value;
+        if (typeof value === 'string') {
+          const parsed = Number(value);
+          return Number.isFinite(parsed) ? parsed : undefined;
+        }
+        return undefined;
+      };
+
+      const averageDurationRaw =
+        coerceNumber(settings['average_appointment_duration']) ??
+        coerceNumber(settings['averageAppointmentDuration']) ??
+        coerceNumber(settings['averageAppointmentDurationMinutes']);
+
+      const averageAppointmentDuration = averageDurationRaw ?? 15;
+
+      return {
+        clinicId: data.clinic_id,
+        estimationMode: (data.clinic.estimation_mode || 'basic') as EstimationMode,
+        averageAppointmentDuration,
+        etaBufferMinutes: data.clinic.eta_buffer_minutes ?? 5,
+        etaRefreshIntervalSec: data.clinic.eta_refresh_interval_sec ?? 60,
+        mlEnabled: data.clinic.ml_enabled ?? false,
+        mlModelVersion: data.clinic.ml_model_version ?? undefined,
+        mlEndpointUrl: data.clinic.ml_endpoint_url ?? undefined,
+        rawSettings: settings,
+      };
+    } catch (error) {
+      logger.error('Failed to load clinic estimation config', error as Error, { staffId });
+      return null;
+    }
+  }
+
+  async recordWaitTimePredictions(predictions: WaitTimePredictionRecord[]): Promise<void> {
+    if (!predictions.length) return;
+    try {
+      const payload = predictions.map(prediction => ({
+        appointment_id: prediction.appointmentId,
+        clinic_id: prediction.clinicId,
+        prediction_minutes: Math.round(prediction.estimatedMinutes),
+        lower_confidence: prediction.lowerConfidence ?? null,
+        upper_confidence: prediction.upperConfidence ?? null,
+        confidence_score: prediction.confidenceScore ?? null,
+        mode: prediction.mode,
+        model_version: prediction.modelVersion ?? null,
+        feature_hash: prediction.featureHash ?? null,
+        features: prediction.features ?? null,
+      }));
+
+      const { error } = await supabase.from('wait_time_predictions').insert(payload);
+      if (error) {
+        logger.error('Failed to record wait time predictions', error, { count: predictions.length });
+      }
+    } catch (error) {
+      logger.error('Unexpected error recording wait time predictions', error as Error);
+    }
+  }
+
+  async getHistoricalFeatureSnapshots(
+    clinicId: string,
+    limit = 200
+  ): Promise<WaitTimeFeatureSnapshot[]> {
+    try {
+      const { data, error } = await supabase
+        .from('wait_time_feature_snapshots')
+        .select('*')
+        .eq('clinic_id', clinicId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        logger.error('Failed to fetch historical feature snapshots', error, { clinicId });
+        return [];
+      }
+
+      return (data || []).map(snapshot => ({
+        clinicId: snapshot.clinic_id,
+        hashedAppointmentId: snapshot.hashed_appointment_id,
+        hashedPatientId: snapshot.hashed_patient_id ?? undefined,
+        featureSchemaVersion: snapshot.feature_schema_version,
+        features: snapshot.features || {},
+        labelWaitTime: snapshot.label_wait_time ?? undefined,
+        labelServiceDuration: snapshot.label_service_duration ?? undefined,
+        dataWindowStart: snapshot.data_window_start ? new Date(snapshot.data_window_start) : undefined,
+        dataWindowEnd: snapshot.data_window_end ? new Date(snapshot.data_window_end) : undefined,
+        biasFlag: snapshot.bias_flag ?? undefined,
+        driftScore: snapshot.drift_score ?? undefined,
+        processingPurpose: snapshot.processing_purpose ?? undefined,
+        createdAt: snapshot.created_at ? new Date(snapshot.created_at) : undefined,
+      }));
+    } catch (error) {
+      logger.error('Unexpected error fetching feature snapshots', error as Error, { clinicId });
+      return [];
+    }
+  }
+
+  async insertFeatureSnapshots(snapshots: WaitTimeFeatureSnapshotInput[]): Promise<void> {
+    if (!snapshots.length) return;
+    try {
+      const payload = snapshots.map(snapshot => ({
+        clinic_id: snapshot.clinicId,
+        hashed_appointment_id: snapshot.hashedAppointmentId,
+        hashed_patient_id: snapshot.hashedPatientId ?? null,
+        feature_schema_version: snapshot.featureSchemaVersion,
+        features: snapshot.features,
+        label_wait_time: snapshot.labelWaitTime ?? null,
+        label_service_duration: snapshot.labelServiceDuration ?? null,
+        data_window_start: snapshot.dataWindowStart ?? null,
+        data_window_end: snapshot.dataWindowEnd ?? null,
+        bias_flag: snapshot.biasFlag ?? null,
+        drift_score: snapshot.driftScore ?? null,
+        processing_purpose: snapshot.processingPurpose ?? 'wait_time_optimization',
+      }));
+
+      const { error } = await supabase
+        .from('wait_time_feature_snapshots')
+        .insert(payload);
+
+      if (error) {
+        logger.error('Failed to insert feature snapshots', error, { count: snapshots.length });
+      }
+    } catch (error) {
+      logger.error('Unexpected error inserting feature snapshots', error as Error);
+    }
+  }
 
   // ============================================
   // DEPRECATED & CORE QUEUE OPERATIONS
@@ -130,7 +378,7 @@ async getDailySchedule(
         throw new DatabaseError('Failed to fetch queue entry', error);
       }
 
-      return data ? this.mapToQueueEntry(data) : null;
+      return data ? this.mapToQueueEntry(data as RawAppointmentRow) : null;
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error fetching queue entry', error as Error, { id });
@@ -144,12 +392,10 @@ async getDailySchedule(
    */
   async createQueueEntry(dto: CreateQueueEntryDTO): Promise<QueueEntry> {
     logger.warn('DEPRECATED: createQueueEntry called directly. Transition to RPC method.');
-    // The existing broken logic...
-    const { data, error } = await supabase.from('appointments').insert({ /* ... */ } as any).select().single();
-    if (error || !data) {
-      throw new DatabaseError('Failed to create queue entry (deprecated method)', error);
-    }
-    return this.mapToQueueEntry(data);
+    throw new DatabaseError(
+      'createQueueEntry is deprecated. Use createQueueEntryViaRpc instead.',
+      new Error('Deprecated method invocation')
+    );
   }
 
     // ====================================================================
@@ -181,7 +427,7 @@ async getDailySchedule(
       }
 
       // The RPC function returns a single JSON object representing the new appointment row
-      return this.mapToQueueEntry(data);
+      return this.mapToQueueEntry(data as RawAppointmentRow);
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error creating queue entry via RPC', error as Error, { dto });
@@ -195,7 +441,7 @@ async getDailySchedule(
     try {
       logger.debug('Updating queue entry', { id, ...dto });
 
-      const updateObj: Record<string, any> = {};
+      const updateObj: Record<string, unknown> = {};
       
       // Keep existing updatable fields
       if (dto.status !== undefined) updateObj.status = dto.status;
@@ -230,7 +476,7 @@ async getDailySchedule(
         throw new DatabaseError('Failed to update queue entry', error);
       }
 
-      return this.mapToQueueEntry(data);
+      return this.mapToQueueEntry(data as RawAppointmentRow);
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error updating queue entry', error as Error, { id, dto });
@@ -263,7 +509,7 @@ async getDailySchedule(
       }
 
       logger.info('Patient checked in successfully', { appointmentId });
-      return this.mapToQueueEntry(data);
+      return this.mapToQueueEntry(data as RawAppointmentRow);
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error checking in patient', error as Error, { appointmentId });
@@ -336,7 +582,7 @@ async getDailySchedule(
         throw new DatabaseError('Failed to fetch absent patients', error);
       }
 
-      return (data || []).map(item => this.mapToAbsentPatient(item));
+      return (data || []).map(item => this.mapToAbsentPatient(item as RawAbsentPatientRow));
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error fetching absent patients', error as Error, { clinicId });
@@ -366,7 +612,7 @@ async getDailySchedule(
       });
 
       // Build insert object based on patient type
-      const insertData: any = {
+      const insertData: Record<string, unknown> = {
         appointment_id: appointmentId,
         clinic_id: clinicId,
       };
@@ -399,7 +645,7 @@ async getDailySchedule(
         throw new DatabaseError('Failed to create absent patient record', error);
       }
 
-      return this.mapToAbsentPatient(data);
+      return this.mapToAbsentPatient(data as RawAbsentPatientRow);
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error creating absent patient', error as Error, { appointmentId });
@@ -431,7 +677,7 @@ async getDailySchedule(
         throw new DatabaseError('Failed to mark patient as returned', error);
       }
 
-      return this.mapToAbsentPatient(data);
+      return this.mapToAbsentPatient(data as RawAbsentPatientRow);
     } catch (error) {
       logger.error('Error marking patient as returned', error as Error, { appointmentId });
       throw new DatabaseError('Error marking patient as returned', error as Error);
@@ -470,7 +716,7 @@ async getDailySchedule(
         throw new DatabaseError('Failed to fetch queue overrides', error);
       }
 
-      return (data || []).map(item => this.mapToQueueOverride(item));
+      return (data || []).map(item => this.mapToQueueOverride(item as RawQueueOverrideRow));
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error fetching queue overrides', error as Error, { clinicId });
@@ -546,7 +792,7 @@ async getDailySchedule(
           reason: reason || null,
           previous_position: previousPosition ?? null,
           new_position: newPosition ?? null,
-        } as any)
+        })
         .select('*')
         .single();
 
@@ -597,7 +843,21 @@ async getDailySchedule(
   // MAPPING FUNCTIONS
   // ============================================
 
-  private mapToQueueEntry(data: any): QueueEntry {
+  private mapScheduleResponse(
+    data: ClinicScheduleResponse | null,
+    fallbackMode: string
+  ): { operating_mode: string; schedule: QueueEntry[] } {
+    const scheduleSource: RawAppointmentRow[] = Array.isArray(data?.schedule)
+      ? (data?.schedule as RawAppointmentRow[])
+      : [];
+
+    return {
+      operating_mode: data?.operating_mode ?? fallbackMode,
+      schedule: this.mapToQueueEntries(scheduleSource),
+    };
+  }
+
+  private mapToQueueEntry(data: RawAppointmentRow): QueueEntry {
     const patientInfo = data.is_guest && data.guest_patient ? {
       id: data.guest_patient.id,
       fullName: data.guest_patient.full_name,
@@ -632,6 +892,13 @@ async getDailySchedule(
       checkedInAt: data.checked_in_at ? new Date(data.checked_in_at) : undefined,
       actualStartTime: data.actual_start_time ? new Date(data.actual_start_time) : undefined,
       actualEndTime: data.actual_end_time ? new Date(data.actual_end_time) : undefined,
+      estimatedDurationMinutes: data.estimated_duration ?? undefined,
+      estimatedWaitTime: typeof data.predicted_wait_time === 'number' ? data.predicted_wait_time : undefined,
+      predictionMode: data.prediction_mode as EstimationMode | undefined,
+      predictionConfidence: data.prediction_confidence ?? undefined,
+      predictedStartTime: data.predicted_start_time ? new Date(data.predicted_start_time) : undefined,
+      etaSource: data.prediction_mode as EstimationMode | undefined,
+      etaUpdatedAt: data.last_prediction_update ? new Date(data.last_prediction_update) : undefined,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
       isGuest: data.is_guest || false,
@@ -645,11 +912,11 @@ async getDailySchedule(
     };
   }
 
-  private mapToQueueEntries(data: any[]): QueueEntry[] {
-    if (!data) return [];
+  private mapToQueueEntries(data: RawAppointmentRow[] | null): QueueEntry[] {
+    if (!data || !data.length) return [];
     return data.map(item => this.mapToQueueEntry(item));
   }
-  private mapToAbsentPatient(data: any): AbsentPatient {
+  private mapToAbsentPatient(data: RawAbsentPatientRow): AbsentPatient {
     return {
       id: data.id,
       appointmentId: data.appointment_id,
@@ -666,7 +933,7 @@ async getDailySchedule(
     };
   }
 
-  private mapToQueueOverride(data: any): QueueOverride {
+  private mapToQueueOverride(data: RawQueueOverrideRow): QueueOverride {
     return {
       id: data.id,
       clinicId: data.clinic_id,

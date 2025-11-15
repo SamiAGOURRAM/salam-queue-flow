@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { Calendar as CalendarIcon, Plus, Clock, UserX, CheckCircle2, Activity, XCircle } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { BookAppointmentDialog } from "@/components/clinic/BookAppointmentDialog";
@@ -18,10 +19,14 @@ import { logger } from "@/services/shared/logging/Logger";
 import { QueueEntry, SkipReason } from "@/services/queue";
 import { QueueRepository } from "@/services/queue/repositories/QueueRepository";
 import { cn } from "@/lib/utils";
+import type { Database } from "@/integrations/supabase/types";
+
+type ClinicRow = Database["public"]["Tables"]["clinics"]["Row"];
+type StatusConfig = Record<string, { variant: string; icon?: LucideIcon; className: string }>;
 
 export default function ClinicCalendar() {
   const { user } = useAuth();
-  const [clinic, setClinic] = useState<any>(null);
+  const [clinic, setClinic] = useState<ClinicRow | null>(null);
   const [staffId, setStaffId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [appointments, setAppointments] = useState<QueueEntry[]>([]);
@@ -99,7 +104,7 @@ export default function ClinicCalendar() {
     }
     
     // Status styling map
-    const statusConfig: Record<string, { variant: string; icon?: any; className: string }> = {
+    const statusConfig: StatusConfig = {
       scheduled: { 
         variant: "outline", 
         icon: Clock,

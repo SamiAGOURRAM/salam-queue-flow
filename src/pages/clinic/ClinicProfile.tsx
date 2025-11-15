@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,11 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Activity, Save, User } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import type { Database } from "@/integrations/supabase/types";
+
+type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 
 export default function ClinicProfile() {
   const { user, loading, isClinicOwner, signOut } = useAuth();
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [saving, setSaving] = useState(false);
 
   const [fullName, setFullName] = useState("");
@@ -22,21 +25,12 @@ export default function ClinicProfile() {
   const [specialization, setSpecialization] = useState("");
   const [licenseNumber, setLicenseNumber] = useState("");
 
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate("/auth/login");
-      return;
-    }
-    if (user) {
-      fetchProfile();
-    }
-  }, [user, loading, navigate]);
-
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
+    if (!user?.id) return;
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
       .select("*")
-      .eq("id", user?.id)
+      .eq("id", user.id)
       .single();
 
     if (profileError) {
@@ -51,7 +45,7 @@ export default function ClinicProfile() {
     const { data: staffData } = await supabase
       .from("clinic_staff")
       .select("*")
-      .eq("user_id", user?.id)
+      .eq("user_id", user.id)
       .single();
 
     setProfile(profileData);
@@ -60,7 +54,17 @@ export default function ClinicProfile() {
     setPhone(profileData.phone_number || "");
     setSpecialization(staffData?.specialization || "");
     setLicenseNumber(staffData?.license_number || "");
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/auth/login");
+      return;
+    }
+    if (user) {
+      fetchProfile();
+    }
+  }, [user, loading, navigate, fetchProfile]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -92,10 +96,10 @@ export default function ClinicProfile() {
         title: "Success",
         description: "Profile updated successfully",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Failed to update profile",
         variant: "destructive",
       });
     } finally {

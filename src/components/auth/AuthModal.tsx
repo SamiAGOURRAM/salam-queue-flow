@@ -37,10 +37,11 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
         description: "You've successfully signed in.",
       });
       onSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const description = error instanceof Error ? error.message : "Something went wrong";
       toast({
         title: "Login Failed",
-        description: error.message,
+        description,
         variant: "destructive",
       });
     } finally {
@@ -70,10 +71,11 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
         description: "You can now book your appointment.",
       });
       onSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const description = error instanceof Error ? error.message : "Something went wrong";
       toast({
         title: "Signup Failed",
-        description: error.message,
+        description,
         variant: "destructive",
       });
     } finally {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -76,21 +76,13 @@ export default function PatientDashboard() {
     time: string;
   } | null>(null);
 
-  useEffect(() => {
-    if (!loading && !user) {
-      // Handle navigation if necessary
-    } else if (user) {
-      fetchPatientProfile();
-      fetchAppointments();
-    }
-  }, [user, loading, navigate]);
-  
-  const fetchPatientProfile = async () => {
+  const fetchPatientProfile = useCallback(async () => {
+    if (!user?.id) return;
     try {
       const { data, error } = await supabase
         .from("profiles")
         .select("full_name")
-        .eq("id", user?.id)
+        .eq("id", user.id)
         .single();
         
       if (error && error.code !== 'PGRST116') throw error;
@@ -101,9 +93,10 @@ export default function PatientDashboard() {
     } catch (error) {
       console.error("Error fetching patient name:", error);
     }
-  };
+  }, [user]);
 
-  const fetchAppointments = async () => {
+  const fetchAppointments = useCallback(async () => {
+    if (!user?.id) return;
     try {
       setLoadingAppointments(true);
       
@@ -119,7 +112,7 @@ export default function PatientDashboard() {
           queue_position,
           clinic:clinics(name, specialty, city)
         `)
-        .eq("patient_id", user?.id)
+        .eq("patient_id", user.id)
         .order("appointment_date", { ascending: true })
         .order("scheduled_time", { ascending: true });
 
@@ -136,7 +129,16 @@ export default function PatientDashboard() {
     } finally {
       setLoadingAppointments(false);
     }
-  };
+  }, [user, t]);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      // Handle navigation if necessary
+    } else if (user) {
+      fetchPatientProfile();
+      fetchAppointments();
+    }
+  }, [user, loading, navigate, fetchPatientProfile, fetchAppointments]);
 
   const handleCancelAppointment = async () => {
     if (!appointmentToCancel) return;
@@ -202,11 +204,15 @@ export default function PatientDashboard() {
       setCancelDialogOpen(false);
       setAppointmentToCancel(null);
   
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("❌ Error in cancellation:", error);
+      const description =
+        error instanceof Error
+          ? error.message
+          : "Failed to cancel appointment. Please try again.";
       toast({
         title: "Cancellation Failed",
-        description: error.message || "Failed to cancel appointment. Please try again.",
+        description,
         variant: "destructive",
       });
     }
