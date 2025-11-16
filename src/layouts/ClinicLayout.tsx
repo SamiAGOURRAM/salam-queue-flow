@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { logger } from "@/services/shared/logging/Logger";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { 
@@ -46,7 +47,7 @@ export default function ClinicLayout() {
       const { data } = await query.single();
       setClinic(data);
     } catch (error) {
-      console.error("Error fetching clinic:", error);
+      logger.error("Error fetching clinic", error instanceof Error ? error : new Error(String(error)), { userId: user?.id, isClinicOwner });
     }
   }, [isClinicOwner, user]);
 

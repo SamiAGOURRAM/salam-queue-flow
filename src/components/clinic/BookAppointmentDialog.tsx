@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { patientService } from "@/services/patient";
 import { staffService } from "@/services/staff";
 import { useQueueService } from "@/hooks/useQueueService";
+import { logger } from "@/services/shared/logging/Logger";
 
 const APPOINTMENT_TYPES = ["consultation", "follow_up", "procedure", "emergency"] as const;
 type AppointmentTypeOption = typeof APPOINTMENT_TYPES[number];
@@ -68,7 +69,7 @@ export function BookAppointmentDialog({
           setStaffId(staffList[0].id);
         }
       } catch (error) {
-        console.error('Failed to fetch staff', error);
+        logger.error('Failed to fetch staff', error instanceof Error ? error : new Error(String(error)), { clinicId });
       }
     };
     fetchStaff();

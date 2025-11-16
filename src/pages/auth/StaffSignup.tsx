@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { staffService } from "@/services/staff";
 import { patientService } from "@/services/patient";
+import { logger } from "@/services/shared/logging/Logger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,7 +52,7 @@ export default function StaffSignup() {
           setClinicInfo(data.clinics as { name: string; specialty: string });
         }
       } catch (error) {
-        console.error("Error fetching clinic info:", error);
+        logger.error("Error fetching clinic info", error instanceof Error ? error : new Error(String(error)), { invitationToken });
       }
     };
 
@@ -101,7 +102,7 @@ export default function StaffSignup() {
     setLoading(true);
     try {
       // 1. Fetch invitation details to get clinic_id
-      console.log("Fetching invitation with token:", invitationToken);
+      logger.debug("Fetching invitation with token", { invitationToken });
       const { data: invitationData, error: inviteError } = await supabase
         .from("staff_invitations")
         .select("id, clinic_id, status, expires_at")
@@ -110,7 +111,7 @@ export default function StaffSignup() {
         .single();
 
       if (inviteError || !invitationData) {
-        console.error("Invitation fetch error:", inviteError);
+        logger.error("Invitation fetch error", inviteError, { invitationToken });
         throw new Error("Invalid or expired invitation");
       }
 
@@ -122,10 +123,10 @@ export default function StaffSignup() {
         throw new Error("This invitation has expired");
       }
 
-      console.log("Valid invitation found for clinic:", invitationData.clinic_id);
+      logger.debug("Valid invitation found for clinic", { clinicId: invitationData.clinic_id, invitationId: invitationData.id });
 
       // 2. Check if user already exists in auth
-      console.log("Checking if user exists...");
+      logger.debug("Checking if user exists", { email: formData.email });
       let userId: string;
       let isExistingUser = false;
 
@@ -137,12 +138,12 @@ export default function StaffSignup() {
 
       if (signInData.user) {
         // User exists and password works - just use this account
-        console.log("✅ User already exists, logging in:", signInData.user.id);
+        logger.info("User already exists, logging in", { userId: signInData.user.id, email: formData.email });
         userId = signInData.user.id;
         isExistingUser = true;
       } else {
         // User doesn't exist or password wrong, create new account
-        console.log("Creating new user account...");
+        logger.debug("Creating new user account", { email: formData.email });
         const { data: authData, error: signUpError } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
@@ -159,10 +160,10 @@ export default function StaffSignup() {
         if (signUpError) {
           // If error is "user already registered", try to handle it
           if (signUpError.message?.includes("already registered") || signUpError.message?.includes("already exists")) {
-            console.log("User exists but password didn't work. Asking user to use correct password.");
+            logger.warn("User exists but password didn't work", { email: formData.email });
             throw new Error("An account with this email already exists. Please use the correct password or contact the clinic owner.");
           }
-          console.error("Signup error:", signUpError);
+          logger.error("Signup error", signUpError, { email: formData.email });
           throw signUpError;
         }
 
@@ -170,7 +171,7 @@ export default function StaffSignup() {
           throw new Error("Failed to create user account");
         }
 
-        console.log("✅ User created:", authData.user.id);
+        logger.info("User created successfully", { userId: authData.user.id, email: formData.email });
         userId = authData.user.id;
       }
 
@@ -189,20 +190,20 @@ export default function StaffSignup() {
 
       if (!existingStaff) {
         // 5. Use StaffService to add staff
-        console.log("Adding to clinic_staff...");
+        logger.debug("Adding to clinic_staff", { userId, clinicId: invitationData.clinic_id, role: "receptionist" });
         try {
           await staffService.addStaff({
             clinicId: invitationData.clinic_id,
             userId: userId,
             role: "receptionist",
           });
-          console.log("✅ Added to clinic_staff");
+          logger.info("Added to clinic_staff", { userId, clinicId: invitationData.clinic_id });
         } catch (staffError) {
-          console.error("clinic_staff insert error:", staffError);
+          logger.error("clinic_staff insert error", staffError instanceof Error ? staffError : new Error(String(staffError)), { userId, clinicId: invitationData.clinic_id });
           throw new Error(`Failed to add to clinic staff: ${staffError instanceof Error ? staffError.message : 'Unknown error'}`);
         }
       } else {
-        console.log("✅ Already in clinic_staff");
+        logger.debug("Already in clinic_staff", { userId, clinicId: invitationData.clinic_id });
       }
 
       // 6. Check if already has user role
@@ -215,7 +216,7 @@ export default function StaffSignup() {
 
       if (!existingRole) {
         // 7. Insert into user_roles
-        console.log("Adding user role...");
+        logger.debug("Adding user role", { userId, clinicId: invitationData.clinic_id, role: "staff" });
         const { error: roleError } = await supabase
           .from("user_roles")
           .insert({
@@ -225,17 +226,17 @@ export default function StaffSignup() {
           });
 
         if (roleError) {
-          console.error("user_roles insert error:", roleError);
+          logger.error("user_roles insert error", roleError, { userId, clinicId: invitationData.clinic_id });
           throw new Error(`Failed to assign role: ${roleError.message}`);
         }
 
-        console.log("✅ Added to user_roles");
+        logger.info("Added to user_roles", { userId, clinicId: invitationData.clinic_id });
       } else {
-        console.log("✅ Already has user role");
+        logger.debug("Already has user role", { userId, clinicId: invitationData.clinic_id });
       }
 
       // 8. Update invitation status
-      console.log("Updating invitation status...");
+      logger.debug("Updating invitation status", { invitationId: invitationData.id });
       const { error: updateError } = await supabase
         .from("staff_invitations")
         .update({
@@ -245,11 +246,11 @@ export default function StaffSignup() {
         .eq("id", invitationData.id);
 
       if (updateError) {
-        console.error("Invitation update error:", updateError);
+        logger.error("Invitation update error", updateError, { invitationId: invitationData.id });
         // Don't throw - invitation is functionally accepted
       }
 
-      console.log("✅ Invitation marked as accepted");
+      logger.info("Invitation marked as accepted", { invitationId: invitationData.id, userId });
 
       // 9. Success! User is logged in
       toast({
@@ -260,10 +261,10 @@ export default function StaffSignup() {
       });
 
       // Redirect to clinic dashboard
-      console.log("Redirecting to /clinic/queue");
+      logger.debug("Redirecting to /clinic/queue", { userId });
       navigate("/clinic/queue");
     } catch (error: unknown) {
-      console.error("Signup error:", error);
+      logger.error("Signup error", error instanceof Error ? error : new Error(String(error)), { email: formData.email });
       const errorMessage = error instanceof Error ? error.message : "Failed to create account";
       toast({
         title: "Signup failed",

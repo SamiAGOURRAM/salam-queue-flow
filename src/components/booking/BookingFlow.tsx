@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueueService } from "@/hooks/useQueueService";
+import { clinicService } from "@/services/clinic";
+import { queueService } from "@/services/queue";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -71,16 +73,17 @@ const BookingFlow = () => {
   const fetchClinic = useCallback(async () => {
     if (!clinicId) return;
     try {
-      const { data, error } = await supabase
-        .from("clinics")
-        .select("*")
-        .eq("id", clinicId)
-        .single();
-
-      if (error) throw error;
-      setClinic(data);
+      const clinicData = await clinicService.getClinic(clinicId);
+      
+      // Map to component's expected format
+      setClinic({
+        id: clinicData.id,
+        name: clinicData.name,
+        specialty: clinicData.specialty,
+        settings: clinicData.settings,
+      } as Clinic);
     } catch (error) {
-      console.error("Error fetching clinic:", error);
+      logger.error("Error fetching clinic", error instanceof Error ? error : new Error(String(error)), { clinicId });
       toast({
         title: "Error",
         description: "Failed to load clinic information.",
@@ -96,25 +99,14 @@ const BookingFlow = () => {
     try {
       const dateStr = format(date, "yyyy-MM-dd");
       
-      const { data, error } = await supabase
-        .from("appointments")
-        .select("start_time, status, id")
-        .eq("clinic_id", clinicId)
-        .eq("appointment_date", dateStr)
-        .in("status", ACTIVE_STATUSES);
-
-      if (error) {
-        throw error;
-      }
+      const bookedSlotsData = await queueService.getClinicBookedSlots(clinicId, dateStr);
       
       // Extract time from start_time (timestamp) to UI format (HH:MM)
-      const slots = (data || []).map(apt => {
-        if (!apt.start_time) return null;
-        
+      const slots = bookedSlotsData.map(slot => {
         // Extract time from timestamp: "2025-11-27T10:00:00+01:00" -> "10:00"
-        const timeStr = format(new Date(apt.start_time), "HH:mm");
+        const timeStr = format(new Date(slot.startTime), "HH:mm");
         return timeStr;
-      }).filter(Boolean) as string[];
+      });
       
       // Remove duplicates (in case multiple appointments at same time)
       const uniqueSlots = [...new Set(slots)];
@@ -158,7 +150,7 @@ const BookingFlow = () => {
           filter: `clinic_id=eq.${clinicId}`,
         },
         (payload) => {
-          console.log("Real-time appointment change:", payload);
+          logger.debug("Real-time appointment change", { event: payload.eventType, clinicId });
           fetchBookedSlots(selectedDate);
         }
       )
@@ -177,42 +169,34 @@ const BookingFlow = () => {
       // Convert UI time (HH:MM) to database format (HH:MM:SS)
       const timeWithSeconds = time.length === 5 ? `${time}:00` : time;
       
-      console.log("\n🔍 === CHECKING SLOT AVAILABILITY ===");
-      console.log("   Clinic ID:", clinicId);
-      console.log("   Date:", dateStr);
-      console.log("   Time (UI format):", time);
-      console.log("   Time (DB format):", timeWithSeconds);
+      logger.debug("Checking slot availability", { clinicId, date: dateStr, time, timeWithSeconds });
       
-      // Check if slot is booked by comparing start_time
+      // Get all booked slots for the date
+      const bookedSlotsData = await queueService.getClinicBookedSlots(clinicId, dateStr);
+      
       // Build the full datetime string for the selected time
       const fullDateTime = `${dateStr}T${timeWithSeconds}`;
-      const { data, error } = await supabase
-        .from("appointments")
-        .select("id, start_time, status, patient_id")
-        .eq("clinic_id", clinicId)
-        .eq("appointment_date", dateStr)
-        .gte("start_time", fullDateTime)
-        .lt("start_time", `${dateStr}T${timeWithSeconds.split(':').slice(0, 2).join(':')}:${String(parseInt(timeWithSeconds.split(':')[2] || '0') + 1).padStart(2, '0')}`)
-        .in("status", ACTIVE_STATUSES);
-
-      if (error) {
-        console.error("❌ Query error:", error);
-        throw error;
-      }
+      const selectedTime = new Date(fullDateTime).getTime();
       
-      const isAvailable = !data || data.length === 0;
+      // Check if any booked slot overlaps with the selected time
+      const isBooked = bookedSlotsData.some(slot => {
+        const slotTime = new Date(slot.startTime).getTime();
+        const oneMinuteLater = slotTime + 60000; // Add 1 minute
+        // Check if selected time falls within the slot's time range
+        return selectedTime >= slotTime && selectedTime < oneMinuteLater;
+      });
+      
+      const isAvailable = !isBooked;
       
       if (!isAvailable) {
-        console.log("   ❌ SLOT TAKEN - Existing appointments:", data);
+        logger.debug("Slot taken", { clinicId, date: dateStr, time });
       } else {
-        console.log("   ✅ SLOT AVAILABLE");
+        logger.debug("Slot available", { clinicId, date: dateStr, time });
       }
-      
-      console.log("=================================\n");
       
       return isAvailable;
     } catch (error) {
-      console.error("❌ Error checking slot availability:", error);
+      logger.error("Error checking slot availability", error instanceof Error ? error : new Error(String(error)), { clinicId, date: format(date, "yyyy-MM-dd"), time });
       return false;
     }
   };
@@ -329,21 +313,22 @@ const BookingFlow = () => {
         return;
       }
 
-      console.log("📝 Starting booking process...");
-      console.log("   Date:", format(selectedDate!, "yyyy-MM-dd"));
-      console.log("   Time (UI):", selectedTime);
+      logger.debug("Starting booking process", { 
+        date: format(selectedDate!, "yyyy-MM-dd"), 
+        time: selectedTime, 
+        appointmentType,
+        clinicId 
+      });
       
       // Convert time to database format (HH:MM:SS)
       const timeForDB = selectedTime.length === 5 ? `${selectedTime}:00` : selectedTime;
-      console.log("   Time (DB):", timeForDB);
-      console.log("   Type:", appointmentType);
 
       // Get clinic staff (using RPC for now, could be refactored to StaffService later)
       const { data: staffData, error: staffError } = await supabase
         .rpc('get_clinic_staff_for_booking', { p_clinic_id: clinicId });
 
       if (staffError || !staffData || staffData.length === 0) {
-        console.error("❌ Could not find clinic staff:", staffError);
+        logger.error("Could not find clinic staff", staffError, { clinicId });
         toast({
           title: "Configuration Error",
           description: "Could not find clinic staff. Please contact the clinic.",
@@ -359,7 +344,7 @@ const BookingFlow = () => {
       const isSlotAvailable = await checkSlotAvailability(selectedDate!, selectedTime);
 
       if (!isSlotAvailable) {
-        console.warn("⚠️ Slot was taken between selection and booking");
+        logger.warn("Slot was taken between selection and booking", { clinicId, date: format(selectedDate!, "yyyy-MM-dd"), time: selectedTime });
         toast({
           title: "Time Slot No Longer Available",
           description: "This time slot was just booked by another patient. Please select a different time.",
@@ -372,7 +357,7 @@ const BookingFlow = () => {
         return;
       }
 
-      console.log("✅ Slot is available, creating appointment...");
+      logger.debug("Slot is available, creating appointment", { clinicId, date: format(selectedDate!, "yyyy-MM-dd"), time: selectedTime });
 
       // Convert date and time to ISO format for QueueService
       const appointmentDate = format(selectedDate!, "yyyy-MM-dd");
@@ -385,9 +370,13 @@ const BookingFlow = () => {
       const endDateTime = new Date(startDateTime);
       endDateTime.setMinutes(endDateTime.getMinutes() + duration);
 
-      console.log("   Creating appointment via QueueService...");
-      console.log("   Start:", startDateTime.toISOString());
-      console.log("   End:", endDateTime.toISOString());
+      logger.debug("Creating appointment via QueueService", { 
+        start: startDateTime.toISOString(), 
+        end: endDateTime.toISOString(),
+        appointmentType,
+        clinicId,
+        userId 
+      });
 
       // Validate appointmentType is a valid enum value
       // Valid values: consultation, follow_up, emergency, procedure, vaccination, screening
@@ -414,7 +403,12 @@ const BookingFlow = () => {
         throw new Error("Failed to create appointment");
       }
 
-      console.log("🎉 Booking successful! Appointment:", newAppointment);
+      logger.info("Booking successful", { 
+        appointmentId: newAppointment.id, 
+        clinicId, 
+        userId,
+        queuePosition: newAppointment.queuePosition 
+      });
 
       // Get queue information for display
       setQueuePosition(newAppointment.queuePosition || null);
@@ -436,7 +430,7 @@ const BookingFlow = () => {
       });
       
     } catch (error: unknown) {
-      console.error("❌ Booking failed:", error);
+      logger.error("Booking failed", error instanceof Error ? error : new Error(String(error)), { clinicId, userId, date: format(selectedDate!, "yyyy-MM-dd"), time: selectedTime });
       const description =
         error instanceof Error
           ? error.message

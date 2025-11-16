@@ -7,7 +7,7 @@
 import { QueueRepository } from './repositories/QueueRepository';
 import { eventBus } from '../shared/events/EventBus';
 import { logger } from '../shared/logging/Logger';
-import { NotFoundError, ValidationError, BusinessRuleError, ConflictError } from '../shared/errors';
+import { NotFoundError, ValidationError, BusinessRuleError, ConflictError, DatabaseError } from '../shared/errors';
 import {
   QueueEntry,
   QueueFilters,
@@ -69,6 +69,35 @@ export class QueueService {
         throw new NotFoundError(`Appointment with ID ${appointmentId} not found.`);
     }
     return entry;
+  }
+
+  /**
+   * Get all appointments for a patient
+   */
+  async getPatientAppointments(patientId: string): Promise<QueueEntry[]> {
+    try {
+      logger.debug('Fetching patient appointments', { patientId });
+      return await this.repository.getPatientAppointments(patientId);
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error fetching patient appointments', error as Error, { patientId });
+      throw new DatabaseError('Unexpected error fetching patient appointments', error as Error);
+    }
+  }
+
+  /**
+   * Get booked slots for a clinic on a specific date
+   * Returns array of appointment IDs and start times for active appointments
+   */
+  async getClinicBookedSlots(clinicId: string, date: string): Promise<Array<{ id: string; startTime: string }>> {
+    try {
+      logger.debug('Fetching clinic booked slots', { clinicId, date });
+      return await this.repository.getClinicBookedSlots(clinicId, date);
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error fetching clinic booked slots', error as Error, { clinicId, date });
+      throw new DatabaseError('Unexpected error fetching clinic booked slots', error as Error);
+    }
   }
 
   // ====================================================================

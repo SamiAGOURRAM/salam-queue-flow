@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { QueueService } from "@/services/queue/QueueService";
+import { queueService } from "@/services/queue";
 import { DisruptionDetector } from "@/services/ml/DisruptionDetector";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Activity, Clock, MapPin, Users, ArrowLeft } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { logger } from "@/services/shared/logging/Logger";
 
 interface QueueInfo {
   id: string;
@@ -42,39 +43,21 @@ export default function MyQueue() {
   const fetchQueueInfo = useCallback(async () => {
     if (!appointmentId) return;
     try {
-      const { data, error } = await supabase
-        .from("appointments")
-        .select(`
-          id,
-          queue_position,
-          predicted_start_time,
-          predicted_wait_time,
-          status,
-          start_time,
-          appointment_type,
-          checked_in_at,
-          clinics:clinic_id (name)
-        `)
-        .eq("id", appointmentId)
-        .single();
-
-      if (error) throw error;
-
-      const record = data as QueueInfoRecord & { start_time: string | null };
+      const entry = await queueService.getQueueEntry(appointmentId);
 
       setQueueInfo({
-        id: record.id,
-        clinic_name: record.clinics?.name || 'Unknown Clinic',
-        queue_position: record.queue_position,
-        predicted_start_time: record.predicted_start_time,
-        predicted_wait_time: record.predicted_wait_time,
-        status: record.status,
-        scheduled_time: record.start_time ? format(new Date(record.start_time), 'HH:mm') : null,
-        appointment_type: record.appointment_type,
-        checked_in_at: record.checked_in_at
+        id: entry.id,
+        clinic_name: entry.clinic?.name || 'Unknown Clinic',
+        queue_position: entry.queuePosition || 0,
+        predicted_start_time: entry.predictedStartTime?.toISOString() || null,
+        predicted_wait_time: entry.estimatedWaitTime || null,
+        status: entry.status,
+        scheduled_time: entry.startTime ? format(entry.startTime, 'HH:mm') : null,
+        appointment_type: entry.appointmentType,
+        checked_in_at: entry.checkedInAt?.toISOString() || null
       });
     } catch (error) {
-      console.error("Error fetching queue info:", error);
+      logger.error("Error fetching queue info", error instanceof Error ? error : new Error(String(error)), { appointmentId });
       toast({
         title: "Error",
         description: "Failed to load queue information",
@@ -90,7 +73,7 @@ export default function MyQueue() {
       const disruptionInfo = await disruptionDetector.checkDisruption(appointmentId);
       setHasDisruption(disruptionInfo.hasDisruption);
     } catch (error) {
-      console.error("Error checking disruption:", error);
+      logger.error("Error checking disruption", error instanceof Error ? error : new Error(String(error)), { appointmentId });
       // Default to no disruption on error
       setHasDisruption(false);
     }
@@ -172,7 +155,7 @@ export default function MyQueue() {
 
       fetchQueueInfo();
     } catch (error) {
-      console.error("Error checking in:", error);
+      logger.error("Error checking in", error instanceof Error ? error : new Error(String(error)), { appointmentId });
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to check in",

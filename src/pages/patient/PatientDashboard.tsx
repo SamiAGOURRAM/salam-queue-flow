@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
-import { QueueService } from "@/services/queue/QueueService";
+import { queueService } from "@/services/queue";
+import { patientService } from "@/services/patient";
 import { AppointmentStatus } from "@/services/queue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -82,19 +82,10 @@ export default function PatientDashboard() {
   const fetchPatientProfile = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", user.id)
-        .single();
-        
-      if (error && error.code !== 'PGRST116') throw error;
-      
-      if (data?.full_name) {
-        setPatientFullName(data.full_name);
-      }
+      const profile = await patientService.getPatientProfile(user.id);
+      setPatientFullName(profile.fullName);
     } catch (error) {
-      console.error("Error fetching patient name:", error);
+      logger.error("Error fetching patient name", error instanceof Error ? error : new Error(String(error)), { userId: user?.id });
     }
   }, [user]);
 
@@ -103,27 +94,31 @@ export default function PatientDashboard() {
     try {
       setLoadingAppointments(true);
       
-      const { data, error } = await supabase
-        .from("appointments")
-        .select(`
-          id,
-          clinic_id,
-          appointment_date,
-          start_time,
-          appointment_type,
-          status,
-          queue_position,
-          clinic:clinics(name, specialty, city)
-        `)
-        .eq("patient_id", user.id)
-        .order("appointment_date", { ascending: true })
-        .order("start_time", { ascending: true, nullsFirst: false });
+      const queueEntries = await queueService.getPatientAppointments(user.id);
 
-      if (error) throw error;
+      // Map QueueEntry to Appointment interface for backward compatibility
+      const appointments: Appointment[] = queueEntries.map(entry => ({
+        id: entry.id,
+        clinic_id: entry.clinicId,
+        appointment_date: entry.appointmentDate.toISOString().split('T')[0],
+        start_time: entry.startTime?.toISOString() || null,
+        appointment_type: entry.appointmentType,
+        status: entry.status,
+        queue_position: entry.queuePosition,
+        clinic: entry.clinic ? {
+          name: entry.clinic.name || 'Unknown Clinic',
+          specialty: entry.clinic.specialty || '',
+          city: entry.clinic.city || '',
+        } : {
+          name: 'Unknown Clinic',
+          specialty: '',
+          city: '',
+        },
+      }));
 
-      setAppointments(data || []);
+      setAppointments(appointments);
     } catch (error) {
-      console.error("Error fetching appointments:", error);
+      logger.error("Error fetching appointments", error instanceof Error ? error : new Error(String(error)), { userId: user?.id });
       toast({
         title: t('errors.error'),
         description: t('errors.failedToLoad'),
@@ -143,8 +138,6 @@ export default function PatientDashboard() {
     }
   }, [user, loading, navigate, fetchPatientProfile, fetchAppointments]);
 
-  // Reuse QueueService instance instead of creating new one on every action
-  const queueService = useMemo(() => new QueueService(), []);
 
   const handleCancelAppointment = async () => {
     if (!appointmentToCancel || !user?.id) return;
@@ -178,9 +171,9 @@ export default function PatientDashboard() {
   
       setCancelDialogOpen(false);
       setAppointmentToCancel(null);
-  
+
     } catch (error: unknown) {
-      console.error("❌ Error in cancellation:", error);
+      logger.error("Error cancelling appointment", error instanceof Error ? error : new Error(String(error)), { appointmentId: appointmentToCancel?.id, userId: user?.id });
       const description =
         error instanceof Error
           ? error.message

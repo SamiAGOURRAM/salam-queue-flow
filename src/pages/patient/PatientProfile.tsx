@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { patientService } from "@/services/patient";
+import { logger } from "@/services/shared/logging/Logger";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -61,7 +62,7 @@ export default function PatientProfile() {
         setCity(profileRow.city || "");
       }
     } catch (error) {
-      console.error("Error fetching profile:", error);
+      logger.error("Error fetching profile", error instanceof Error ? error : new Error(String(error)), { userId: user?.id });
       toast({
         title: t('errors.error'), // Translated
         description: t('errors.failedToLoad'), // Translated
@@ -98,7 +99,7 @@ export default function PatientProfile() {
         description: t('profile.saveSuccess', { defaultValue: 'Profile updated successfully' }),
       });
     } catch (error: unknown) {
-      console.error("Error updating profile:", error);
+      logger.error("Error updating profile", error instanceof Error ? error : new Error(String(error)), { userId: user?.id });
       const description =
         error instanceof Error
           ? error.message

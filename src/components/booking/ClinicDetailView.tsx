@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { logger } from "@/services/shared/logging/Logger";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -137,7 +138,7 @@ const ClinicDetailView = () => {
         setStaff(staffWithProfiles as Staff[]);
       }
     } catch (error) {
-      console.error("Error fetching clinic details:", error);
+      logger.error("Error fetching clinic details", error instanceof Error ? error : new Error(String(error)), { clinicId });
       toast({
         title: "Error",
         description: "Failed to load clinic details. Please try again.",

@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { clinicService } from "@/services/clinic";
 import { staffService } from "@/services/staff";
 import { patientService } from "@/services/patient";
+import { logger } from "@/services/shared/logging/Logger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -85,8 +86,7 @@ export default function ClinicOnboarding() {
 
       // If no user exists, create account first (from stored signup data)
       if (!currentUser && signupData) {
-        console.log("Creating account with clinic setup...");
-        console.log("Signup data:", { email: signupData.email, phone: signupData.phone, fullName: signupData.fullName });
+        logger.debug("Creating account with clinic setup", { email: signupData.email, phone: signupData.phone, fullName: signupData.fullName });
         
         // Validate phone number
         if (!signupData.phone || !signupData.phone.trim()) {
@@ -109,7 +109,7 @@ export default function ClinicOnboarding() {
         });
 
         if (authError) {
-          console.error("Auth signup error:", authError);
+          logger.error("Auth signup error", authError, { email: signupData.email });
           throw new Error(`Failed to create account: ${authError.message}`);
         }
         
@@ -118,7 +118,7 @@ export default function ClinicOnboarding() {
         }
 
         currentUser = authData.user;
-        console.log("Account created successfully:", currentUser.id);
+        logger.info("Account created successfully", { userId: currentUser.id, email: signupData.email });
 
         // Wait a moment for database triggers to complete
         await new Promise(resolve => setTimeout(resolve, 1500));
@@ -137,8 +137,7 @@ export default function ClinicOnboarding() {
         return;
       }
 
-      console.log("Creating clinic for user:", currentUser.id);
-      console.log("Clinic data:", clinicData);
+      logger.debug("Creating clinic for user", { userId: currentUser.id, clinicName: clinicData.name });
 
       // Create clinic
       const clinicPayload: ClinicInsert = {
@@ -160,8 +159,9 @@ export default function ClinicOnboarding() {
         .single();
 
       if (clinicError) {
-        console.error("Clinic creation error details:", {
-          message: clinicError.message,
+        logger.error("Clinic creation error", clinicError, {
+          userId: currentUser.id,
+          clinicName: clinicData.name,
           details: clinicError.details,
           hint: clinicError.hint,
           code: clinicError.code,
@@ -169,7 +169,7 @@ export default function ClinicOnboarding() {
         throw new Error(`Failed to create clinic: ${clinicError.message}`);
       }
 
-      console.log("Clinic created:", clinic);
+      logger.info("Clinic created successfully", { clinicId: clinic.id, clinicName: clinic.name, userId: currentUser.id });
 
       // Create staff entry for owner using StaffService
       // Note: This might already exist from a database trigger, so we catch errors gracefully
@@ -180,10 +180,9 @@ export default function ClinicOnboarding() {
           role: "doctor",
           specialization: clinicData.specialty,
         });
-        console.log("Staff entry created successfully");
+        logger.info("Staff entry created successfully", { clinicId: clinic.id, userId: currentUser.id });
       } catch (staffError) {
-        console.error("Staff creation error:", staffError);
-        console.log("Staff entry might already exist from trigger");
+        logger.warn("Staff creation error (might already exist from trigger)", staffError instanceof Error ? staffError : new Error(String(staffError)), { clinicId: clinic.id, userId: currentUser.id });
         // Continue - this is not a critical error
       }
 
@@ -195,8 +194,7 @@ export default function ClinicOnboarding() {
         .eq("role", "clinic_owner");
 
       if (roleError) {
-        console.error("Role update error:", roleError);
-        console.log("Role might already be set from trigger");
+        logger.warn("Role update error (might already be set from trigger)", roleError, { userId: currentUser.id, clinicId: clinic.id });
       }
 
       toast({
@@ -206,7 +204,7 @@ export default function ClinicOnboarding() {
 
       navigate("/clinic/dashboard");
     } catch (error: unknown) {
-      console.error("Onboarding error:", error);
+      logger.error("Onboarding error", error instanceof Error ? error : new Error(String(error)), { userId: currentUser?.id, clinicName: clinicData.name });
       const description =
         error instanceof Error
           ? error.message

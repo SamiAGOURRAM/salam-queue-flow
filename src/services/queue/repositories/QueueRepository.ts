@@ -448,6 +448,73 @@ async getDailySchedule(
   }
 
   /**
+   * Get all appointments for a patient
+   */
+  async getPatientAppointments(patientId: string): Promise<QueueEntry[]> {
+    try {
+      logger.debug('Fetching patient appointments', { patientId });
+
+      const { data, error } = await supabase
+        .from('appointments')
+        .select(`
+          *,
+          patient:profiles!appointments_patient_fkey(id, full_name, phone_number, email),
+          guest_patient:guest_patients(id, full_name, phone_number),
+          clinic:clinics(id, name, specialty, city)
+        `)
+        .eq('patient_id', patientId)
+        .order('appointment_date', { ascending: true })
+        .order('start_time', { ascending: true, nullsFirst: false });
+
+      if (error) {
+        logger.error('Failed to fetch patient appointments', error, { patientId });
+        throw new DatabaseError('Failed to fetch patient appointments', error);
+      }
+
+      return this.mapToQueueEntries(data as RawAppointmentRow[] | null);
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error fetching patient appointments', error as Error, { patientId });
+      throw new DatabaseError('Unexpected error fetching patient appointments', error as Error);
+    }
+  }
+
+  /**
+   * Get booked slots for a clinic on a specific date
+   * Returns array of appointment IDs and start times for active appointments
+   */
+  async getClinicBookedSlots(clinicId: string, date: string): Promise<Array<{ id: string; startTime: string }>> {
+    try {
+      logger.debug('Fetching booked slots', { clinicId, date });
+
+      const activeStatuses = ['scheduled', 'waiting', 'in_progress'];
+      
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('id, start_time, status')
+        .eq('clinic_id', clinicId)
+        .eq('appointment_date', date)
+        .in('status', activeStatuses);
+
+      if (error) {
+        logger.error('Failed to fetch booked slots', error, { clinicId, date });
+        throw new DatabaseError('Failed to fetch booked slots', error);
+      }
+
+      return (data || [])
+        .filter(apt => apt.start_time)
+        .map(apt => ({
+          id: apt.id,
+          startTime: apt.start_time!,
+        }));
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error fetching booked slots', error as Error, { clinicId, date });
+      throw new DatabaseError('Unexpected error fetching booked slots', error as Error);
+    }
+  }
+
+  /**
    * @DEPRECATED This method uses a direct insert and bypasses critical database logic.
    * Use createQueueEntryViaRpc instead.
    */

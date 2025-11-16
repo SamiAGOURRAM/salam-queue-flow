@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { staffService } from "@/services/staff";
+import { logger } from "@/services/shared/logging/Logger";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -73,7 +74,7 @@ export default function TeamManagement() {
           .single();
 
         if (clinicError) {
-          console.error("Clinic fetch error:", clinicError);
+          logger.error("Clinic fetch error", clinicError, { userId: user?.id });
           setIsLoading(false);
           return;
         }
@@ -91,15 +92,15 @@ export default function TeamManagement() {
             .eq("clinic_id", clinicData.id);
 
           if (staffError) {
-            console.error("Staff fetch error:", staffError);
+            logger.error("Staff fetch error", staffError, { clinicId: clinicData.id });
           } else if (staffData) {
-            console.log("Fetched staff data:", staffData);
+            logger.debug("Fetched staff data", { clinicId: clinicData.id, staffCount: staffData.length });
             const typedStaff = Array.isArray(staffData) ? (staffData as StaffMember[]) : [];
             setStaff(typedStaff);
           }
         }
       } catch (error) {
-        console.error("Error fetching data:", error);
+        logger.error("Error fetching data", error instanceof Error ? error : new Error(String(error)), { userId: user?.id });
       } finally {
         setIsLoading(false);
       }
@@ -148,15 +149,18 @@ export default function TeamManagement() {
         role: finalRole,
       };
       
-      console.log("Sending invitation with body:", invitationBody);
+      logger.debug("Sending invitation", { clinicId: clinic.id, email: inviteEmail, role: finalRole });
       
       const { data, error } = await supabase.functions.invoke("send-staff-invitation", {
         body: invitationBody,
       });
       
-      console.log("Invitation response:", { data, error });
-
-      if (error) throw error;
+      if (error) {
+        logger.error("Invitation response error", error, { clinicId: clinic.id, email: inviteEmail });
+        throw error;
+      } else {
+        logger.info("Invitation sent successfully", { clinicId: clinic.id, email: inviteEmail, role: finalRole });
+      }
 
       toast({
         title: "Success",
@@ -171,7 +175,7 @@ export default function TeamManagement() {
       setShowCustomRole(false);
       setCustomRole("");
     } catch (error) {
-      console.error("Error sending invitation:", error);
+      logger.error("Error sending invitation", error instanceof Error ? error : new Error(String(error)), { clinicId: clinic?.id, email: inviteEmail });
       toast({
         title: "Error",
         description: "Failed to send invitation",

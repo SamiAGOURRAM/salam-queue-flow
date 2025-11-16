@@ -6,20 +6,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Activity, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { staffService } from "@/services/staff";
+import { invitationService } from "@/services/invitation";
+import { patientService } from "@/services/patient";
+import { logger } from "@/services/shared/logging/Logger";
 
-interface Invitation {
-  id: string;
-  clinic_id: string;
-  full_name: string;
-  email?: string;
-  phone_number?: string;
-  role: string;
-  status: string;
-  clinics: {
-    name: string;
-    specialty: string;
-  };
-}
+import type { Invitation } from "@/services/invitation";
 
 export default function AcceptInvitation() {
   const { token } = useParams();
@@ -31,32 +23,20 @@ export default function AcceptInvitation() {
   const [accepting, setAccepting] = useState(false);
 
   const fetchInvitation = useCallback(async () => {
+    if (!token) return;
     try {
-      const { data, error } = await supabase
-        .from("staff_invitations")
-        .select(`
-          *,
-          clinics (
-            name,
-            specialty
-          )
-        `)
-        .eq("invitation_token", token)
-        .eq("status", "pending")
-        .single();
-
-      if (error || !data) {
-        throw new Error("Invitation not found or already used");
-      }
-
-      // Check if expired
-      if (new Date(data.expires_at) < new Date()) {
-        throw new Error("This invitation has expired");
-      }
-
-      console.log("Fetched invitation data:", data);
-      console.log("Invitation role:", data.role);
-      setInvitation(data as Invitation);
+      const invitationData = await invitationService.getInvitationByToken(token);
+      
+      logger.debug("Fetched invitation data", { invitationId: invitationData.id, role: invitationData.role, clinicId: invitationData.clinicId });
+      
+      // Map to the component's expected format
+      setInvitation({
+        ...invitationData,
+        clinic_id: invitationData.clinicId,
+        full_name: invitationData.fullName,
+        phone_number: invitationData.phoneNumber,
+        clinics: invitationData.clinic,
+      } as Invitation & { clinic_id: string; full_name: string; phone_number?: string; clinics?: { name: string; specialty: string } });
     } catch (error: unknown) {
       const description = error instanceof Error ? error.message : "Invitation not found";
       toast({
@@ -86,14 +66,10 @@ export default function AcceptInvitation() {
       }
 
       // Check if logged-in user's email matches the invitation
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("email, phone_number")
-        .eq("id", user.id)
-        .single();
+      const profile = await patientService.getPatientProfile(user.id);
 
       const invitationContact = invitation.email || invitation.phone_number;
-      const profileContact = profile?.email || profile?.phone_number;
+      const profileContact = profile.email || profile.phoneNumber;
 
       if (profile && invitationContact && profileContact && profileContact !== invitationContact) {
         toast({
@@ -106,35 +82,19 @@ export default function AcceptInvitation() {
       }
 
       // Check if user is already staff at this clinic
-      const { data: existingStaff, error: checkStaffError } = await supabase
-        .from("clinic_staff")
-        .select("id")
-        .eq("clinic_id", invitation.clinic_id)
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      // Ignore "not found" errors, only throw on real errors
-      if (checkStaffError && checkStaffError.code !== 'PGRST116') {
-        console.error("Error checking existing staff:", checkStaffError);
-        throw checkStaffError;
-      }
+      const existingStaff = await staffService.getStaffByClinicAndUser(invitation.clinic_id, user.id);
 
       if (!existingStaff) {
         // Use StaffService to create staff record
-        console.log("Creating new staff record with role:", invitation.role);
-        try {
-          await staffService.addStaff({
-            clinicId: invitation.clinic_id,
-            userId: user.id,
-            role: invitation.role,
-          });
-          console.log("✅ Staff record created");
-        } catch (staffError) {
-          console.error("Error creating staff record:", staffError);
-          throw staffError;
-        }
+        logger.debug("Creating new staff record", { role: invitation.role, userId: user.id, clinicId: invitation.clinic_id });
+        await staffService.addStaff({
+          clinicId: invitation.clinic_id,
+          userId: user.id,
+          role: invitation.role,
+        });
+        logger.info("Staff record created successfully", { userId: user.id, clinicId: invitation.clinic_id, role: invitation.role });
       } else {
-        console.log("User is already staff at this clinic");
+        logger.debug("User is already staff at this clinic", { userId: user.id, clinicId: invitation.clinic_id });
       }
 
       // Check if user role already exists
@@ -147,13 +107,13 @@ export default function AcceptInvitation() {
 
       // Ignore "not found" errors, only throw on real errors
       if (checkRoleError && checkRoleError.code !== 'PGRST116') {
-        console.error("Error checking existing role:", checkRoleError);
+        logger.error("Error checking existing role", checkRoleError, { userId: user.id, clinicId: invitation.clinic_id });
         throw checkRoleError;
       }
 
       if (!existingRole) {
         // Create user role only if doesn't exist
-        console.log("Creating new user role...");
+        logger.debug("Creating new user role", { userId: user.id, clinicId: invitation.clinic_id, role: "staff" });
         const { error: roleError } = await supabase
           .from("user_roles")
           .insert({
@@ -163,23 +123,15 @@ export default function AcceptInvitation() {
           });
 
         if (roleError) {
-          console.error("Error creating user role:", roleError);
+          logger.error("Error creating user role", roleError, { userId: user.id, clinicId: invitation.clinic_id });
           throw roleError;
         }
       } else {
-        console.log("User role already exists");
+        logger.debug("User role already exists", { userId: user.id, clinicId: invitation.clinic_id });
       }
 
       // Update invitation status
-      const { error: updateError } = await supabase
-        .from("staff_invitations")
-        .update({
-          status: "accepted",
-          accepted_at: new Date().toISOString(),
-        })
-        .eq("id", invitation.id);
-
-      if (updateError) throw updateError;
+      await invitationService.updateInvitationStatus(invitation.id, "accepted", new Date());
 
       toast({
         title: "Welcome to the team!",
@@ -188,7 +140,7 @@ export default function AcceptInvitation() {
 
       navigate("/clinic/queue");
     } catch (error: unknown) {
-      console.error("Error accepting invitation:", error);
+      logger.error("Error accepting invitation", error instanceof Error ? error : new Error(String(error)), { userId: user?.id, invitationId: invitation?.id });
       const description = error instanceof Error ? error.message : "An unexpected error occurred";
       toast({
         title: "Failed to accept invitation",

@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { logger } from "@/services/shared/logging/Logger";
 
 interface EndDaySummaryResult {
   summary?: {
@@ -87,7 +88,7 @@ export function EndDayConfirmationDialog({
         if (error) throw error;
         setPreview(data ?? null);
       } catch (error) {
-        console.error('Failed to load preview:', error);
+        logger.error('Failed to load preview', error instanceof Error ? error : new Error(String(error)), { clinicId, staffId });
         toast({
           title: "Error",
           description: "Failed to load day closure preview",
@@ -133,7 +134,7 @@ export function EndDayConfirmationDialog({
       onOpenChange(false);
       onSuccess();
     } catch (error: unknown) {
-      console.error('End day failed:', error);
+      logger.error('End day failed', error instanceof Error ? error : new Error(String(error)), { clinicId, staffId, userId });
       const description =
         error instanceof Error ? error.message : "Failed to summarize the day";
       toast({

@@ -13,6 +13,7 @@ import { useQueueService } from "@/hooks/useQueueService";
 import { AppointmentStatus, QueueEntry, SkipReason } from "@/services/queue";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+import { logger } from "@/services/shared/logging/Logger";
 
 interface EnhancedQueueManagerProps {
   clinicId: string;
@@ -58,7 +59,9 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
   const handleAction = async (action: Promise<unknown>) => {
     setActionLoading(true);
     try { await action; } 
-    catch (error) { console.error("Queue action failed:", error); } 
+    catch (error) { 
+      logger.error("Queue action failed", error instanceof Error ? error : new Error(String(error)), { clinicId, staffId }); 
+    } 
     finally { setActionLoading(false); }
   };
   const handleNextPatient = () => handleAction(callNextPatient({ clinicId, staffId, date: new Date(), performedBy: userId, skipAbsentPatients: true }));

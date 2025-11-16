@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
 import { useToast } from "@/hooks/use-toast";
+import { logger } from "@/services/shared/logging/Logger";
 // 🟢 NEW: Import useNavigate to handle redirects from the hook
 import { useNavigate } from "react-router-dom"; 
 
@@ -54,7 +55,7 @@ export function useAuth() {
       .eq("user_id", userId);
 
     if (error) {
-      console.error("Error fetching user roles:", error);
+      logger.error("Error fetching user roles", error, { userId });
       return;
     }
 
