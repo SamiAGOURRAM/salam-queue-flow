@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { patientService } from "@/services/patient";
+import { staffService } from "@/services/staff";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -67,30 +69,25 @@ export default function ClinicProfile() {
   }, [user, loading, navigate, fetchProfile]);
 
   const handleSave = async () => {
+    if (!user?.id) return;
+    
     setSaving(true);
     try {
-      // Update profile
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
-          full_name: fullName,
-          email,
-          phone_number: phone,
-        })
-        .eq("id", user?.id);
+      // Use PatientService to update profile
+      await patientService.updatePatientProfile(user.id, {
+        fullName,
+        email,
+        phoneNumber: phone,
+      });
 
-      if (profileError) throw profileError;
-
-      // Update staff info
-      const { error: staffError } = await supabase
-        .from("clinic_staff")
-        .update({
+      // Use StaffService to update staff info
+      const staff = await staffService.getStaffByUser(user.id);
+      if (staff) {
+        await staffService.updateStaff(staff.id, {
           specialization,
-          license_number: licenseNumber,
-        })
-        .eq("user_id", user?.id);
-
-      if (staffError) throw staffError;
+          licenseNumber,
+        });
+      }
 
       toast({
         title: "Success",

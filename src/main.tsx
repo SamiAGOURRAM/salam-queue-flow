@@ -6,7 +6,10 @@ import "./index.css";
 
 // Initialize event handlers
 import { initializeQueueEventHandlers } from "./services/queue/handlers/QueueEventHandlers";
+import { waitTimeEstimationOrchestrator } from "./services/ml/WaitTimeEstimationOrchestrator";
+
 initializeQueueEventHandlers();
+waitTimeEstimationOrchestrator.initialize();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

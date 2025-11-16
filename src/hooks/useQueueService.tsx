@@ -3,7 +3,7 @@
  * Provides a reactive, real-time interface to the full QueueService.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 // CORRECT: Imports the SERVICE, not the repository.
 import { QueueService } from '../services/queue/QueueService'; 
 
@@ -61,11 +61,25 @@ export function useQueueService(options: UseQueueServiceOptions) {
     }
   }, [staffId, queueService]);
 
-  useEffect(() => { refreshSchedule(); }, [refreshSchedule]);
+  useEffect(() => { 
+    refreshSchedule(); 
+  }, [refreshSchedule]);
+
+  // Memoize the event handler to prevent re-subscriptions
+  const eventHandlerRef = useRef<(() => void) | null>(null);
+  eventHandlerRef.current = () => {
+    logger.debug('Refresh triggered by event');
+    refreshSchedule();
+  };
 
   useEffect(() => {
     if (!autoRefresh) return;
-    const handler = () => { logger.debug('Refresh triggered by event'); refreshSchedule(); };
+    
+    // Use a stable handler that calls the ref
+    const handler = () => {
+      eventHandlerRef.current?.();
+    };
+    
     const events: QueueEventType[] = [
       QueueEventType.PATIENT_ADDED_TO_QUEUE,
       QueueEventType.APPOINTMENT_STATUS_CHANGED,
@@ -75,7 +89,7 @@ export function useQueueService(options: UseQueueServiceOptions) {
     ];
     const subscriptions = events.map(event => eventBus.subscribe(event, handler));
     return () => subscriptions.forEach(unsub => unsub());
-  }, [autoRefresh, refreshSchedule]);
+  }, [autoRefresh]); // Remove refreshSchedule from dependencies - use ref instead
 
   useEffect(() => {
     if (!refreshInterval) return;

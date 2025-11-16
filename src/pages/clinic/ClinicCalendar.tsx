@@ -17,7 +17,9 @@ import { BookAppointmentDialog } from "@/components/clinic/BookAppointmentDialog
 import { format } from "date-fns";
 import { logger } from "@/services/shared/logging/Logger";
 import { QueueEntry, SkipReason } from "@/services/queue";
-import { QueueRepository } from "@/services/queue/repositories/QueueRepository";
+import { QueueService } from "@/services/queue/QueueService";
+import { staffService } from "@/services/staff/StaffService";
+import { clinicService } from "@/services/clinic/ClinicService";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -33,27 +35,30 @@ export default function ClinicCalendar() {
   const [loadingAppointments, setLoadingAppointments] = useState(false);
   const [showBookAppointment, setShowBookAppointment] = useState(false);
 
-  const queueRepository = useMemo(() => new QueueRepository(), []);
+  // Use QueueService singleton instead of creating new repository
+  const queueService = useMemo(() => new QueueService(), []);
 
-  // Fetch initial data
+  // Fetch initial data using services
   useEffect(() => {
     const fetchInitialData = async () => {
       if (!user) return;
       try {
-        const { data: staffData } = await supabase
-          .from("clinic_staff")
-          .select("id, clinic_id")
-          .eq("user_id", user.id)
-          .single();
+        // Use StaffService instead of direct Supabase query
+        const staffData = await staffService.getStaffByUser(user.id);
         
         if (staffData) {
           setStaffId(staffData.id);
-          const { data: clinicData } = await supabase
-            .from("clinics")
-            .select("*")
-            .eq("id", staffData.clinic_id)
-            .single();
-          setClinic(clinicData);
+          // Use ClinicService instead of direct Supabase query
+          const clinicData = await clinicService.getClinic(staffData.clinicId);
+          if (clinicData) {
+            setClinic({
+              id: clinicData.id,
+              name: clinicData.name,
+              practice_type: clinicData.practiceType,
+              specialty: clinicData.specialty,
+              city: clinicData.city,
+            });
+          }
         }
       } catch (error) {
         logger.error("Error fetching initial calendar data", error as Error);
@@ -62,13 +67,13 @@ export default function ClinicCalendar() {
     fetchInitialData();
   }, [user]);
 
-  // Fetch appointments
+  // Fetch appointments using QueueService
   const fetchAppointments = useCallback(async () => {
     if (!staffId) return;
     setLoadingAppointments(true);
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const scheduleData = await queueRepository.getDailySchedule(staffId, dateStr);
+      const scheduleData = await queueService.getDailySchedule(staffId, dateStr);
       const sortedAppointments = (scheduleData.schedule || []).sort((a, b) => {
         const timeA = a.startTime ? new Date(a.startTime).getTime() : 0;
         const timeB = b.startTime ? new Date(b.startTime).getTime() : 0;
@@ -85,7 +90,7 @@ export default function ClinicCalendar() {
     } finally {
       setLoadingAppointments(false);
     }
-  }, [staffId, selectedDate, queueRepository]);
+  }, [staffId, selectedDate, queueService]);
 
   useEffect(() => {
     fetchAppointments();

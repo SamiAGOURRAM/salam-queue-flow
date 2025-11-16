@@ -45,7 +45,8 @@ class EventBus {
     handlers.push(subscription);
     this.subscriptions.set(eventType, handlers);
 
-    logger.debug(`Subscribed to event: ${eventType}`, { subscriptionId: subscription.id });
+    // Only log subscriptions in verbose mode to reduce noise
+    // logger.debug(`Subscribed to event: ${eventType}`, { subscriptionId: subscription.id });
 
     // Return unsubscribe function
     return () => {
@@ -66,7 +67,8 @@ class EventBus {
       this.subscriptions.delete(eventType);
     }
 
-    logger.debug(`Unsubscribed from event: ${eventType}`, { subscriptionId });
+    // Only log unsubscriptions in verbose mode to reduce noise
+    // logger.debug(`Unsubscribed from event: ${eventType}`, { subscriptionId });
   }
 
   /**

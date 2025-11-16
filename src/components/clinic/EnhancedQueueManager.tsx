@@ -3,7 +3,7 @@
  * This version contains the final UI logic fix for the "Call Next" button,
  * completing the entire queue management workflow.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,9 +18,10 @@ interface EnhancedQueueManagerProps {
   clinicId: string;
   userId: string;
   staffId: string;
+  onSummaryChange?: (summary: { waiting: number; inProgress: number; absent: number; completed: number }) => void;
 }
 
-export function EnhancedQueueManager({ clinicId, userId, staffId }: EnhancedQueueManagerProps) {
+export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChange }: EnhancedQueueManagerProps) {
   const [actionLoading, setActionLoading] = useState(false);
 
   // Destructure all necessary functions from the hook
@@ -45,6 +46,13 @@ export function EnhancedQueueManager({ clinicId, userId, staffId }: EnhancedQueu
       summary: { waiting: waiting.length, inProgress: current ? 1 : 0, absent: absent.length, completed: schedule.filter(p => p.status === AppointmentStatus.COMPLETED).length }
     };
   }, [schedule]);
+
+  // Notify parent of summary changes
+  useEffect(() => {
+    if (onSummaryChange) {
+      onSummaryChange(summary);
+    }
+  }, [summary, onSummaryChange]);
 
   // Action handlers are all correct
   const handleAction = async (action: Promise<unknown>) => {

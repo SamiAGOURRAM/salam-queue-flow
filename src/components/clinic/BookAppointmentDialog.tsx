@@ -12,6 +12,9 @@ import { toast } from "@/hooks/use-toast";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { patientService } from "@/services/patient";
+import { staffService } from "@/services/staff";
+import { useQueueService } from "@/hooks/useQueueService";
 
 const APPOINTMENT_TYPES = ["consultation", "follow_up", "procedure", "emergency"] as const;
 type AppointmentTypeOption = typeof APPOINTMENT_TYPES[number];
@@ -38,6 +41,12 @@ export function BookAppointmentDialog({
   const [appointmentType, setAppointmentType] = useState<AppointmentTypeOption>("consultation");
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
+  
+  // Get staffId from clinic - we'll use the first staff member
+  const [staffId, setStaffId] = useState<string | null>(null);
+  
+  // Initialize queue service
+  const { createAppointment } = useQueueService({ staffId: staffId || undefined });
 
   // Update date when preselectedDate changes
   useEffect(() => {
@@ -45,6 +54,25 @@ export function BookAppointmentDialog({
       setDate(preselectedDate);
     }
   }, [preselectedDate]);
+
+  // Fetch staff ID when clinicId is available
+  useEffect(() => {
+    const fetchStaff = async () => {
+      if (!clinicId) return;
+      try {
+        const staffList = await staffService.getStaffByClinic(clinicId);
+        if (staffList.length > 0) {
+          // Get the staff ID (not user_id) - we need the clinic_staff.id
+          // But createAppointment needs staffId which is clinic_staff.id
+          // Let's get the first staff member's ID
+          setStaffId(staffList[0].id);
+        }
+      } catch (error) {
+        console.error('Failed to fetch staff', error);
+      }
+    };
+    fetchStaff();
+  }, [clinicId]);
 
   const handleSubmit = async () => {
     if (!fullName || !phone || !date || !time) {
@@ -56,19 +84,29 @@ export function BookAppointmentDialog({
       return;
     }
 
+    if (!staffId) {
+      toast({
+        title: "Error",
+        description: "No staff member found for this clinic",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      // Check if patient exists or create new profile
-      const { data: existingProfile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("phone_number", phone)
-        .maybeSingle();
-
+      // Check if patient exists using PatientService
+      // Note: For booked appointments, we prefer registered users over guests
       let patientId: string;
-
-      if (!existingProfile) {
-        // Create new user via auth (email-based with phone in metadata)
+      
+      const patientResult = await patientService.findOrCreatePatient(phone, fullName);
+      
+      if (patientResult.patientId) {
+        // Found registered patient - use it
+        patientId = patientResult.patientId;
+      } else {
+        // No registered patient found - create new auth user for booked appointment
+        // Note: This creates a full auth account (not a guest) for scheduled appointments
         const tempEmail = `${phone.replace(/\+/g, '')}@scheduled.temp`;
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: tempEmail,
@@ -86,35 +124,28 @@ export function BookAppointmentDialog({
         if (!authData.user) throw new Error("Failed to create user");
 
         patientId = authData.user.id;
-      } else {
-        patientId = existingProfile.id;
       }
 
-      // Get staff/doctor ID
-      const { data: staffData } = await supabase
-        .from("clinic_staff")
-        .select("user_id")
-        .eq("clinic_id", clinicId)
-        .limit(1)
-        .single();
+      // Create appointment using QueueService
+      const appointmentDate = format(date, "yyyy-MM-dd");
+      const [hours, minutes] = time.split(':');
+      const startDateTime = new Date(date);
+      startDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      const endDateTime = new Date(startDateTime);
+      endDateTime.setMinutes(endDateTime.getMinutes() + 15); // Default 15 min
 
-      // Create appointment
-      const { error: appointmentError } = await supabase
-        .from("appointments")
-        .insert({
-          clinic_id: clinicId,
-          patient_id: patientId,
-          staff_id: staffData?.user_id || clinicId,
-          appointment_date: format(date, "yyyy-MM-dd"),
-          scheduled_time: time,
-          appointment_type: appointmentType,
-          reason_for_visit: reason,
-          status: "scheduled",
-          booking_method: "receptionist",
-          is_walk_in: false,
-        });
-
-      if (appointmentError) throw appointmentError;
+      await createAppointment({
+        clinicId,
+        staffId,
+        patientId,
+        guestPatientId: null,
+        isGuest: false,
+        appointmentType: appointmentType,
+        isWalkIn: false,
+        startTime: startDateTime.toISOString(),
+        endTime: endDateTime.toISOString(),
+        reasonForVisit: reason,
+      });
 
       toast({
         title: "Success",

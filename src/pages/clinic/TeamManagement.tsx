@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { staffService } from "@/services/staff";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -183,7 +184,8 @@ export default function TeamManagement() {
 
   const handleRemoveStaff = async (staffId: string) => {
     try {
-      await supabase.from("clinic_staff").delete().eq("id", staffId);
+      // Use StaffService to remove staff
+      await staffService.removeStaff(staffId);
 
       setStaff(staff.filter((s) => s.id !== staffId));
 
@@ -194,7 +196,7 @@ export default function TeamManagement() {
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to remove staff member",
+        description: error instanceof Error ? error.message : "Failed to remove staff member",
         variant: "destructive",
       });
     }

@@ -1,7 +1,9 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { QueueService } from "@/services/queue/QueueService";
+import { AppointmentStatus } from "@/services/queue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +24,7 @@ import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import ReviewModal from "@/components/ReviewModal";
 import { useTranslation } from "react-i18next";
+import { logger } from "@/services/shared/logging/Logger";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,7 +40,7 @@ interface Appointment {
   id: string;
   clinic_id: string;
   appointment_date: string;
-  scheduled_time: string;
+  start_time: string | null;
   appointment_type: string;
   status: string;
   queue_position: number | null;
@@ -106,7 +109,7 @@ export default function PatientDashboard() {
           id,
           clinic_id,
           appointment_date,
-          scheduled_time,
+          start_time,
           appointment_type,
           status,
           queue_position,
@@ -114,7 +117,7 @@ export default function PatientDashboard() {
         `)
         .eq("patient_id", user.id)
         .order("appointment_date", { ascending: true })
-        .order("scheduled_time", { ascending: true });
+        .order("start_time", { ascending: true, nullsFirst: false });
 
       if (error) throw error;
 
@@ -140,66 +143,38 @@ export default function PatientDashboard() {
     }
   }, [user, loading, navigate, fetchPatientProfile, fetchAppointments]);
 
+  // Reuse QueueService instance instead of creating new one on every action
+  const queueService = useMemo(() => new QueueService(), []);
+
   const handleCancelAppointment = async () => {
-    if (!appointmentToCancel) return;
+    if (!appointmentToCancel || !user?.id) return;
   
     try {
-      console.log("🚫 Starting cancellation for appointment:", appointmentToCancel.id);
+      logger.debug("Starting cancellation for appointment", { appointmentId: appointmentToCancel.id });
   
-      // Delete the appointment and return the deleted record to verify it worked
-      const { data: deletedData, error: deleteError } = await supabase
-        .from("appointments")
-        .delete()
-        .eq("id", appointmentToCancel.id)
-        .eq("patient_id", user?.id)  // Ensure we own this appointment
-        .select()  // Return the deleted row(s)
-        .single();  // Expect exactly one row
-  
-      console.log("🗑️ Delete result:", { deletedData, deleteError });
-  
-      // Check if deletion actually happened
-      if (deleteError || !deletedData) {
-        console.error("❌ Delete failed:", deleteError || "No data returned - RLS likely blocked deletion");
-        
-        // If we can't delete, update status instead
-        const { error: updateError } = await supabase
-          .from("appointments")
-          .update({ 
-            status: "cancelled",
-            cancellation_reason: "patient_request",
-            updated_at: new Date().toISOString()
-          })
-          .eq("id", appointmentToCancel.id)
-          .eq("patient_id", user?.id);
-  
-        if (updateError) throw updateError;
-  
-        setAppointments(prev => 
-          prev.map(apt => 
-            apt.id === appointmentToCancel.id 
-              ? { ...apt, status: "cancelled" }
-              : apt
-          )
-        );
-  
-        toast({
-          title: "⚠️ Appointment Cancelled", 
-          description: "Your appointment has been marked as cancelled.",
-          variant: "default",
-        });
-      } else {
-        // Deletion was successful
-        console.log("✅ Actually deleted:", deletedData);
-        
-        setAppointments(prev => 
-          prev.filter(apt => apt.id !== appointmentToCancel.id)
-        );
-  
-        toast({
-          title: "✅ Appointment Cancelled",
-          description: `Your appointment at ${appointmentToCancel.clinic_name} has been cancelled and the slot is now available.`,
-        });
+      // First verify patient owns this appointment
+      const entry = await queueService.getQueueEntry(appointmentToCancel.id);
+      
+      if (entry.patientId !== user.id) {
+        throw new Error("You don't have permission to cancel this appointment");
       }
+      
+      // Cancel using QueueService (proper service method)
+      const cancelledEntry = await queueService.cancelAppointment(
+        appointmentToCancel.id,
+        user.id,
+        "patient_request"
+      );
+  
+      logger.info("Appointment cancelled successfully", { appointmentId: appointmentToCancel.id });
+  
+      // Refresh appointments list to get updated data
+      await fetchAppointments();
+  
+      toast({
+        title: "✅ Appointment Cancelled",
+        description: `Your appointment at ${appointmentToCancel.clinic_name} has been cancelled.`,
+      });
   
       setCancelDialogOpen(false);
       setAppointmentToCancel(null);
@@ -552,7 +527,12 @@ export default function PatientDashboard() {
                       </div>
                       <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-amber-50 text-amber-700 font-semibold">
                         <Clock className="w-4 h-4" />
-                        <span>{apt.scheduled_time}</span>
+                        <span>
+                          {apt.start_time 
+                            ? format(new Date(apt.start_time), 'HH:mm')
+                            : 'N/A'
+                          }
+                        </span>
                       </div>
                     </div>
 
@@ -590,7 +570,7 @@ export default function PatientDashboard() {
                               apt.id, 
                               apt.clinic.name,
                               format(new Date(apt.appointment_date), 'MMM d, yyyy'),
-                              apt.scheduled_time,
+                              apt.start_time ? format(new Date(apt.start_time), 'HH:mm') : 'N/A',
                               e
                             )}
                           >
@@ -660,7 +640,7 @@ export default function PatientDashboard() {
                       </div>
                       <p className="text-xs text-muted-foreground flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        <span className="font-medium">{format(new Date(apt.appointment_date), t('appointments.recentActivity.dateFormat', { defaultValue: 'MMMM d, yyyy' }))}</span> at <span className="font-bold">{apt.scheduled_time}</span>
+                        <span className="font-medium">{format(new Date(apt.appointment_date), t('appointments.recentActivity.dateFormat', { defaultValue: 'MMMM d, yyyy' }))}</span> at <span className="font-bold">{apt.start_time ? format(new Date(apt.start_time), 'HH:mm') : 'N/A'}</span>
                       </p>
                     </div>
                   ))}
@@ -679,17 +659,19 @@ export default function PatientDashboard() {
               <XCircle className="w-6 h-6 text-red-600" />
               Cancel Appointment?
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-base space-y-3 pt-2">
-              <p>Are you sure you want to cancel this appointment?</p>
-              {appointmentToCancel && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2 text-sm">
-                  <p className="font-semibold text-red-900">{appointmentToCancel.clinic_name}</p>
-                  <p className="text-red-700">
-                    <span className="font-medium">{appointmentToCancel.date}</span> at <span className="font-medium">{appointmentToCancel.time}</span>
-                  </p>
-                </div>
-              )}
-              <p className="text-sm text-muted-foreground">This action cannot be undone. The clinic will be notified.</p>
+            <AlertDialogDescription asChild>
+              <div className="text-base space-y-3 pt-2">
+                <p>Are you sure you want to cancel this appointment?</p>
+                {appointmentToCancel && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2 text-sm">
+                    <p className="font-semibold text-red-900">{appointmentToCancel.clinic_name}</p>
+                    <p className="text-red-700">
+                      <span className="font-medium">{appointmentToCancel.date}</span> at <span className="font-medium">{appointmentToCancel.time}</span>
+                    </p>
+                  </div>
+                )}
+                <p className="text-sm text-muted-foreground">This action cannot be undone. The clinic will be notified.</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

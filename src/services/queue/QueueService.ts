@@ -23,15 +23,12 @@ import {
   WaitTimePredictionRecord,
 } from './models/QueueModels';
 import { QueueEventFactory, QueueEventType } from './events/QueueEvents';
-import { QueueEstimatorFactory } from './estimators/QueueEstimatorFactory';
 
 export class QueueService {
   private repository: QueueRepository;
-  private estimatorFactory: QueueEstimatorFactory;
 
   constructor(repository?: QueueRepository) {
     this.repository = repository || new QueueRepository();
-    this.estimatorFactory = new QueueEstimatorFactory();
   }
 
   // ============================================
@@ -43,14 +40,18 @@ export class QueueService {
    * This is the new primary method for retrieving all schedule-related data.
    */
   async getDailySchedule(staffId: string, targetDate: string): Promise<{ operating_mode: string; schedule: QueueEntry[] }> {
-    logger.info('Fetching daily schedule for staff', { staffId, targetDate });
+    // Reduced verbosity - only log in debug mode
+    logger.debug('Fetching daily schedule for staff', { staffId, targetDate });
     try {
       const scheduleData = await this.repository.getDailySchedule(staffId, targetDate);
-      const enrichedSchedule = await this.applyWaitTimeEstimates(staffId, scheduleData.schedule);
-      logger.debug(`Retrieved schedule for staff ${staffId} with mode ${scheduleData.operating_mode}`, { count: enrichedSchedule.length });
+      // DON'T apply wait time estimates during loading
+      // Estimates should ONLY be calculated when disruptions occur (via WaitTimeEstimationOrchestrator)
+      // The schedule already contains predicted_wait_time and predicted_start_time from the database
+      // which were calculated during disruption events
+      logger.debug(`Retrieved schedule for staff ${staffId} with mode ${scheduleData.operating_mode}`, { count: scheduleData.schedule.length });
       return {
         ...scheduleData,
-        schedule: enrichedSchedule,
+        schedule: scheduleData.schedule,
       };
     } catch (error) {
       logger.error('Failed to fetch daily schedule', error as Error, { staffId, targetDate });
@@ -219,6 +220,7 @@ export class QueueService {
 
   /**
    * Completes an appointment. Logic is preserved.
+   * Now also calculates and stores actual wait time for ML training.
    */
   async completeAppointment(appointmentId: string, performedBy: string): Promise<QueueEntry> {
     logger.info('Completing appointment', { appointmentId });
@@ -227,10 +229,105 @@ export class QueueService {
     if (entry.status === AppointmentStatus.COMPLETED) throw new ConflictError('Appointment is already completed');
 
     const previousStatus = entry.status;
+    const now = new Date();
+    
+    // Calculate actual wait time (LABEL for ML training)
+    // Wait time = time from check-in (or scheduled time) to actual start time
+    let actualWaitTime: number | null = null;
+    
+    logger.debug('Calculating wait time', {
+      appointmentId,
+      hasActualStartTime: !!entry.actualStartTime,
+      hasCheckedInAt: !!entry.checkedInAt,
+      hasScheduledTime: !!entry.scheduledTime,
+      actualStartTime: entry.actualStartTime?.toISOString(),
+      checkedInAt: entry.checkedInAt?.toISOString(),
+      scheduledTime: entry.scheduledTime,
+      appointmentDate: entry.appointmentDate?.toISOString(),
+    });
+
+    if (entry.actualStartTime && entry.checkedInAt) {
+      // Best case: check-in to start
+      const waitTimeMs = entry.actualStartTime.getTime() - entry.checkedInAt.getTime();
+      actualWaitTime = Math.max(0, Math.round(waitTimeMs / 60000)); // Ensure non-negative
+      logger.info('Calculated wait time from check-in to start', { 
+        appointmentId, 
+        actualWaitTime,
+        waitTimeMs,
+        checkedInAt: entry.checkedInAt.toISOString(),
+        actualStartTime: entry.actualStartTime.toISOString()
+      });
+    } else if (entry.actualStartTime && entry.scheduledTime && entry.appointmentDate) {
+      // Fallback: scheduled time to start
+      const dateStr = entry.appointmentDate.toISOString().split('T')[0];
+      const scheduledDateTime = new Date(`${dateStr}T${entry.scheduledTime}`);
+      const waitTimeMs = entry.actualStartTime.getTime() - scheduledDateTime.getTime();
+      actualWaitTime = Math.max(0, Math.round(waitTimeMs / 60000)); // Ensure non-negative
+      logger.info('Calculated wait time from scheduled time to start', { 
+        appointmentId, 
+        actualWaitTime,
+        waitTimeMs,
+        scheduledDateTime: scheduledDateTime.toISOString(),
+        actualStartTime: entry.actualStartTime.toISOString()
+      });
+    } else {
+      logger.warn('Cannot calculate wait time - missing timing data', { 
+        appointmentId,
+        hasActualStartTime: !!entry.actualStartTime,
+        hasCheckedInAt: !!entry.checkedInAt,
+        hasScheduledTime: !!entry.scheduledTime,
+        actualStartTime: entry.actualStartTime?.toISOString(),
+        checkedInAt: entry.checkedInAt?.toISOString(),
+      });
+    }
+
+    // Calculate actual service duration
+    let actualServiceDuration: number | null = null;
+    if (entry.actualStartTime) {
+      const durationMs = now.getTime() - entry.actualStartTime.getTime();
+      actualServiceDuration = Math.max(0, Math.round(durationMs / 60000)); // Ensure non-negative
+      logger.debug('Calculated service duration', {
+        appointmentId,
+        actualServiceDuration,
+        durationMs,
+        actualStartTime: entry.actualStartTime.toISOString(),
+        now: now.toISOString(),
+      });
+    } else {
+      logger.warn('Cannot calculate service duration - missing actualStartTime', { appointmentId });
+    }
+
     const updatedEntry = await this.repository.updateQueueEntry(appointmentId, {
       status: AppointmentStatus.COMPLETED,
-      actualEndTime: new Date().toISOString(),
+      actualEndTime: now.toISOString(),
+      actualDuration: actualServiceDuration,
     });
+
+    // Store actual wait time for ML training (non-blocking - don't fail if this fails)
+    if (actualWaitTime !== null) {
+      logger.info('Storing actual wait time for ML training', {
+        appointmentId,
+        actualWaitTime,
+        actualServiceDuration: actualServiceDuration ?? null,
+      });
+      try {
+        await this.repository.recordActualWaitTime(appointmentId, {
+          actualWaitTime,
+          actualServiceDuration: actualServiceDuration ?? undefined,
+        });
+        logger.info('Successfully stored actual wait time', { appointmentId, actualWaitTime });
+      } catch (error) {
+        // Log but don't fail the completion
+        logger.error('Failed to record actual wait time, but appointment completed', error as Error, { 
+          appointmentId,
+          actualWaitTime,
+          actualServiceDuration,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
+      }
+    } else {
+      logger.warn('Skipping wait time storage - actualWaitTime is null', { appointmentId });
+    }
 
     const event = QueueEventFactory.createAppointmentStatusChangedEvent(updatedEntry, previousStatus, performedBy);
     await eventBus.publish(event);
@@ -261,6 +358,36 @@ export class QueueService {
     return updatedEntry;
   }
 
+  /**
+   * Cancels an appointment
+   * @param appointmentId - The appointment ID to cancel
+   * @param cancelledBy - User ID who is cancelling (patient or staff)
+   * @param reason - Optional cancellation reason
+   */
+  async cancelAppointment(appointmentId: string, cancelledBy: string, reason?: string): Promise<QueueEntry> {
+    logger.info('Cancelling appointment', { appointmentId, cancelledBy, reason });
+
+    const entry = await this.getQueueEntry(appointmentId);
+
+    // Business rules: Can't cancel if already completed or cancelled
+    if (entry.status === AppointmentStatus.COMPLETED) {
+      throw new BusinessRuleError('Cannot cancel a completed appointment');
+    }
+    if (entry.status === AppointmentStatus.CANCELLED) {
+      throw new BusinessRuleError('Appointment is already cancelled');
+    }
+
+    // Use RPC function to cancel (bypasses RLS)
+    const updatedEntry = await this.repository.cancelAppointmentViaRpc(appointmentId, cancelledBy, reason);
+
+    // Publish event
+    const event = QueueEventFactory.createAppointmentStatusChangedEvent(updatedEntry, entry.status, cancelledBy);
+    await eventBus.publish(event);
+
+    logger.info('Appointment cancelled successfully', { appointmentId });
+    return updatedEntry;
+  }
+
   // ============================================
   // DEPRECATED & HELPER METHODS
   // ============================================
@@ -277,53 +404,71 @@ export class QueueService {
     return {} as QueueSummary;
   }
 
+  /**
+   * Apply wait time estimates using the estimation service
+   * Service handles ML/rule-based/historical fallback automatically
+   */
   private async applyWaitTimeEstimates(staffId: string, schedule: QueueEntry[]): Promise<QueueEntry[]> {
     if (!schedule.length) return schedule;
 
-    const clinicConfig = await this.repository.getClinicEstimationConfigByStaffId(staffId);
-    if (!clinicConfig) return schedule;
-
     try {
-      const historicalSnapshots = await this.repository.getHistoricalFeatureSnapshots(clinicConfig.clinicId);
-      const estimator = this.estimatorFactory.getEstimator(clinicConfig);
-      const estimation = await estimator.estimate({
-        clinicConfig,
-        schedule,
-        currentTime: new Date(),
-        historicalSnapshots,
+      // Use the estimation service (handles all complexity internally)
+      const { waitTimeEstimationService } = await import('../ml/WaitTimeEstimationService');
+      
+      // Estimate for each appointment in parallel
+      const estimationPromises = schedule.map(async (entry) => {
+        try {
+          const estimation = await waitTimeEstimationService.estimateWaitTime(entry.id);
+          return { entry, estimation };
+        } catch (error) {
+          logger.warn('Failed to estimate wait time for appointment', {
+            appointmentId: entry.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return { entry, estimation: null };
+        }
       });
 
-      const predictionMap = new Map(estimation.predictions.map(pred => [pred.appointmentId, pred]));
-      const updatedSchedule = schedule.map(entry => {
-        const prediction = predictionMap.get(entry.id);
-        if (!prediction) return entry;
+      const results = await Promise.all(estimationPromises);
+
+      // Update schedule with predictions
+      const updatedSchedule = results.map(({ entry, estimation }) => {
+        if (!estimation) return entry;
+        
         return {
           ...entry,
-          estimatedWaitTime: prediction.estimatedMinutes,
-          etaSource: prediction.mode,
-          etaUpdatedAt: new Date(estimation.metadata.generatedAt),
-          predictionMode: prediction.mode,
-          predictionConfidence: prediction.confidence,
+          estimatedWaitTime: estimation.waitTimeMinutes,
+          etaSource: estimation.mode,
+          etaUpdatedAt: new Date(),
+          predictionMode: estimation.mode,
+          predictionConfidence: estimation.confidence,
         };
       });
 
-      const records: WaitTimePredictionRecord[] = estimation.predictions.map(pred => ({
-        appointmentId: pred.appointmentId,
-        clinicId: pred.clinicId,
-        estimatedMinutes: pred.estimatedMinutes,
-        lowerConfidence: pred.lowerConfidence,
-        upperConfidence: pred.upperConfidence,
-        confidenceScore: pred.confidence,
-        mode: pred.mode,
-        modelVersion: estimation.metadata.version,
-        featureHash: pred.featureHash,
-        features: pred.featureSnapshot,
-      }));
+      // Store predictions in database
+      const records: WaitTimePredictionRecord[] = results
+        .filter(({ estimation }) => estimation !== null)
+        .map(({ entry, estimation }) => ({
+          appointmentId: entry.id,
+          clinicId: entry.clinicId,
+          estimatedMinutes: estimation!.waitTimeMinutes,
+          lowerConfidence: estimation!.explanation?.confidenceInterval?.[0],
+          upperConfidence: estimation!.explanation?.confidenceInterval?.[1],
+          confidenceScore: estimation!.confidence,
+          mode: estimation!.mode,
+          modelVersion: estimation!.mode === 'ml' ? 'backend-ml-v1' : 'rule-based-v1',
+          featureHash: undefined,
+          features: estimation!.features,
+        }));
 
-      await this.repository.recordWaitTimePredictions(records);
+      if (records.length > 0) {
+        await this.repository.recordWaitTimePredictions(records);
+      }
+
       return updatedSchedule;
     } catch (error) {
       logger.error('Failed to apply wait time estimates', error as Error, { staffId });
+      // Return schedule without predictions on error
       return schedule;
     }
   }

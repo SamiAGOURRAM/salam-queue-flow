@@ -267,10 +267,17 @@ export interface CreateQueueEntryDTO {
   clinicId: string;
   patientId: string;
   staffId?: string;
-  appointmentDate: Date;
-  scheduledTime?: string;
+  appointmentDate?: Date; // Optional - can be derived from startTime
+  scheduledTime?: string; // Optional - can be derived from startTime
   appointmentType: AppointmentType;
   autoAssignPosition?: boolean;
+  // New fields for RPC function
+  startTime?: string; // ISO string timestamp
+  endTime?: string; // ISO string timestamp
+  guestPatientId?: string | null;
+  isGuest?: boolean;
+  isWalkIn?: boolean;
+  reasonForVisit?: string;
 }
 
 /**
@@ -285,6 +292,9 @@ export interface UpdateQueueEntryDTO {
   appointmentType?: AppointmentType;
   markedAbsentAt?: string;
   returnedAt?: string;
+  actualStartTime?: string;
+  actualEndTime?: string;
+  actualDuration?: number;
 }
 
 /**

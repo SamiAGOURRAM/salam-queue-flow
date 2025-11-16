@@ -1,12 +1,15 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { QueueService } from "@/services/queue/QueueService";
+import { DisruptionDetector } from "@/services/ml/DisruptionDetector";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Activity, Clock, MapPin, Users, ArrowLeft } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { format } from "date-fns";
 
 interface QueueInfo {
   id: string;
@@ -33,6 +36,8 @@ export default function MyQueue() {
   const [queueInfo, setQueueInfo] = useState<QueueInfo | null>(null);
   const [loadingQueue, setLoadingQueue] = useState(true);
   const [timeToLeave, setTimeToLeave] = useState<number | null>(null);
+  const [hasDisruption, setHasDisruption] = useState(false);
+  const [disruptionDetector] = useState(() => new DisruptionDetector());
 
   const fetchQueueInfo = useCallback(async () => {
     if (!appointmentId) return;
@@ -45,7 +50,7 @@ export default function MyQueue() {
           predicted_start_time,
           predicted_wait_time,
           status,
-          scheduled_time,
+          start_time,
           appointment_type,
           checked_in_at,
           clinics:clinic_id (name)
@@ -55,7 +60,7 @@ export default function MyQueue() {
 
       if (error) throw error;
 
-      const record = data as QueueInfoRecord;
+      const record = data as QueueInfoRecord & { start_time: string | null };
 
       setQueueInfo({
         id: record.id,
@@ -64,7 +69,7 @@ export default function MyQueue() {
         predicted_start_time: record.predicted_start_time,
         predicted_wait_time: record.predicted_wait_time,
         status: record.status,
-        scheduled_time: record.scheduled_time,
+        scheduled_time: record.start_time ? format(new Date(record.start_time), 'HH:mm') : null,
         appointment_type: record.appointment_type,
         checked_in_at: record.checked_in_at
       });
@@ -80,6 +85,17 @@ export default function MyQueue() {
     }
   }, [appointmentId]);
 
+  const checkDisruption = useCallback(async (appointmentId: string) => {
+    try {
+      const disruptionInfo = await disruptionDetector.checkDisruption(appointmentId);
+      setHasDisruption(disruptionInfo.hasDisruption);
+    } catch (error) {
+      console.error("Error checking disruption:", error);
+      // Default to no disruption on error
+      setHasDisruption(false);
+    }
+  }, [disruptionDetector]);
+
   useEffect(() => {
     if (!loading && !user) {
       navigate("/auth/login");
@@ -87,6 +103,13 @@ export default function MyQueue() {
       fetchQueueInfo();
     }
   }, [user, loading, appointmentId, navigate, fetchQueueInfo]);
+
+  // Check for disruptions when queueInfo is loaded
+  useEffect(() => {
+    if (queueInfo && appointmentId) {
+      checkDisruption(appointmentId);
+    }
+  }, [queueInfo, appointmentId, checkDisruption]);
 
   useEffect(() => {
     if (!appointmentId) return;
@@ -132,18 +155,15 @@ export default function MyQueue() {
 
   
 
-  const handleCheckIn = async () => {
-    try {
-      const { error } = await supabase
-        .from("appointments")
-        .update({
-          checked_in_at: new Date().toISOString(),
-          status: "waiting",
-          patient_arrival_time: new Date().toISOString()
-        })
-        .eq("id", appointmentId);
+  // Reuse QueueService instance instead of creating new one on every action
+  const queueService = useMemo(() => new QueueService(), []);
 
-      if (error) throw error;
+  const handleCheckIn = async () => {
+    if (!appointmentId) return;
+    
+    try {
+      // Use QueueService to check in patient
+      await queueService.checkInPatient(appointmentId);
 
       toast({
         title: "Checked in successfully",
@@ -155,7 +175,7 @@ export default function MyQueue() {
       console.error("Error checking in:", error);
       toast({
         title: "Error",
-        description: "Failed to check in",
+        description: error instanceof Error ? error.message : "Failed to check in",
         variant: "destructive"
       });
     }
@@ -198,12 +218,66 @@ export default function MyQueue() {
     return colors[status] || "bg-gray-500";
   };
 
-  const estimatedTime = queueInfo.predicted_start_time
-    ? new Date(queueInfo.predicted_start_time).toLocaleTimeString('en-US', { 
+  // Smart time display: Show scheduled time if no disruption, estimated time if disruption
+  const getEstimatedTimeDisplay = () => {
+    // Show loading state while fetching
+    if (loadingQueue || !queueInfo) {
+      return 'Calculating...';
+    }
+
+    // If no disruption detected, show scheduled time
+    if (!hasDisruption && queueInfo.scheduled_time) {
+      // Format scheduled time nicely (HH:mm format)
+      const [hours, minutes] = queueInfo.scheduled_time.split(':');
+      const scheduledDate = new Date();
+      scheduledDate.setHours(parseInt(hours || '0'), parseInt(minutes || '0'), 0, 0);
+      return scheduledDate.toLocaleTimeString('en-US', { 
         hour: '2-digit', 
-        minute: '2-digit' 
-      })
-    : queueInfo.scheduled_time || 'Calculating...';
+        minute: '2-digit',
+        hour12: true
+      });
+    }
+
+    // If disruption detected, show estimated time (if available)
+    if (hasDisruption && queueInfo.predicted_start_time) {
+      try {
+        return new Date(queueInfo.predicted_start_time).toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: true
+        });
+      } catch (error) {
+        // Fallback to scheduled time if date parsing fails
+        if (queueInfo.scheduled_time) {
+          const [hours, minutes] = queueInfo.scheduled_time.split(':');
+          const scheduledDate = new Date();
+          scheduledDate.setHours(parseInt(hours || '0'), parseInt(minutes || '0'), 0, 0);
+          return scheduledDate.toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: true
+          });
+        }
+      }
+    }
+
+    // If disruption but no estimation yet, show scheduled time
+    if (hasDisruption && queueInfo.scheduled_time) {
+      const [hours, minutes] = queueInfo.scheduled_time.split(':');
+      const scheduledDate = new Date();
+      scheduledDate.setHours(parseInt(hours || '0'), parseInt(minutes || '0'), 0, 0);
+      return scheduledDate.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true
+      });
+    }
+
+    // Last resort - should not happen if scheduled_time exists
+    return queueInfo.scheduled_time || 'Calculating...';
+  };
+
+  const estimatedTime = getEstimatedTimeDisplay();
 
   return (
     <div className="max-w-2xl mx-auto">

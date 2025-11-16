@@ -120,17 +120,16 @@ export default function AcceptInvitation() {
       }
 
       if (!existingStaff) {
-        // Create staff record only if doesn't exist
+        // Use StaffService to create staff record
         console.log("Creating new staff record with role:", invitation.role);
-        const { error: staffError } = await supabase
-          .from("clinic_staff")
-          .insert({
-            clinic_id: invitation.clinic_id,
-            user_id: user.id,
+        try {
+          await staffService.addStaff({
+            clinicId: invitation.clinic_id,
+            userId: user.id,
             role: invitation.role,
           });
-
-        if (staffError) {
+          console.log("✅ Staff record created");
+        } catch (staffError) {
           console.error("Error creating staff record:", staffError);
           throw staffError;
         }

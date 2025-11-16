@@ -9,10 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { logger } from "@/services/shared/logging/Logger";
 import { useQueueService } from "@/hooks/useQueueService";
+import { patientService } from "@/services/patient";
+import { clinicService } from "@/services/clinic";
 
 interface AddWalkInDialogProps {
   open: boolean;
@@ -44,9 +45,9 @@ export function AddWalkInDialog({ open, onOpenChange, clinicId, staffId, onSucce
   const fetchClinicSettings = useCallback(async () => {
     if (!clinicId) return;
     try {
-      const { data } = await supabase.from("clinics").select("settings").eq("id", clinicId).single();
-      const settings = (data?.settings as ClinicSettingsShape) || {};
-      const types = settings.appointment_types || [];
+      // Use ClinicService instead of direct Supabase call
+      const settings = await clinicService.getClinicSettings(clinicId);
+      const types = (settings.appointment_types as AppointmentType[]) || [];
       setAppointmentTypes(types);
       if (types.length > 0) {
         setAppointmentType((current) => current || types[0].name);
@@ -72,39 +73,26 @@ export function AddWalkInDialog({ open, onOpenChange, clinicId, staffId, onSucce
     setLoading(true);
 
     try {
-      let patientId: string | null = null;
-      let guestPatientId: string | null = null;
+      // Use PatientService to find or create patient (handles both registered and guest patients)
+      const patientResult = await patientService.findOrCreatePatient(phone, name);
       
-      // Step 1: Check for a registered user (profile)
-      const { data: registeredPatient } = await supabase.from("profiles").select("id").eq("phone_number", phone).maybeSingle();
-
-      if (registeredPatient) {
-        patientId = registeredPatient.id;
-        logger.info('Found registered patient', { patientId });
-      } else {
-        // Step 2: If not a registered user, check for an EXISTING guest patient
-        const { data: existingGuest } = await supabase.from("guest_patients").select("id").eq("phone_number", phone).is("claimed_by", null).maybeSingle();
-
-        if (existingGuest) {
-          // Use the existing guest record
-          guestPatientId = existingGuest.id;
-          logger.info('Found existing guest patient', { guestPatientId });
-        } else {
-          // Only if no registered user AND no existing guest is found, create a NEW guest
-          const { data: newGuest, error: guestError } = await supabase.from("guest_patients").insert({ full_name: name, phone_number: phone }).select('id').single();
-          if (guestError) throw new Error(`Failed to create guest: ${guestError.message}`);
-          guestPatientId = newGuest.id;
-          logger.info('Created new guest patient', { guestPatientId });
-        }
-      }
+      const patientId = patientResult.patientId;
+      const guestPatientId = patientResult.guestPatientId;
       
-      // Step 3: Prepare the DTO for the `createAppointment` service
+      logger.info('Patient lookup result', { 
+        patientId, 
+        guestPatientId, 
+        isGuest: patientResult.isGuest,
+        isNew: patientResult.isNew 
+      });
+      
+      // Step 2: Prepare the DTO for the `createAppointment` service
       const selectedType = appointmentTypes.find(t => t.name === appointmentType);
       const duration = selectedType?.duration || 15;
       const now = new Date();
       const endTime = new Date(now.getTime() + duration * 60000);
 
-      // Step 4: Call the `createAppointment` service
+      // Step 3: Call the `createAppointment` service
       const newAppointment = await createAppointment({
         clinicId,
         staffId,
@@ -119,7 +107,7 @@ export function AddWalkInDialog({ open, onOpenChange, clinicId, staffId, onSucce
 
       if (!newAppointment) throw new Error("Failed to create appointment slot.");
 
-      // Step 5: Immediately check in the new walk-in patient
+      // Step 4: Immediately check in the new walk-in patient
       await checkInPatient(newAppointment.id, staffId);
       
       onSuccess();

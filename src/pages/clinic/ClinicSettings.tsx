@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { clinicService } from "@/services/clinic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -154,20 +155,16 @@ export default function ClinicSettings() {
     }
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("clinics")
-        .update({
-          name,
-          name_ar: nameAr,
-          specialty,
-          phone,
-          email,
-          address,
-          city,
-        })
-        .eq("id", clinic.id);
-
-      if (error) throw error;
+      // Use ClinicService to update clinic information
+      await clinicService.updateClinic(clinic.id, {
+        name,
+        nameAr,
+        specialty,
+        phone,
+        email,
+        address,
+        city,
+      });
 
       toast({
         title: "Success",
@@ -207,12 +204,8 @@ export default function ClinicSettings() {
         appointment_types: appointmentTypes,
       };
 
-      const { error } = await supabase
-        .from("clinics")
-        .update({ settings: updatedSettings })
-        .eq("id", clinic.id);
-
-      if (error) throw error;
+      // Use ClinicService to update clinic settings
+      await clinicService.updateClinicSettings(clinic.id, updatedSettings);
 
       toast({
         title: "Success",

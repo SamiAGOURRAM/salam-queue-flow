@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { staffService } from "@/services/staff";
+import { patientService } from "@/services/patient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -186,23 +188,19 @@ export default function StaffSignup() {
         .maybeSingle();
 
       if (!existingStaff) {
-        // 5. Insert into clinic_staff
+        // 5. Use StaffService to add staff
         console.log("Adding to clinic_staff...");
-        const { error: staffError } = await supabase
-          .from("clinic_staff")
-          .insert({
-            clinic_id: invitationData.clinic_id,
-            user_id: userId,
+        try {
+          await staffService.addStaff({
+            clinicId: invitationData.clinic_id,
+            userId: userId,
             role: "receptionist",
-            is_active: true,
           });
-
-        if (staffError) {
+          console.log("✅ Added to clinic_staff");
+        } catch (staffError) {
           console.error("clinic_staff insert error:", staffError);
-          throw new Error(`Failed to add to clinic staff: ${staffError.message}`);
+          throw new Error(`Failed to add to clinic staff: ${staffError instanceof Error ? staffError.message : 'Unknown error'}`);
         }
-
-        console.log("✅ Added to clinic_staff");
       } else {
         console.log("✅ Already in clinic_staff");
       }

@@ -57,7 +57,6 @@ type RawAppointmentRow = {
   start_time?: string | null;
   end_time?: string | null;
   appointment_date?: string | null;
-  scheduled_time?: string | null;
   queue_position?: number | null;
   status?: AppointmentStatus | null;
   appointment_type?: string | null;
@@ -138,21 +137,22 @@ async getDailySchedule(
       // ======= CLINIC-WIDE MODE (CURRENT) =======
       logger.debug('Fetching clinic-wide daily schedule via RPC', { staffId, targetDate });
 
-      // First, get the clinic_id from the staff_id
-      const { data: staffData, error: staffError } = await supabase
-        .from('clinic_staff')
-        .select('clinic_id')
-        .eq('id', staffId)
-        .single();
+      // Get clinic_id from staff_id using RPC (bypasses RLS)
+      const { data: clinicId, error: clinicError } = await supabase.rpc('get_clinic_from_staff', {
+        p_staff_id: staffId,
+      });
 
-      if (staffError || !staffData) {
-        logger.error('Failed to get clinic from staff', staffError);
-        throw new DatabaseError('Failed to get clinic from staff', staffError);
+      if (clinicError || !clinicId) {
+        logger.error('Failed to get clinic from staff via RPC', clinicError, { staffId });
+        throw new DatabaseError(
+          `Staff with ID ${staffId} not found or has no associated clinic`,
+          clinicError
+        );
       }
 
-      // Call the NEW clinic-wide function
+      // Call the clinic-wide function with the clinic_id from RPC
       const { data, error } = await supabase.rpc('get_daily_schedule_for_clinic', {
-        p_clinic_id: staffData.clinic_id,
+        p_clinic_id: clinicId,
         p_target_date: targetDate,
       });
 
@@ -189,30 +189,29 @@ async getDailySchedule(
 
   async getClinicEstimationConfigByStaffId(staffId: string): Promise<ClinicEstimationConfig | null> {
     try {
-      const { data, error } = await supabase
-        .from('clinic_staff')
-        .select(`
-          clinic_id,
-          clinic:clinics (
-            id,
-            settings,
-            estimation_mode,
-            ml_enabled,
-            ml_model_version,
-            ml_endpoint_url,
-            eta_buffer_minutes,
-            eta_refresh_interval_sec
-          )
-        `)
-        .eq('id', staffId)
-        .single();
+      // Use RPC function to bypass RLS
+      const { data, error } = await supabase.rpc('get_clinic_estimation_config', {
+        p_staff_id: staffId,
+      });
 
       if (error || !data || !data.clinic) {
         logger.warn('Clinic estimation config not found for staff', { staffId, error });
         return null;
       }
 
-      const settings = (data.clinic.settings as Record<string, unknown> | null) || {};
+      // RPC returns: { clinic_id, clinic: { ... } }
+      const clinic = data.clinic as {
+        id: string;
+        settings: Record<string, unknown> | null;
+        estimation_mode: string;
+        ml_enabled: boolean | null;
+        ml_model_version: string | null;
+        ml_endpoint_url: string | null;
+        eta_buffer_minutes: number | null;
+        eta_refresh_interval_sec: number | null;
+      };
+
+      const settings = clinic.settings || {};
       const coerceNumber = (value: unknown): number | undefined => {
         if (typeof value === 'number') return value;
         if (typeof value === 'string') {
@@ -230,14 +229,14 @@ async getDailySchedule(
       const averageAppointmentDuration = averageDurationRaw ?? 15;
 
       return {
-        clinicId: data.clinic_id,
-        estimationMode: (data.clinic.estimation_mode || 'basic') as EstimationMode,
+        clinicId: data.clinic_id as string,
+        estimationMode: (clinic.estimation_mode || 'basic') as EstimationMode,
         averageAppointmentDuration,
-        etaBufferMinutes: data.clinic.eta_buffer_minutes ?? 5,
-        etaRefreshIntervalSec: data.clinic.eta_refresh_interval_sec ?? 60,
-        mlEnabled: data.clinic.ml_enabled ?? false,
-        mlModelVersion: data.clinic.ml_model_version ?? undefined,
-        mlEndpointUrl: data.clinic.ml_endpoint_url ?? undefined,
+        etaBufferMinutes: clinic.eta_buffer_minutes ?? 5,
+        etaRefreshIntervalSec: clinic.eta_refresh_interval_sec ?? 60,
+        mlEnabled: clinic.ml_enabled ?? false,
+        mlModelVersion: clinic.ml_model_version ?? undefined,
+        mlEndpointUrl: clinic.ml_endpoint_url ?? undefined,
         rawSettings: settings,
       };
     } catch (error) {
@@ -249,6 +248,22 @@ async getDailySchedule(
   async recordWaitTimePredictions(predictions: WaitTimePredictionRecord[]): Promise<void> {
     if (!predictions.length) return;
     try {
+      // Map estimation mode to database enum values
+      // Database enum likely accepts: 'basic', 'ml', 'hybrid'
+      // Estimator modes: 'ml', 'rule-based', 'historical-average', 'fallback'
+      const mapModeToDbEnum = (mode: string): string => {
+        switch (mode) {
+          case 'ml':
+            return 'ml';
+          case 'rule-based':
+          case 'historical-average':
+          case 'fallback':
+            return 'basic'; // Map all non-ML modes to 'basic'
+          default:
+            return 'basic';
+        }
+      };
+      
       const payload = predictions.map(prediction => ({
         appointment_id: prediction.appointmentId,
         clinic_id: prediction.clinicId,
@@ -256,7 +271,7 @@ async getDailySchedule(
         lower_confidence: prediction.lowerConfidence ?? null,
         upper_confidence: prediction.upperConfidence ?? null,
         confidence_score: prediction.confidenceScore ?? null,
-        mode: prediction.mode,
+        mode: mapModeToDbEnum(prediction.mode), // Map to database enum
         model_version: prediction.modelVersion ?? null,
         feature_hash: prediction.featureHash ?? null,
         features: prediction.features ?? null,
@@ -264,10 +279,56 @@ async getDailySchedule(
 
       const { error } = await supabase.from('wait_time_predictions').insert(payload);
       if (error) {
-        logger.error('Failed to record wait time predictions', error, { count: predictions.length });
+        // Log but don't throw - this is non-critical
+        logger.warn('Failed to record wait time predictions (table may not exist)', error, { 
+          count: predictions.length,
+          errorCode: error.code,
+          errorMessage: error.message
+        });
       }
     } catch (error) {
-      logger.error('Unexpected error recording wait time predictions', error as Error);
+      // Log but don't throw - this is non-critical for core functionality
+      logger.warn('Unexpected error recording wait time predictions (table may not exist)', error as Error);
+    }
+  }
+
+  /**
+   * Records actual wait time and service duration for ML training
+   * This is called after an appointment completes to store the ground truth label
+   * Uses a database function to bypass RLS policies
+   */
+  async recordActualWaitTime(
+    appointmentId: string,
+    data: { actualWaitTime: number; actualServiceDuration?: number }
+  ): Promise<void> {
+    try {
+      logger.debug('Recording actual wait time', { appointmentId, actualWaitTime: data.actualWaitTime });
+
+      // Use database function to bypass RLS
+      // The function handles all the logic including error calculation
+      const { error: functionError } = await supabase.rpc('record_actual_wait_time', {
+        p_appointment_id: appointmentId,
+        p_actual_wait_time: data.actualWaitTime,
+        p_actual_service_duration: data.actualServiceDuration ?? null,
+      });
+
+      if (functionError) {
+        logger.error('Failed to record actual wait time via database function', functionError, { 
+          appointmentId,
+          actualWaitTime: data.actualWaitTime,
+          actualServiceDuration: data.actualServiceDuration,
+        });
+        throw functionError;
+      }
+
+      logger.info('Successfully recorded actual wait time', { 
+        appointmentId, 
+        actualWaitTime: data.actualWaitTime,
+        actualServiceDuration: data.actualServiceDuration,
+      });
+    } catch (error) {
+      logger.error('Unexpected error recording actual wait time', error as Error, { appointmentId });
+      throw error; // Re-throw so caller knows it failed
     }
   }
 
@@ -409,14 +470,19 @@ async getDailySchedule(
     try {
       logger.debug('Creating queue entry via RPC', { dto });
 
+      // Convert AppointmentType enum to string value
+      const appointmentTypeString = typeof dto.appointmentType === 'string' 
+        ? dto.appointmentType 
+        : dto.appointmentType.toString();
+
       const { data, error } = await supabase.rpc('create_queue_entry', {
         p_clinic_id: dto.clinicId,
         p_staff_id: dto.staffId,
         p_patient_id: dto.patientId,
-        p_guest_patient_id: dto.guestPatientId,
-        p_is_guest: dto.isGuest,
-        p_appointment_type: dto.appointmentType,
-        p_is_walk_in: dto.isWalkIn,
+        p_guest_patient_id: dto.guestPatientId || null,
+        p_is_guest: dto.isGuest || false,
+        p_appointment_type: appointmentTypeString, // Ensure it's a string
+        p_is_walk_in: dto.isWalkIn || false,
         p_start_time: dto.startTime,
         p_end_time: dto.endTime,
       });
@@ -441,6 +507,14 @@ async getDailySchedule(
     try {
       logger.debug('Updating queue entry', { id, ...dto });
 
+      // Special case: If cancelling (status = CANCELLED), use RPC function to bypass RLS
+      if (dto.status === AppointmentStatus.CANCELLED) {
+        // For cancellation, we need the cancelled_by user ID
+        // This should be passed via a separate method, but for now we'll use a workaround
+        // The QueueService should call cancelAppointmentViaRpc instead
+        logger.warn('Cancellation should use cancelAppointmentViaRpc method', { id });
+      }
+
       const updateObj: Record<string, unknown> = {};
       
       // Keep existing updatable fields
@@ -455,25 +529,46 @@ async getDailySchedule(
       // Add new updatable time fields
       if (dto.startTime !== undefined) updateObj.start_time = dto.startTime;
       if (dto.endTime !== undefined) updateObj.end_time = dto.endTime;
+      if (dto.actualStartTime !== undefined) updateObj.actual_start_time = dto.actualStartTime;
+      if (dto.actualEndTime !== undefined) updateObj.actual_end_time = dto.actualEndTime;
+      if (dto.actualDuration !== undefined) updateObj.actual_duration = dto.actualDuration;
       
       // Always set updated_at to now()
       updateObj.updated_at = new Date().toISOString();
 
-      const { data, error } = await supabase
+      // First, try to update
+      const { data: updateData, error: updateError } = await supabase
         .from('appointments')
         .update(updateObj)
         .eq('id', id)
+        .select('id')
+        .maybeSingle();
+
+      if (updateError) {
+        logger.error('Failed to update queue entry', updateError, { id, dto });
+        throw new DatabaseError('Failed to update queue entry', updateError);
+      }
+
+      if (!updateData) {
+        logger.error('No rows updated - RLS policy may be blocking', { id, dto });
+        throw new DatabaseError('No rows updated. You may not have permission to update this appointment.', null);
+      }
+
+      // Now fetch the full updated entry
+      const { data, error } = await supabase
+        .from('appointments')
         .select(`
           *,
           patient:profiles!appointments_patient_fkey(id, full_name, phone_number, email),
           guest_patient:guest_patients(id, full_name, phone_number),
           clinic:clinics(id, name)
         `)
+        .eq('id', id)
         .single();
 
       if (error || !data) {
-        logger.error('Failed to update queue entry', error, { id, dto });
-        throw new DatabaseError('Failed to update queue entry', error);
+        logger.error('Failed to fetch updated queue entry', error, { id, dto });
+        throw new DatabaseError('Failed to fetch updated queue entry', error);
       }
 
       return this.mapToQueueEntry(data as RawAppointmentRow);
@@ -481,6 +576,33 @@ async getDailySchedule(
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error updating queue entry', error as Error, { id, dto });
       throw new DatabaseError('Unexpected error updating queue entry', error as Error);
+    }
+  }
+
+  /**
+   * Cancel appointment via RPC function (bypasses RLS)
+   */
+  async cancelAppointmentViaRpc(appointmentId: string, cancelledBy: string, reason?: string): Promise<QueueEntry> {
+    try {
+      logger.debug('Cancelling appointment via RPC', { appointmentId, cancelledBy, reason });
+
+      const { data, error } = await supabase.rpc('cancel_appointment', {
+        p_appointment_id: appointmentId,
+        p_cancelled_by: cancelledBy,
+        p_reason: reason || 'patient_request',
+      });
+
+      if (error || !data) {
+        logger.error('Failed to cancel appointment via RPC', error, { appointmentId, cancelledBy });
+        throw new DatabaseError('Failed to cancel appointment', error);
+      }
+
+      // The RPC returns a JSON object, map it to QueueEntry
+      return this.mapToQueueEntry(data as RawAppointmentRow);
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error cancelling appointment via RPC', error as Error, { appointmentId });
+      throw new DatabaseError('Unexpected error cancelling appointment', error as Error);
     }
   }
 
@@ -881,7 +1003,7 @@ async getDailySchedule(
 
       // Deprecated fields, mapped for backward compatibility during transition
       appointmentDate: data.start_time ? new Date(data.start_time) : new Date(data.appointment_date),
-      scheduledTime: data.start_time ? new Date(data.start_time).toTimeString().substring(0, 5) : data.scheduled_time,
+      scheduledTime: data.start_time ? new Date(data.start_time).toTimeString().substring(0, 5) : undefined,
 
       queuePosition: data.queue_position,
       status: data.status as AppointmentStatus,

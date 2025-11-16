@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { clinicService } from "@/services/clinic";
+import { staffService } from "@/services/staff";
+import { patientService } from "@/services/patient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -168,19 +171,20 @@ export default function ClinicOnboarding() {
 
       console.log("Clinic created:", clinic);
 
-      // Create staff entry for owner (might be handled by trigger)
-      const { error: staffError } = await supabase
-        .from("clinic_staff")
-        .insert({
-          clinic_id: clinic.id,
-          user_id: currentUser.id,
+      // Create staff entry for owner using StaffService
+      // Note: This might already exist from a database trigger, so we catch errors gracefully
+      try {
+        await staffService.addStaff({
+          clinicId: clinic.id,
+          userId: currentUser.id,
           role: "doctor",
           specialization: clinicData.specialty,
         });
-
-      if (staffError) {
+        console.log("Staff entry created successfully");
+      } catch (staffError) {
         console.error("Staff creation error:", staffError);
         console.log("Staff entry might already exist from trigger");
+        // Continue - this is not a critical error
       }
 
       // Update user role with clinic_id (might be handled by trigger)

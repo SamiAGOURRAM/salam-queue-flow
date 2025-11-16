@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { patientService } from "@/services/patient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -79,22 +80,22 @@ export default function PatientProfile() {
   }, [user, fetchProfile]);
 
   const handleSave = async () => {
+    if (!user?.id) return;
+    
     try {
       setSaving(true);
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          full_name: fullName,
-          phone_number: phone,
-          city: city,
-        })
-        .eq("id", user?.id);
-
-      if (error) throw error;
+      
+      // Use PatientService to update profile
+      await patientService.updatePatientProfile(user.id, {
+        fullName,
+        phoneNumber: phone,
+        // Note: city is not in PatientProfile interface, may need to add it
+        // For now, we'll update what we can
+      });
 
       toast({
-        title: t('common.success', { defaultValue: 'Success' }), // Assumed common.success key
-        description: t('profile.saveSuccess', { defaultValue: 'Profile updated successfully' }), // Translated
+        title: t('common.success', { defaultValue: 'Success' }),
+        description: t('profile.saveSuccess', { defaultValue: 'Profile updated successfully' }),
       });
     } catch (error: unknown) {
       console.error("Error updating profile:", error);

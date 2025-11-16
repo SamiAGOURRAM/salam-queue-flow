@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueueService } from "@/hooks/useQueueService";
 import { supabase } from "@/integrations/supabase/client";
+import { clinicService } from "@/services/clinic";
+import { staffService } from "@/services/staff";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Activity, Users, Clock, TrendingUp, Calendar, UserPlus, ArrowRight, Sparkles, Settings, CheckCircle2, Timer } from "lucide-react";
@@ -44,25 +46,27 @@ export default function ClinicDashboard() {
     const fetchInitialData = async () => {
       if (!user) return;
 
-      // Fetch the clinic owned by the current user
-      const { data: clinicData } = await supabase
-        .from("clinics")
-        .select("id, name, practice_type, specialty, city")
-        .eq("owner_id", user.id)
-        .single();
+      // Fetch the clinic owned by the current user using ClinicService
+      const clinicData = await clinicService.getClinicByOwner(user.id);
       
       if (clinicData) {
-        setClinic(clinicData);
+        setClinic({
+          id: clinicData.id,
+          name: clinicData.name,
+          practice_type: clinicData.practiceType,
+          specialty: clinicData.specialty,
+          city: clinicData.city,
+        });
 
-        // Once we have the clinic, find the staff entry for the current user in that clinic
-        const { data: staffData } = await supabase
-          .from("clinic_staff")
-          .select("id, user_id") // 'id' here is the staff_id we need
-          .eq("clinic_id", clinicData.id)
-          .eq("user_id", user.id)
-          .single();
+        // Find the staff entry for the current user in that clinic using StaffService
+        const staffData = await staffService.getStaffByClinicAndUser(clinicData.id, user.id);
         
-        setStaffProfile(staffData);
+        if (staffData) {
+          setStaffProfile({
+            id: staffData.id,
+            user_id: staffData.userId,
+          });
+        }
       }
     };
 

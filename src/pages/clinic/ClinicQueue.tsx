@@ -5,6 +5,8 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { clinicService } from "@/services/clinic";
+import { staffService } from "@/services/staff";
 import { Button } from "@/components/ui/button";
 import { UserPlus, Calendar, XCircle, Sparkles, Clock, Users, Activity } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
@@ -12,8 +14,9 @@ import { AddWalkInDialog } from "@/components/clinic/AddWalkInDialog";
 import { BookAppointmentDialog } from "@/components/clinic/BookAppointmentDialog";
 import { EnhancedQueueManager } from "@/components/clinic/EnhancedQueueManager";
 import { EndDayConfirmationDialog } from "@/components/clinic/EndDayConfirmationDialog";
-import { useQueueService } from "@/hooks/useQueueService";
+// Removed duplicate useQueueService - EnhancedQueueManager already uses it
 import { AppointmentStatus, SkipReason } from "@/services/queue";
+import { logger } from "@/services/shared/logging/Logger";
 
 interface StaffProfile {
   id: string; // This is the staff_id
@@ -31,71 +34,41 @@ export default function ClinicQueue() {
   const [showBookAppointment, setShowBookAppointment] = useState(false);
   const [showEndDay, setShowEndDay] = useState(false);
   const [queueRefreshKey, setQueueRefreshKey] = useState(0);
+  const [queueSummary, setQueueSummary] = useState({ waiting: 0, inProgress: 0, absent: 0, completed: 0 });
 
-  // Get queue stats for End Day dialog
-  const { schedule } = useQueueService({
-    staffId: staffProfile?.id || '',
-    autoRefresh: true,
-  });
-
-  // Calculate summary from schedule
-  const queueSummary = useMemo(() => {
-    if (!schedule || schedule.length === 0) {
-      return { waiting: 0, inProgress: 0, absent: 0, completed: 0 };
-    }
-    
-    const waiting = schedule.filter(p => 
-      (p.status === AppointmentStatus.WAITING || p.status === AppointmentStatus.SCHEDULED) && 
-      p.skipReason !== SkipReason.PATIENT_ABSENT
-    ).length;
-    
-    const inProgress = schedule.filter(p => p.status === AppointmentStatus.IN_PROGRESS).length;
-    const absent = schedule.filter(p => p.skipReason === SkipReason.PATIENT_ABSENT && !p.returnedAt).length;
-    const completed = schedule.filter(p => p.status === AppointmentStatus.COMPLETED).length;
-    
-    return { waiting, inProgress, absent, completed };
-  }, [schedule]);
+  // Don't duplicate useQueueService here - EnhancedQueueManager already has it
+  // Just get the summary from EnhancedQueueManager via callback
 
   const fetchClinicAndStaffData = useCallback(async () => {
-    // --- DEBUG LOG 1: Check if the function starts and who the user is ---
-    console.log("DEBUG: Starting fetchClinicAndStaffData. User:", user?.id, "isClinicOwner:", isClinicOwner, "isStaff:", isStaff);
-
     if (!user || (!isClinicOwner && !isStaff)) return;
 
     try {
       let clinicId: string | null = null;
       if (isClinicOwner) {
-        const { data: ownerClinic } = await supabase.from("clinics").select("id").eq("owner_id", user.id).single();
+        // Use ClinicService to get clinic by owner
+        const ownerClinic = await clinicService.getClinicByOwner(user.id);
         if (ownerClinic) clinicId = ownerClinic.id;
       } else if (isStaff) {
-        const { data: staffClinic } = await supabase.from("clinic_staff").select("clinic_id").eq("user_id", user.id).single();
-        if (staffClinic) clinicId = staffClinic.clinic_id;
+        // Use StaffService to get staff, then extract clinicId
+        const staffData = await staffService.getStaffByUser(user.id);
+        if (staffData) clinicId = staffData.clinicId;
       }
-      
-      // --- DEBUG LOG 2: Check the result of fetching the clinicId ---
-      console.log("DEBUG: Fetched clinicId:", clinicId);
 
       if (!clinicId) throw new Error("Could not determine the clinic for your account.");
       
       setClinic({ id: clinicId });
 
-      const { data: staffData, error: staffError } = await supabase
-        .from("clinic_staff")
-        .select("id")
-        .eq("clinic_id", clinicId)
-        .eq("user_id", user.id)
-        .single();
+      // Use StaffService to get staff by clinic and user
+      const staffData = await staffService.getStaffByClinicAndUser(clinicId, user.id);
       
-      if (staffError || !staffData) {
-        throw new Error(staffError?.message || "Could not find a staff profile for your account in this clinic.");
+      if (!staffData) {
+        throw new Error("Could not find a staff profile for your account in this clinic.");
       }
 
-      // --- DEBUG LOG 3: Check the final staffId before setting state ---
-      console.log("DEBUG: Fetched staffId:", staffData?.id);
-      setStaffProfile(staffData);
+      setStaffProfile({ id: staffData.id });
 
     } catch (error) {
-      console.error("DEBUG: Error in fetchClinicAndStaffData:", error);
+      logger.error("Error fetching clinic and staff data", error as Error, { userId: user?.id });
       toast({ title: "Error", description: (error as Error).message, variant: "destructive" });
     }
   }, [user, isClinicOwner, isStaff]);
@@ -233,6 +206,7 @@ export default function ClinicQueue() {
               clinicId={clinic.id} 
               userId={user.id}
               staffId={staffProfile.id}
+              onSummaryChange={setQueueSummary}
             />
           </div>
         ) : (
