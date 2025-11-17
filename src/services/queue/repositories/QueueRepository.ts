@@ -39,6 +39,10 @@ type GuestPatientProfile = {
 type ClinicInfo = {
   id: string;
   name?: string | null;
+  specialty?: string | null;
+  city?: string | null;
+  address?: string | null;
+  phone?: string | null; // clinics table uses 'phone', not 'phone_number'
   settings?: Record<string, unknown> | null;
   estimation_mode?: string | null;
   ml_enabled?: boolean | null;
@@ -64,7 +68,6 @@ type RawAppointmentRow = {
   marked_absent_at?: string | null;
   returned_at?: string | null;
   checked_in_at?: string | null;
-  actual_start_time?: string | null;
   actual_end_time?: string | null;
   estimated_duration?: number | null;
   predicted_wait_time?: number | null;
@@ -79,6 +82,7 @@ type RawAppointmentRow = {
   skip_count?: number | null;
   skip_reason?: string | null;
   override_by?: string | null;
+  is_walk_in?: boolean | null;
   patient?: PatientProfile | null;
   guest_patient?: GuestPatientProfile | null;
   clinic?: ClinicInfo | null;
@@ -596,7 +600,7 @@ async getDailySchedule(
       // Add new updatable time fields
       if (dto.startTime !== undefined) updateObj.start_time = dto.startTime;
       if (dto.endTime !== undefined) updateObj.end_time = dto.endTime;
-      if (dto.actualStartTime !== undefined) updateObj.actual_start_time = dto.actualStartTime;
+      if (dto.checkedInAt !== undefined) updateObj.checked_in_at = dto.checkedInAt;
       if (dto.actualEndTime !== undefined) updateObj.actual_end_time = dto.actualEndTime;
       if (dto.actualDuration !== undefined) updateObj.actual_duration = dto.actualDuration;
       
@@ -1079,7 +1083,6 @@ async getDailySchedule(
       markedAbsentAt: data.marked_absent_at ? new Date(data.marked_absent_at) : undefined,
       returnedAt: data.returned_at ? new Date(data.returned_at) : undefined,
       checkedInAt: data.checked_in_at ? new Date(data.checked_in_at) : undefined,
-      actualStartTime: data.actual_start_time ? new Date(data.actual_start_time) : undefined,
       actualEndTime: data.actual_end_time ? new Date(data.actual_end_time) : undefined,
       estimatedDurationMinutes: data.estimated_duration ?? undefined,
       estimatedWaitTime: typeof data.predicted_wait_time === 'number' ? data.predicted_wait_time : undefined,
@@ -1092,7 +1095,16 @@ async getDailySchedule(
       updatedAt: new Date(data.updated_at),
       isGuest: data.is_guest || false,
       guestPatientId: data.guest_patient_id,
+      isWalkIn: data.is_walk_in || false,
       patient: patientInfo,
+      clinic: data.clinic ? {
+        id: data.clinic.id,
+        name: data.clinic.name,
+        specialty: data.clinic.specialty || '',
+        city: data.clinic.city || '',
+        address: data.clinic.address || '',
+        phoneNumber: data.clinic.phone || '',
+      } : undefined,
       // Add other fields from your model as needed
       originalQueuePosition: data.original_queue_position,
       skipCount: data.skip_count || 0,

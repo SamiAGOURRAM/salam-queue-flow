@@ -18,16 +18,22 @@ DECLARE
   v_queue_position integer;
   v_prediction_error integer;
   v_absolute_error integer;
+  v_checked_in_at timestamp with time zone;
+  v_start_time timestamp with time zone;
 BEGIN
   -- Get appointment details
   SELECT 
     clinic_id,
     predicted_wait_time,
-    queue_position
+    queue_position,
+    checked_in_at,
+    start_time
   INTO 
     v_clinic_id,
     v_predicted_wait_time,
-    v_queue_position
+    v_queue_position,
+    v_checked_in_at,
+    v_start_time
   FROM appointments
   WHERE id = p_appointment_id;
 
@@ -43,15 +49,25 @@ BEGIN
 
   -- Insert or update appointment_metrics
   -- First, try to update existing record
-  UPDATE appointment_metrics
-  SET
-    actual_wait_time = p_actual_wait_time,
-    average_service_time = p_actual_service_duration,
-    prediction_error = v_prediction_error,
-    absolute_error = v_absolute_error,
-    queue_position = v_queue_position,
-    recorded_at = NOW()
-  WHERE appointment_id = p_appointment_id;
+    UPDATE appointment_metrics
+    SET
+      actual_wait_time = p_actual_wait_time,
+      average_service_time = p_actual_service_duration,
+      prediction_error = v_prediction_error,
+      absolute_error = v_absolute_error,
+      queue_position = v_queue_position,
+      queue_length = (
+        SELECT COUNT(*) FROM appointments 
+        WHERE clinic_id = v_clinic_id 
+          AND appointment_date = (SELECT appointment_date FROM appointments WHERE id = p_appointment_id)
+          AND status IN ('scheduled', 'waiting', 'in_progress')
+      ),
+      staff_count = (
+        SELECT COUNT(*) FROM clinic_staff 
+        WHERE clinic_id = v_clinic_id AND is_active = true
+      ),
+      recorded_at = NOW()
+    WHERE appointment_id = p_appointment_id;
 
   -- If no row was updated, insert a new one
   IF NOT FOUND THEN
@@ -64,16 +80,32 @@ BEGIN
       prediction_error,
       absolute_error,
       queue_position,
+      queue_length,
+      staff_count,
       recorded_at
     ) VALUES (
       p_appointment_id,
       v_clinic_id,
-      '{}'::jsonb,  -- Empty features object (will be populated later by feature extraction)
+      jsonb_build_object(
+        'checked_in_at', v_checked_in_at,
+        'start_time', v_start_time,
+        'queue_position', v_queue_position
+      ),
       p_actual_wait_time,
       p_actual_service_duration,
       v_prediction_error,
       v_absolute_error,
       v_queue_position,
+      (
+        SELECT COUNT(*) FROM appointments 
+        WHERE clinic_id = v_clinic_id 
+          AND appointment_date = (SELECT appointment_date FROM appointments WHERE id = p_appointment_id)
+          AND status IN ('scheduled', 'waiting', 'in_progress')
+      ),
+      (
+        SELECT COUNT(*) FROM clinic_staff 
+        WHERE clinic_id = v_clinic_id AND is_active = true
+      ),
       NOW()
     );
   END IF;

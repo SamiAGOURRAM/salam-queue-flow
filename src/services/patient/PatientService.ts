@@ -13,6 +13,7 @@ export interface PatientProfile {
   phoneNumber: string;
   fullName: string;
   email?: string;
+  city?: string;
   preferredLanguage?: string;
   notificationPreferences?: Record<string, unknown>;
   noShowCount?: number;
@@ -110,6 +111,7 @@ export class PatientService {
         phoneNumber: profile.phone_number,
         fullName: profile.full_name,
         email: profile.email || undefined,
+        city: profile.city || undefined,
         preferredLanguage: profile.preferred_language || undefined,
         notificationPreferences: profile.notification_preferences as Record<string, unknown> | undefined,
         noShowCount: profile.no_show_count || 0,
@@ -138,7 +140,9 @@ export class PatientService {
 
       const updateData: Partial<import('./repositories/PatientRepository').PatientProfileRow> = {};
       if (data.fullName) updateData.full_name = data.fullName;
+      if (data.phoneNumber) updateData.phone_number = data.phoneNumber;
       if (data.email !== undefined) updateData.email = data.email;
+      if (data.city !== undefined) updateData.city = data.city || null;
       if (data.preferredLanguage) updateData.preferred_language = data.preferredLanguage;
       if (data.notificationPreferences) updateData.notification_preferences = data.notificationPreferences as Record<string, unknown> | null;
 

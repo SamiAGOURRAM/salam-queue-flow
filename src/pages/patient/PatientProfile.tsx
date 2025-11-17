@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { patientService } from "@/services/patient";
 import { logger } from "@/services/shared/logging/Logger";
 import { Button } from "@/components/ui/button";
@@ -17,7 +16,6 @@ import {
   Heart, Building, ChevronRight, Trash2 
 } from "lucide-react";
 import { useTranslation } from "react-i18next"; // CRITICAL REQUIREMENT: Added hook
-import type { Database } from "@/integrations/supabase/types";
 
 // Define a type for the clinic data we'll fetch
 interface FavoriteClinic {
@@ -26,10 +24,6 @@ interface FavoriteClinic {
   logo_url: string | null;
   specialty: string;
 }
-
-type ProfileRowWithCity = Database["public"]["Tables"]["profiles"]["Row"] & {
-  city?: string | null;
-};
 
 export default function PatientProfile() {
   const { user } = useAuth();
@@ -47,20 +41,12 @@ export default function PatientProfile() {
     if (!user?.id) return;
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-
-      if (error) throw error;
-
-      if (data) {
-        const profileRow = data as ProfileRowWithCity;
-        setFullName(profileRow.full_name || "");
-        setPhone(profileRow.phone_number || "");
-        setCity(profileRow.city || "");
-      }
+      // Use PatientService to fetch profile (consistent with saving)
+      const profile = await patientService.getPatientProfile(user.id);
+      
+      setFullName(profile.fullName || "");
+      setPhone(profile.phoneNumber || "");
+      setCity(profile.city || "");
     } catch (error) {
       logger.error("Error fetching profile", error instanceof Error ? error : new Error(String(error)), { userId: user?.id });
       toast({
@@ -90,8 +76,7 @@ export default function PatientProfile() {
       await patientService.updatePatientProfile(user.id, {
         fullName,
         phoneNumber: phone,
-        // Note: city is not in PatientProfile interface, may need to add it
-        // For now, we'll update what we can
+        city: city || undefined,
       });
 
       toast({

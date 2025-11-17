@@ -13,6 +13,7 @@ export interface PatientProfileRow {
   phone_number: string;
   full_name: string;
   email?: string | null;
+  city?: string | null;
   preferred_language?: string | null;
   notification_preferences?: Record<string, unknown> | null;
   no_show_count?: number | null;
@@ -140,7 +141,9 @@ export class PatientRepository {
     try {
       const updateData: Record<string, unknown> = {};
       if (data.full_name) updateData.full_name = data.full_name;
+      if (data.phone_number) updateData.phone_number = data.phone_number;
       if (data.email !== undefined) updateData.email = data.email;
+      if (data.city !== undefined) updateData.city = data.city;
       if (data.preferred_language) updateData.preferred_language = data.preferred_language;
       if (data.notification_preferences) updateData.notification_preferences = data.notification_preferences;
 

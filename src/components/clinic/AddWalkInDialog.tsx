@@ -107,8 +107,8 @@ export function AddWalkInDialog({ open, onOpenChange, clinicId, staffId, onSucce
 
       if (!newAppointment) throw new Error("Failed to create appointment slot.");
 
-      // Step 4: Immediately check in the new walk-in patient
-      await checkInPatient(newAppointment.id, staffId);
+      // Step 4: Walk-ins are automatically checked in when staff calls "Call Next"
+      // No need to manually check in - staff controls entry timing
       
       onSuccess();
 

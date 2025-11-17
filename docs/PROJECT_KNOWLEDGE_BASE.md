@@ -1,8 +1,8 @@
 # 🏥 QueueMed - Complete Project Knowledge Base
 
-**Last Updated**: January 2025  
-**Version**: 2.0.0 (Production-Ready Architecture)  
-**Status**: Active Development → ML Implementation Phase
+**Last Updated**: January 2025 (Week 3)  
+**Version**: 2.1.0 (Production-Ready Architecture)  
+**Status**: Active Development → ML Service Implementation Phase
 
 ---
 
@@ -474,6 +474,27 @@ Frontend
   ↓ Displays result
 ```
 
+### **ML Approach Decision: Feature-Based (No Time Series)** ✅ **ANALYZED & DECIDED**
+
+**Key Decision**: Use **feature-based supervised learning** (Random Forest/XGBoost) instead of time series models (ARIMA, LSTM, Prophet).
+
+**Why Feature-Based?**
+- ✅ **Simplicity**: Easier to implement, debug, and maintain
+- ✅ **Interpretability**: Can explain predictions (feature importance)
+- ✅ **Robustness**: Works with missing data, sparse data
+- ✅ **Performance**: Fast inference (< 100ms)
+- ✅ **No Temporal Dependencies**: Each prediction is independent snapshot
+- ✅ **Moroccan Context**: Adapts to varying clinic patterns
+
+**Core Philosophy**: "Number of people before" is the core feature! Build on that.
+
+**Key Insight**: Wait time depends on:
+1. **Queue Position** (people ahead) - Core feature
+2. **Service Rate** (how fast people are being served)
+3. **Appointment Characteristics** (type, duration)
+4. **Staff Capacity** (how many doctors active)
+5. **Historical Patterns** (what usually happens)
+
 ### **Data Collection Strategy**
 
 #### **Phase 1: Real-Time Feature Collection** ✅ Complete
@@ -485,6 +506,7 @@ Frontend
 - Calculates actual wait time after appointment completion
 - Stores in `appointment_metrics.actual_wait_time`
 - Stores in `wait_time_feature_snapshots.label_wait_time`
+- **Updated**: Uses `checked_in_at` for wait time calculation (not `actual_start_time`)
 
 #### **Phase 3: Periodic Snapshot Collection** ✅ Complete
 - Collects queue snapshots every 5-15 minutes
@@ -496,25 +518,85 @@ Frontend
 - Calculates punctuality and reliability scores
 - Updates preferred times/days
 
-### **Feature Categories** (50+ Features)
+### **Feature Engineering Strategy** 📊 **ANALYZED & PRIORITIZED**
+
+**Total Features Available**: 50+ features across 9 categories
+
+#### **Tier 1: Core Features** (Must Have - 15 features) 🎯 **HIGHEST PRIORITY**
+
+**These have the highest predictive power**:
+1. `queue_position` - Position in queue (directly correlates with wait time)
+2. `people_ahead_count` - Number ahead (your core idea!)
+3. `active_staff_count` - Staff capacity (more staff = faster)
+4. `appointment_type` - Type (categorical: consultation, follow_up, etc.)
+5. `estimated_duration_minutes` - Expected duration
+6. `recent_completion_rate` - Queue velocity (appointments/hour in last 2 hours)
+7. `average_service_duration` - How fast people are served (today's average)
+8. `staff_utilization_rate` - Staff busyness (0-1, higher = slower)
+9. `historical_avg_wait_time` - Baseline from history
+10. `historical_avg_service_duration` - Service baseline
+11. `waiting_count` - Total waiting (scheduled + checked-in)
+12. `in_progress_count` - Currently serving
+13. `expected_queue_clearance_time` - Derived: `(people_ahead * avg_duration) / staff_count`
+14. `disruptions_count_today` - Instability indicator
+15. `cumulative_delay_minutes` - Delay impact
+
+#### **Tier 2: Important Features** (Should Have - 20 features)
+
+**These improve accuracy**:
+16. `hour_of_day` - Time context (0-23)
+17. `day_of_week` - Day context (0-6)
+18. `is_first_visit` - Complexity indicator
+19. `is_walk_in` - Unpredictability
+20. `patient_punctuality_score` - Patient behavior (0-1)
+21. `patient_total_visits` - Familiarity
+22. `assigned_staff_avg_duration` - Doctor-specific duration
+23. `historical_wait_time_p90` - Worst case (90th percentile)
+24. `wait_time_trend` - Trending direction (increasing/decreasing)
+25. `queue_load_ratio` - Overload indicator
+26. `emergency_cases_ahead` - Priority impact
+27. `walk_ins_ahead` - Unpredictable ahead
+28. `clinic_buffer_time` - Scheduling buffer
+29. `scheduled_time_slot` - Time preference (morning/afternoon/evening)
+30. `same_hour_avg_wait_time` - Same time history
+31. `staff_load_ratio` - Individual staff load
+32. `is_weekend` - Day type
+33. `historical_avg_wait_for_type` - Type-specific baseline
+34. `recent_avg_wait_time` - Recent trend (last 7 days)
+35. `overload_factor` - Capacity stress
+
+#### **Tier 3: Context Features** (Nice to Have - 15+ features)
+
+**These add nuance**:
+- Temporal: `month`, `is_holiday`, `is_ramadan`, `days_since_month_start`
+- Patient: `patient_no_show_rate`, `patient_cancellation_rate`, `patient_avg_lateness`
+- Clinic: `clinic_specialty`, `clinic_city`, `clinic_size`
+- Disruptions: `no_shows_today`, `queue_overrides_today`, `recent_skips_count`
+- Derived: `minutes_until_appointment`, `position_times_avg_duration`
+
+### **Feature Categories** (Complete Inventory)
 
 1. **Temporal Features** (9 features)
    - hour_of_day, day_of_week, is_weekend, is_holiday, month, time_slot, etc.
 
-2. **Queue State Features** (11 features)
+2. **Queue State Features** (11 features) 🎯 **HIGHEST PRIORITY**
    - queue_position, queue_length, waiting_count, in_progress_count, average_wait_time_current, etc.
+   - **Core**: `queue_position`, `people_ahead_count` (your key insight!)
 
 3. **Staff & Resource Features** (7 features)
    - active_staff_count, staff_utilization, staff_avg_consultation_duration, staff_load_ratio, etc.
 
 4. **Appointment Characteristics** (7 features)
-   - appointment_type, estimated_duration, complexity_score, is_first_visit, is_walk_in, etc.
+   - appointment_type, estimated_duration, is_first_visit, is_walk_in, etc.
+   - **Removed**: `complexity_score`, `requires_preparation` (subjective, not objectively measurable)
 
 5. **Patient Behavior Features** (10 features)
    - patient_total_visits, patient_no_show_rate, patient_punctuality_score, patient_reliability_score, etc.
 
-6. **Timing & Arrival Features** (6 features)
-   - checked_in_at, patient_arrival_time, lateness_minutes, is_late, has_checked_in, etc.
+6. **Timing & Arrival Features** (5 features) ✅ **UPDATED**
+   - checked_in_at, lateness_minutes, is_late, has_checked_in, etc.
+   - **Removed**: `patient_arrival_time` (unused dead code)
+   - **Merged**: `actual_start_time` into `checked_in_at` (simplified flow)
 
 7. **Queue Disruption Features** (6 features)
    - skip_count, is_absent, has_returned, queue_overrides_count_today, emergency_cases_ahead, etc.
@@ -525,26 +607,87 @@ Frontend
 9. **Clinic Configuration Features** (6 features)
    - clinic_buffer_time, clinic_avg_appointment_duration, clinic_operating_mode, clinic_allows_walk_ins, etc.
 
-### **Label Definition**
+### **Model Selection** 🤖 **RECOMMENDED**
+
+**Primary Recommendation: Random Forest Regression**
+
+**Why Random Forest?**
+- ✅ **Handles non-linearity**: Appointment wait time has complex relationships
+- ✅ **Feature importance**: Can explain predictions
+- ✅ **Robust to outliers**: Missing appointments, emergencies don't break it
+- ✅ **Fast inference**: < 100ms per prediction
+- ✅ **No feature scaling needed**: Works with raw features
+- ✅ **Handles mixed types**: Categorical (appointment_type) + numerical
+- ✅ **Works with missing data**: Can impute during prediction
+
+**Alternative: XGBoost**
+- Better accuracy (slightly slower)
+- Handles missing data better
+- More hyperparameters to tune
+
+### **Label Definition** ✅ **UPDATED**
 
 **Primary Label: Wait Time**
-- Definition: Time from check-in to actual start
-- Calculation: `actual_start_time - checked_in_at` (in minutes)
+- Definition: Time from check-in to when consultation starts
+- Calculation: `checked_in_at - start_time` (scheduled to entry) for completed appointments
+- **Updated**: Now uses `checked_in_at` (not `actual_start_time`) since they represent the same moment
 - Storage: `appointment_metrics.actual_wait_time`
 
 **Secondary Label: Service Duration**
 - Definition: How long the consultation took
-- Calculation: `actual_end_time - actual_start_time` (in minutes)
+- Calculation: `actual_end_time - checked_in_at` (entry to completion)
 - Storage: `appointments.actual_duration`
+
+### **Schema Cleanup** ✅ **COMPLETED**
+
+**Removed Redundant Fields**:
+- ❌ `patient_arrival_time` - Unused dead code (never set or read)
+- ❌ `actual_start_time` - Merged into `checked_in_at` (same moment)
+- ❌ `complexity_score` - Subjective, not objectively measurable
+- ❌ `requires_preparation` - Subjective, not objectively measurable
+
+**Simplified Flow**:
+1. Staff clicks "Call Next" → `checked_in_at` set (patient enters consultation room)
+2. Staff completes appointment → `actual_end_time` set
+3. Wait time = `checked_in_at - start_time` (scheduled to entry)
+4. Service duration = `actual_end_time - checked_in_at` (entry to completion)
 
 ### **Implementation Roadmap**
 
-1. ✅ **Data Collection Enhancement** - Complete
-2. ⏳ **External ML Service** - Create Python/FastAPI service
-3. ⏳ **ML API Integration** - Connect Edge Function to ML service
-4. ⏳ **Model Training Pipeline** - Automated training from collected data
-5. ⏳ **Model Deployment** - Deploy and version models
-6. ⏳ **A/B Testing Framework** - Test model performance
+1. ✅ **ML Analysis & Design** - Complete
+   - Feature-based approach designed
+   - Feature inventory completed (50+ features)
+   - Feature prioritization done (Tier 1/2/3)
+   - Schema cleanup completed
+   - Field usage analysis completed
+
+2. ✅ **Data Collection Enhancement** - Complete
+   - Real-time feature collection
+   - Historical data collection
+   - Queue snapshot collection
+   - Schema updated and cleaned
+
+3. ⏳ **External ML Service** - **NEXT STEP**
+   - Create Python/FastAPI service
+   - Implement feature engineering (Tier 1 features first)
+   - Implement Random Forest model
+   - Add model versioning
+
+4. ⏳ **ML API Integration** - Planned
+   - Connect Edge Function to ML service
+   - Test end-to-end prediction flow
+   - Handle errors and fallbacks
+
+5. ⏳ **Model Training Pipeline** - Planned
+   - Automated training from `appointment_metrics`
+   - Model versioning
+   - Performance monitoring
+   - Feature importance tracking
+
+6. ⏳ **Model Deployment** - Planned
+   - Deploy ML service
+   - Configure ML_SERVICE_URL
+   - A/B testing framework
 
 ---
 
@@ -558,12 +701,15 @@ Frontend
 
 #### **`profiles`**
 - User profiles (patients/staff)
-- Key fields: `id`, `phone_number`, `full_name`, `email`, `preferred_language`, `notification_preferences`
+- Key fields: `id`, `phone_number`, `full_name`, `email`, `city`, `preferred_language`, `notification_preferences`
+- **Recent Addition**: Added `city` field for better location tracking
 
 #### **`appointments`**
 - Main appointment/queue entries
-- Key fields: `id`, `clinic_id`, `patient_id`, `staff_id`, `appointment_date`, `start_time` (timestamp), `end_time`, `queue_position`, `status`, `actual_start_time`, `actual_end_time`, `predicted_wait_time`, `predicted_start_time`, `prediction_mode`, `appointment_type`
+- Key fields: `id`, `clinic_id`, `patient_id`, `staff_id`, `appointment_date`, `start_time` (timestamp), `end_time`, `queue_position`, `status`, `checked_in_at`, `actual_end_time`, `predicted_wait_time`, `predicted_start_time`, `prediction_mode`, `appointment_type`
 - **Note**: Uses `start_time` (timestamp) as single source of truth. Time extracted via `start_time::time` or in application layer.
+- **Schema Cleanup**: Removed `patient_arrival_time` (unused), `actual_start_time` (merged into `checked_in_at`), `complexity_score` and `requires_preparation` (subjective).
+- **Simplified Flow**: `checked_in_at` is set when staff calls "Call Next" (patient enters consultation room). Wait time = `checked_in_at - start_time`.
 
 #### **`clinic_staff`**
 - Staff members and their roles
@@ -1153,6 +1299,48 @@ src/
 ## 🔄 Recent Changes & Updates
 
 ### **January 2025**
+
+#### **Week 3: Booking Flow & Schema Cleanup**
+1. ✅ **BookAppointmentDialog Refactoring**: Refactored staff booking dialog to match patient booking flow
+   - Added visual slot selection (grid of available time slots)
+   - Removed hardcoded appointment types, now uses clinic-defined types from settings
+   - Made slot generation logic match exactly with `BookingFlow` component
+   - Simplified staff selection (one doctor per clinic assumption)
+   - Added proper error handling and validation
+2. ✅ **Schema Cleanup**: Cleaned up redundant and unused fields
+   - Removed `patient_arrival_time` (unused dead code)
+   - Merged `actual_start_time` into `checked_in_at` (simplified check-in flow)
+   - Removed `complexity_score` and `requires_preparation` (subjective, not objectively measurable)
+   - Updated all RPC functions to use `checked_in_at` instead of `actual_start_time`
+3. ✅ **Profile Enhancements**: Added city field to patient profiles
+   - Added `city` column to `profiles` table
+   - Updated PatientService and PatientRepository to handle city
+   - Integrated city field into patient profile UI
+4. ✅ **Database Function Fixes**: Fixed RPC function errors
+   - Fixed `get_daily_schedule_for_clinic` to use correct column names (`phone` not `phone_number`)
+   - Updated functions to include full clinic details in responses
+   - Fixed function signature mismatches (return types, parameters)
+
+#### **Week 3: ML Analysis & Design**
+1. ✅ **Feature-Based ML Design**: Designed ML approach avoiding time series complexity
+   - Chose feature-based supervised learning (Random Forest/XGBoost) over time series
+   - Defined 50+ features across 9 categories (Temporal, Queue State, Staff, etc.)
+   - Prioritized features into tiers (Core, Important, Context)
+   - Documented rationale: simplicity, interpretability, robustness, fast inference
+2. ✅ **ML Field Analysis**: Analyzed which fields can be objectively measured/ingested
+   - Identified redundant fields: `patient_arrival_time`, `complexity_score`, `requires_preparation`
+   - Identified subjective fields that need refinement or removal
+   - Verified which fields are actually used in codebase vs defined in schema
+   - Documented computable vs directly stored features
+3. ✅ **ML Data Inventory**: Mapped all available ML data sources
+   - Documented features directly available from `appointments` table
+   - Documented computed features from `patient_clinic_history`, `clinic_staff`, `clinics`
+   - Documented features that require calculation (queue state, staff utilization, etc.)
+   - Identified missing features that need implementation
+4. ✅ **ML Feature Prioritization**: Created tiered feature set for model training
+   - **Tier 1 (Core - 15 features)**: queue_position, people_ahead_count, active_staff_count, appointment_type, etc.
+   - **Tier 2 (Important - 20 features)**: hour_of_day, day_of_week, patient_punctuality_score, etc.
+   - **Tier 3 (Context - 15+ features)**: month, is_holiday, clinic_specialty, etc.
 
 #### **Week 2-3: Wait Time Estimation System Implementation**
 1. ✅ **Event-Driven Estimation**: Implemented `WaitTimeEstimationOrchestrator` that only calculates when disruptions occur

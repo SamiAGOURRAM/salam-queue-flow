@@ -138,31 +138,8 @@ export default function MyQueue() {
 
   
 
-  // Reuse QueueService instance instead of creating new one on every action
-  const queueService = useMemo(() => new QueueService(), []);
-
-  const handleCheckIn = async () => {
-    if (!appointmentId) return;
-    
-    try {
-      // Use QueueService to check in patient
-      await queueService.checkInPatient(appointmentId);
-
-      toast({
-        title: "Checked in successfully",
-        description: "You've been added to the queue",
-      });
-
-      fetchQueueInfo();
-    } catch (error) {
-      logger.error("Error checking in", error instanceof Error ? error : new Error(String(error)), { appointmentId });
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to check in",
-        variant: "destructive"
-      });
-    }
-  };
+  // Note: Check-in is now controlled by staff when they call "Call Next"
+  // Patient no longer needs to manually check in
 
   if (loading || loadingQueue) {
     return (
@@ -342,26 +319,21 @@ export default function MyQueue() {
         )}
       </div>
 
-      {/* Check-In Card */}
-      {(queueInfo.status === 'scheduled' || queueInfo.status === 'confirmed') && !queueInfo.checked_in_at && (
+      {/* Waiting Card - Staff will check you in when they call "Call Next" */}
+      {(queueInfo.status === 'scheduled' || queueInfo.status === 'waiting') && !queueInfo.checked_in_at && (
         <Card className="border-2 border-blue-300 bg-gradient-to-br from-blue-50 to-cyan-50 shadow-lg">
           <CardContent className="pt-6">
             <div className="text-center">
               <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-600 to-cyan-600 flex items-center justify-center mx-auto mb-4 shadow-lg">
-                <Activity className="w-8 h-8 text-white" />
+                <Clock className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-2xl font-bold mb-2">Ready to Join the Queue?</h3>
-              <p className="text-muted-foreground mb-6 text-base">
-                Check in when you arrive at the clinic to join the virtual queue
+              <h3 className="text-2xl font-bold mb-2">Waiting for Your Turn</h3>
+              <p className="text-muted-foreground mb-2 text-base">
+                Your appointment is scheduled. The clinic staff will call you when it's your turn.
               </p>
-              <Button 
-                onClick={handleCheckIn} 
-                size="lg" 
-                className="w-full h-14 text-lg bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg"
-              >
-                <Activity className="w-5 h-5 mr-2" />
-                I've Arrived - Check In Now
-              </Button>
+              <p className="text-sm text-muted-foreground">
+                You don't need to check in - staff controls entry timing for accuracy.
+              </p>
             </div>
           </CardContent>
         </Card>

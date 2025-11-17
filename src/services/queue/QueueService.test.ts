@@ -285,7 +285,7 @@ describe('QueueService', () => {
       mockRepository.updateQueueEntry = vi.fn().mockResolvedValue({
         ...waitingPatient,
         status: AppointmentStatus.IN_PROGRESS,
-        actualStartTime: new Date(),
+        checkedInAt: new Date(),
       });
       mockRepository.createQueueOverride = vi.fn().mockResolvedValue(undefined);
       vi.mocked(eventBus.publish).mockResolvedValue(undefined);
@@ -439,14 +439,14 @@ describe('QueueService', () => {
     it('should complete appointment and calculate wait time', async () => {
       const appointmentId = 'app-123';
       const performedBy = 'user-123';
-      const checkedInAt = new Date(Date.now() - 1800000); // 30 minutes ago
-      const actualStartTime = new Date(Date.now() - 900000); // 15 minutes ago
+      const startTime = new Date(Date.now() - 1800000); // 30 minutes ago (scheduled start)
+      const checkedInAt = new Date(Date.now() - 900000); // 15 minutes ago (when entered)
 
       const mockEntry = createMockQueueEntry({
         id: appointmentId,
         status: AppointmentStatus.IN_PROGRESS,
+        startTime,
         checkedInAt,
-        actualStartTime,
       });
 
       mockRepository.getQueueEntryById = vi.fn().mockResolvedValue(mockEntry);

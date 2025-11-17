@@ -33,7 +33,6 @@ export function createMockQueueEntry(overrides?: Partial<QueueEntry>): QueueEntr
     skipReason: undefined,
     overrideBy: undefined,
     checkedInAt: undefined,
-    actualStartTime: undefined,
     actualEndTime: undefined,
     estimatedDurationMinutes: 30,
     estimatedWaitTime: undefined,

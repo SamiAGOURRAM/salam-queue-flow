@@ -262,8 +262,9 @@ export class WaitTimeEstimationOrchestrator {
       let disruptionReason = '';
 
       // Check if duration was unusual
-      if (appointment.actualStartTime && appointment.actualEndTime && appointment.estimatedDurationMinutes) {
-        const actualDuration = (appointment.actualEndTime.getTime() - appointment.actualStartTime.getTime()) / 60000;
+      if (appointment.checkedInAt && appointment.actualEndTime && appointment.estimatedDurationMinutes) {
+        // Service duration = time from check-in (entry) to completion
+        const actualDuration = (appointment.actualEndTime.getTime() - appointment.checkedInAt.getTime()) / 60000;
         const estimatedDuration = appointment.estimatedDurationMinutes;
         const difference = actualDuration - estimatedDuration;
 
@@ -396,7 +397,7 @@ export class WaitTimeEstimationOrchestrator {
       // Get all in-progress appointments
       const { data: inProgressAppointments, error } = await supabase
         .from('appointments')
-        .select('id, clinic_id, start_time, appointment_date, estimated_duration, actual_start_time')
+        .select('id, clinic_id, start_time, appointment_date, estimated_duration, checked_in_at, actual_end_time')
         .eq('appointment_date', today)
         .eq('status', AppointmentStatus.IN_PROGRESS);
 
@@ -408,18 +409,23 @@ export class WaitTimeEstimationOrchestrator {
         start_time: string;
         appointment_date: string;
         estimated_duration: number | null;
-        actual_start_time: string | null;
+        checked_in_at: string | null;
+        actual_end_time: string | null;
       }>) {
-        if (!appointment.actual_start_time || !appointment.start_time) continue;
-
-        // Use start_time (timestamp) instead of scheduled_time
+        if (!appointment.checked_in_at || !appointment.start_time) continue;
+        
+        // Use start_time (scheduled) and checked_in_at (actual entry) for calculations
         const scheduledDateTime = new Date(appointment.start_time);
-        const startedDateTime = new Date(appointment.actual_start_time);
+        const checkedInDateTime = new Date(appointment.checked_in_at);
         const estimatedDuration = appointment.estimated_duration || 30;
-        const expectedEndTime = new Date(startedDateTime.getTime() + estimatedDuration * 60000);
+        // Expected end time = check-in time + estimated duration
+        const expectedEndTime = new Date(checkedInDateTime.getTime() + estimatedDuration * 60000);
 
-        // If appointment is running over expected end time
-        if (now > expectedEndTime) {
+        // Check if appointment is still in progress (has checked_in_at but no actual_end_time)
+        const isStillInProgress = appointment.checked_in_at && !appointment.actual_end_time;
+        
+        // If appointment is running over expected end time (and still in progress)
+        if (isStillInProgress && now > expectedEndTime) {
           const overTimeMinutes = (now.getTime() - expectedEndTime.getTime()) / 60000;
           
           if (overTimeMinutes > this.DURATION_THRESHOLD_MINUTES) {

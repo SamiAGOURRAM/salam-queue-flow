@@ -79,9 +79,8 @@ export interface QueueEntry {
   skipCount: number;
   skipReason?: SkipReason;
   overrideBy?: string;
-  checkedInAt?: Date;
-  actualStartTime?: Date;
-  actualEndTime?: Date;
+  checkedInAt?: Date; // Set when staff calls "Call Next" (patient enters consultation room)
+  actualEndTime?: Date; // Set when staff completes appointment
   startTime?: Date;
   endTime?: Date;
   estimatedDurationMinutes?: number;
@@ -292,7 +291,7 @@ export interface UpdateQueueEntryDTO {
   appointmentType?: AppointmentType;
   markedAbsentAt?: string;
   returnedAt?: string;
-  actualStartTime?: string;
+  checkedInAt?: string; // Set when staff calls "Call Next"
   actualEndTime?: string;
   actualDuration?: number;
 }

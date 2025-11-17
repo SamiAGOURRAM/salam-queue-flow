@@ -92,9 +92,10 @@ export default function ClinicDashboard() {
     const inProgress = schedule.filter(p => p.status === AppointmentStatus.IN_PROGRESS).length;
     const completed = schedule.filter(p => p.status === AppointmentStatus.COMPLETED).length;
 
-    const completedWithTimes = schedule.filter(e => e.status === AppointmentStatus.COMPLETED && e.checkedInAt && e.actualStartTime);
+    // Wait time = time from scheduled start (startTime) to check-in (entry)
+    const completedWithTimes = schedule.filter(e => e.status === AppointmentStatus.COMPLETED && e.checkedInAt && e.startTime);
     const totalWaitMinutes = completedWithTimes.reduce((sum, entry) => {
-      const waitTime = (new Date(entry.actualStartTime!).getTime() - new Date(entry.checkedInAt!).getTime()) / (1000 * 60);
+      const waitTime = (new Date(entry.checkedInAt!).getTime() - new Date(entry.startTime!).getTime()) / (1000 * 60);
       return sum + waitTime;
     }, 0);
     const averageWaitTime = completedWithTimes.length > 0 ? Math.round(totalWaitMinutes / completedWithTimes.length) : 0;

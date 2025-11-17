@@ -115,11 +115,12 @@ export class DisruptionDetector {
    * Check if appointment had unusual duration
    */
   private hasUnusualDuration(appointment: QueueEntry): boolean {
-    if (!appointment.actualStartTime || !appointment.actualEndTime || !appointment.estimatedDurationMinutes) {
+    if (!appointment.checkedInAt || !appointment.actualEndTime || !appointment.estimatedDurationMinutes) {
       return false;
     }
 
-    const actualDuration = (appointment.actualEndTime.getTime() - appointment.actualStartTime.getTime()) / 60000;
+    // Service duration = time from check-in (entry) to completion
+    const actualDuration = (appointment.actualEndTime.getTime() - appointment.checkedInAt.getTime()) / 60000;
     const difference = Math.abs(actualDuration - appointment.estimatedDurationMinutes);
 
     return difference > this.DURATION_THRESHOLD_MINUTES;
@@ -129,11 +130,12 @@ export class DisruptionDetector {
    * Get duration difference (positive = longer, negative = shorter)
    */
   private getDurationDifference(appointment: QueueEntry): number {
-    if (!appointment.actualStartTime || !appointment.actualEndTime || !appointment.estimatedDurationMinutes) {
+    if (!appointment.checkedInAt || !appointment.actualEndTime || !appointment.estimatedDurationMinutes) {
       return 0;
     }
 
-    const actualDuration = (appointment.actualEndTime.getTime() - appointment.actualStartTime.getTime()) / 60000;
+    // Service duration = time from check-in (entry) to completion
+    const actualDuration = (appointment.actualEndTime.getTime() - appointment.checkedInAt.getTime()) / 60000;
     return actualDuration - appointment.estimatedDurationMinutes;
   }
 

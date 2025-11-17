@@ -261,7 +261,7 @@ export class WaitTimeEstimationService {
       // Get all appointments for the clinic on this date
       const { data: appointments, error } = await supabase
         .from('appointments')
-        .select('status, checked_in_at, actual_start_time')
+        .select('status, checked_in_at, start_time')
         .eq('clinic_id', clinicId)
         .eq('appointment_date', dateStr);
 
@@ -280,16 +280,17 @@ export class WaitTimeEstimationService {
       ).length;
 
       // Calculate average wait time from completed appointments today
+      // Wait time = time from scheduled start (start_time) to check-in (entry)
       const completed = appointments.filter(a => 
-        a.status === 'completed' && a.checked_in_at && a.actual_start_time
+        a.status === 'completed' && a.checked_in_at && a.start_time
       );
       
       let averageWaitTime: number | undefined;
       if (completed.length > 0) {
         const totalWaitMinutes = completed.reduce((sum, a) => {
+          const scheduled = new Date(a.start_time).getTime();
           const checkedIn = new Date(a.checked_in_at).getTime();
-          const started = new Date(a.actual_start_time).getTime();
-          const waitMinutes = (started - checkedIn) / 60000;
+          const waitMinutes = (checkedIn - scheduled) / 60000;
           return sum + Math.max(0, waitMinutes);
         }, 0);
         averageWaitTime = Math.round(totalWaitMinutes / completed.length);

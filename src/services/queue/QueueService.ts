@@ -174,9 +174,13 @@ export class QueueService {
     // The schedule is already sorted by the database function (time, then position)
     const nextPatient = waitingPatients[0];
 
+    // Set checked_in_at when staff calls "Call Next" (patient enters consultation room)
+    // This replaces actual_start_time for simplicity
+    const now = new Date().toISOString();
     const updatedEntry = await this.repository.updateQueueEntry(nextPatient.id, {
       status: AppointmentStatus.IN_PROGRESS,
-      actualStartTime: new Date().toISOString(),
+      checkedInAt: now,
+      isPresent: true, // Mark as present when called
     });
 
     await this.repository.createQueueOverride(dto.clinicId, nextPatient.id, QueueActionType.CALL_PRESENT, dto.performedBy, undefined, nextPatient.queuePosition, nextPatient.queuePosition);
@@ -261,69 +265,67 @@ export class QueueService {
     const now = new Date();
     
     // Calculate actual wait time (LABEL for ML training)
-    // Wait time = time from check-in (or scheduled time) to actual start time
+    // Wait time = time from scheduled start to check-in (when patient entered)
+    // Since checked_in_at is set when staff calls "Call Next", it represents entry time
     let actualWaitTime: number | null = null;
     
     logger.debug('Calculating wait time', {
       appointmentId,
-      hasActualStartTime: !!entry.actualStartTime,
       hasCheckedInAt: !!entry.checkedInAt,
-      hasScheduledTime: !!entry.scheduledTime,
-      actualStartTime: entry.actualStartTime?.toISOString(),
+      hasScheduledTime: !!entry.startTime,
       checkedInAt: entry.checkedInAt?.toISOString(),
-      scheduledTime: entry.scheduledTime,
-      appointmentDate: entry.appointmentDate?.toISOString(),
+      startTime: entry.startTime?.toISOString(),
     });
 
-    if (entry.actualStartTime && entry.checkedInAt) {
-      // Best case: check-in to start
-      const waitTimeMs = entry.actualStartTime.getTime() - entry.checkedInAt.getTime();
+    if (entry.checkedInAt && entry.startTime) {
+      // Wait time = time from scheduled start to actual entry (check-in)
+      const waitTimeMs = entry.checkedInAt.getTime() - entry.startTime.getTime();
       actualWaitTime = Math.max(0, Math.round(waitTimeMs / 60000)); // Ensure non-negative
-      logger.info('Calculated wait time from check-in to start', { 
+      logger.info('Calculated wait time from scheduled start to check-in', { 
         appointmentId, 
         actualWaitTime,
         waitTimeMs,
-        checkedInAt: entry.checkedInAt.toISOString(),
-        actualStartTime: entry.actualStartTime.toISOString()
+        startTime: entry.startTime.toISOString(),
+        checkedInAt: entry.checkedInAt.toISOString()
       });
-    } else if (entry.actualStartTime && entry.scheduledTime && entry.appointmentDate) {
-      // Fallback: scheduled time to start
+    } else if (entry.checkedInAt && entry.scheduledTime && entry.appointmentDate) {
+      // Fallback: scheduled time to check-in (for backward compatibility)
       const dateStr = entry.appointmentDate.toISOString().split('T')[0];
       const scheduledDateTime = new Date(`${dateStr}T${entry.scheduledTime}`);
-      const waitTimeMs = entry.actualStartTime.getTime() - scheduledDateTime.getTime();
+      const waitTimeMs = entry.checkedInAt.getTime() - scheduledDateTime.getTime();
       actualWaitTime = Math.max(0, Math.round(waitTimeMs / 60000)); // Ensure non-negative
-      logger.info('Calculated wait time from scheduled time to start', { 
+      logger.info('Calculated wait time from scheduled time to check-in (fallback)', { 
         appointmentId, 
         actualWaitTime,
         waitTimeMs,
         scheduledDateTime: scheduledDateTime.toISOString(),
-        actualStartTime: entry.actualStartTime.toISOString()
+        checkedInAt: entry.checkedInAt.toISOString()
       });
     } else {
       logger.warn('Cannot calculate wait time - missing timing data', { 
         appointmentId,
-        hasActualStartTime: !!entry.actualStartTime,
         hasCheckedInAt: !!entry.checkedInAt,
+        hasStartTime: !!entry.startTime,
         hasScheduledTime: !!entry.scheduledTime,
-        actualStartTime: entry.actualStartTime?.toISOString(),
         checkedInAt: entry.checkedInAt?.toISOString(),
       });
     }
 
     // Calculate actual service duration
+    // Service duration = time from check-in (entry) to completion
     let actualServiceDuration: number | null = null;
-    if (entry.actualStartTime) {
-      const durationMs = now.getTime() - entry.actualStartTime.getTime();
+    if (entry.checkedInAt) {
+      const durationMs = now.getTime() - entry.checkedInAt.getTime();
       actualServiceDuration = Math.max(0, Math.round(durationMs / 60000)); // Ensure non-negative
-      logger.debug('Calculated service duration', {
+      logger.debug('Calculated service duration from check-in to completion', {
         appointmentId,
         actualServiceDuration,
         durationMs,
-        actualStartTime: entry.actualStartTime.toISOString(),
+        checkedInAt: entry.checkedInAt.toISOString(),
         now: now.toISOString(),
       });
     } else {
-      logger.warn('Cannot calculate service duration - missing actualStartTime', { appointmentId });
+      logger.warn('Cannot calculate service duration - missing checkedInAt', { appointmentId });
     }
 
     const updatedEntry = await this.repository.updateQueueEntry(appointmentId, {
