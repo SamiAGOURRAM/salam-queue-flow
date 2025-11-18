@@ -24,7 +24,15 @@ import type {
 } from '../queue/events/QueueEvents';
 import { waitTimeEstimationService } from './WaitTimeEstimationService';
 import { QueueRepository } from '../queue/repositories/QueueRepository';
-import { AppointmentStatus } from '../queue/models/QueueModels';
+import { QueueConfig } from '@/config/QueueConfig';
+import {
+  QueueEventType,
+  QueueEventPayload,
+  Disruption,
+  DisruptionType,
+  EstimationContext,
+  AppointmentStatus,
+} from '../queue/models/QueueModels';
 import { supabase } from '@/integrations/supabase/client';
 
 /**
@@ -55,10 +63,6 @@ export class WaitTimeEstimationOrchestrator {
   private repository: QueueRepository;
   private disruptionBuffer: Map<string, Disruption[]> = new Map(); // clinicId -> disruptions
   private recalculationDebounce: Map<string, NodeJS.Timeout> = new Map(); // clinicId -> timeout
-  private readonly DEBOUNCE_MS = 2000; // Wait 2 seconds before recalculating (batch disruptions)
-  private readonly LATE_ARRIVAL_THRESHOLD_MINUTES = 5;
-  private readonly DURATION_THRESHOLD_MINUTES = 10;
-  private isInitialized: boolean = false;
   private unsubscribeFunctions: (() => void)[] = [];
   private periodicCheckInterval: NodeJS.Timeout | null = null;
 
@@ -120,7 +124,7 @@ export class WaitTimeEstimationOrchestrator {
     if (!this.isInitialized) return;
 
     logger.info('Cleaning up Wait Time Estimation Orchestrator');
-    
+
     // Unsubscribe from all events
     this.unsubscribeFunctions.forEach(unsub => unsub());
     this.unsubscribeFunctions = [];
@@ -136,6 +140,53 @@ export class WaitTimeEstimationOrchestrator {
     this.recalculationDebounce.clear();
 
     this.isInitialized = false;
+  }
+
+  /**
+   * Schedules a recalculation for a given clinic, debouncing multiple calls.
+   * @param clinicId The ID of the clinic for which to recalculate wait times.
+   */
+  private async scheduleRecalculation(clinicId: string): Promise<void> {
+    // Clear any existing debounce timeout for this clinic
+    if (this.recalculationDebounce.has(clinicId)) {
+      clearTimeout(this.recalculationDebounce.get(clinicId));
+    }
+
+    // Set new timeout
+    const timeout = setTimeout(async () => {
+      await this.recalculateForClinic(clinicId);
+      this.recalculationDebounce.delete(clinicId);
+    }, QueueConfig.SYSTEM.RECALCULATION_DEBOUNCE_MS);
+
+    this.recalculationDebounce.set(clinicId, timeout);
+  }
+
+  /**
+   * Performs the actual wait time recalculation for a clinic.
+   * This method is called by the debounced scheduler.
+   * @param clinicId The ID of the clinic.
+   */
+  private async recalculateForClinic(clinicId: string): Promise<void> {
+    logger.info(`Recalculating wait times for clinic ${clinicId}`);
+    // Implement the actual recalculation logic here
+    // This would involve fetching queue data, applying estimation logic,
+    // and updating estimated wait times for patients.
+    // For now, it's a placeholder.
+    // await waitTimeEstimationService.calculateAndPublishWaitTimes(clinicId, this.disruptionBuffer.get(clinicId) || []);
+    this.disruptionBuffer.delete(clinicId); // Clear disruptions after recalculation
+  }
+
+  /**
+   * Records a disruption event for a clinic.
+   * @param clinicId The ID of the clinic where the disruption occurred.
+   * @param disruption The disruption event details.
+   */
+  private recordDisruption(clinicId: string, disruption: Disruption): void {
+    if (!this.disruptionBuffer.has(clinicId)) {
+      this.disruptionBuffer.set(clinicId, []);
+    }
+    this.disruptionBuffer.get(clinicId)?.push(disruption);
+    logger.debug(`Disruption recorded for clinic ${clinicId}: ${disruption.type}`);
   }
 
   /**
@@ -170,9 +221,9 @@ export class WaitTimeEstimationOrchestrator {
       if (appointment.checkedInAt && appointment.scheduledTime && appointment.appointmentDate) {
         const scheduledDateTime = this.parseScheduledDateTime(appointment.appointmentDate, appointment.scheduledTime);
         const checkedInDateTime = appointment.checkedInAt;
-        
+
         const latenessMinutes = (checkedInDateTime.getTime() - scheduledDateTime.getTime()) / 60000;
-        
+
         if (latenessMinutes > this.LATE_ARRIVAL_THRESHOLD_MINUTES) {
           logger.info('Late arrival detected', {
             appointmentId: event.appointmentId,
@@ -251,7 +302,7 @@ export class WaitTimeEstimationOrchestrator {
   private async handleAppointmentStatusChanged(event: AppointmentStatusChangedEvent): Promise<void> {
     try {
       const payload = event.payload;
-      
+
       // Only check when appointment is completed (staff action)
       if (payload.newStatus !== AppointmentStatus.COMPLETED) return;
 
@@ -269,8 +320,8 @@ export class WaitTimeEstimationOrchestrator {
         const difference = actualDuration - estimatedDuration;
 
         if (Math.abs(difference) > this.DURATION_THRESHOLD_MINUTES) {
-          const disruptionType = difference > 0 
-            ? DisruptionType.LONGER_THAN_EXPECTED 
+          const disruptionType = difference > 0
+            ? DisruptionType.LONGER_THAN_EXPECTED
             : DisruptionType.SHORTER_THAN_EXPECTED;
 
           logger.info('Unusual appointment duration detected', {
@@ -376,74 +427,59 @@ export class WaitTimeEstimationOrchestrator {
       clearInterval(this.periodicCheckInterval);
     }
 
-    // Check every 5 minutes
-    this.periodicCheckInterval = setInterval(async () => {
-      try {
-        await this.checkRunningOverAppointments();
-      } catch (error) {
-        logger.error('Error in periodic check', error as Error);
-      }
-    }, 5 * 60 * 1000); // 5 minutes
+    // Check for running over appointments periodically
+    this.periodicCheckInterval = setInterval(() => {
+      this.checkRunningOverAppointments();
+    }, QueueConfig.DEFAULTS.PERIODIC_CHECK_INTERVAL_MINUTES * 60 * 1000);
   }
 
+  /**
+   * Check for appointments that are running over their scheduled time
+   */
   /**
    * Check for appointments that are running over their scheduled time
    */
   private async checkRunningOverAppointments(): Promise<void> {
     try {
       const now = new Date();
-      const today = now.toISOString().split('T')[0];
+      const inProgressAppointments = await this.repository.getInProgressAppointments(now);
 
-      // Get all in-progress appointments
-      const { data: inProgressAppointments, error } = await supabase
-        .from('appointments')
-        .select('id, clinic_id, start_time, appointment_date, estimated_duration, checked_in_at, actual_end_time')
-        .eq('appointment_date', today)
-        .eq('status', AppointmentStatus.IN_PROGRESS);
+      for (const appointment of inProgressAppointments) {
+        if (!appointment.checkedInAt || !appointment.startTime) continue;
 
-      if (error || !inProgressAppointments) return;
-
-      for (const appointment of (inProgressAppointments as unknown) as Array<{
-        id: string;
-        clinic_id: string;
-        start_time: string;
-        appointment_date: string;
-        estimated_duration: number | null;
-        checked_in_at: string | null;
-        actual_end_time: string | null;
-      }>) {
-        if (!appointment.checked_in_at || !appointment.start_time) continue;
-        
-        // Use start_time (scheduled) and checked_in_at (actual entry) for calculations
-        const scheduledDateTime = new Date(appointment.start_time);
-        const checkedInDateTime = new Date(appointment.checked_in_at);
-        const estimatedDuration = appointment.estimated_duration || 30;
+        const checkedInDateTime = appointment.checkedInAt;
+        const estimatedDuration = appointment.estimatedDurationMinutes || 30;
         // Expected end time = check-in time + estimated duration
         const expectedEndTime = new Date(checkedInDateTime.getTime() + estimatedDuration * 60000);
 
         // Check if appointment is still in progress (has checked_in_at but no actual_end_time)
-        const isStillInProgress = appointment.checked_in_at && !appointment.actual_end_time;
-        
+        const isStillInProgress = appointment.checkedInAt && !appointment.actualEndTime;
+
         // If appointment is running over expected end time (and still in progress)
         if (isStillInProgress && now > expectedEndTime) {
           const overTimeMinutes = (now.getTime() - expectedEndTime.getTime()) / 60000;
-          
-          if (overTimeMinutes > this.DURATION_THRESHOLD_MINUTES) {
+
+          // Get clinic config or use default
+          // Note: In a real implementation, we should fetch this from the repository cache
+          // For now, we'll use the system default as the baseline, but ideally we pass the config in
+          const threshold = QueueConfig.DEFAULTS.APPOINTMENT_RUN_OVER_THRESHOLD_MINUTES;
+
+          if (overTimeMinutes > threshold) {
             logger.info('Appointment running over detected', {
               appointmentId: appointment.id,
-              clinicId: appointment.clinic_id,
+              clinicId: appointment.clinicId,
               overTimeMinutes: Math.round(overTimeMinutes),
             });
 
-            this.recordDisruption(appointment.clinic_id, {
+            this.recordDisruption(appointment.clinicId, {
               type: DisruptionType.APPOINTMENT_RUNNING_OVER,
               appointmentId: appointment.id,
-              clinicId: appointment.clinic_id,
+              clinicId: appointment.clinicId,
               reason: `Appointment running ${Math.round(overTimeMinutes)} minutes over expected time`,
               timestamp: now,
             });
 
-            await this.scheduleRecalculation(appointment.clinic_id);
+            await this.scheduleRecalculation(appointment.clinicId);
           }
         }
       }
@@ -453,82 +489,41 @@ export class WaitTimeEstimationOrchestrator {
   }
 
   /**
-   * Record a disruption for a clinic
-   */
-  private recordDisruption(clinicId: string, disruption: Disruption): void {
-    const disruptions = this.disruptionBuffer.get(clinicId) || [];
-    disruptions.push(disruption);
-    this.disruptionBuffer.set(clinicId, disruptions);
-
-    // Keep only last 10 disruptions per clinic
-    if (disruptions.length > 10) {
-      disruptions.shift();
-    }
-  }
-
-  /**
-   * Schedule recalculation with debouncing
-   * Batches multiple disruptions together
-   */
-  private async scheduleRecalculation(clinicId: string): Promise<void> {
-    // Clear existing timeout
-    const existingTimeout = this.recalculationDebounce.get(clinicId);
-    if (existingTimeout) {
-      clearTimeout(existingTimeout);
-    }
-
-    // Set new timeout
-    const timeout = setTimeout(async () => {
-      await this.recalculateForClinic(clinicId);
-      this.recalculationDebounce.delete(clinicId);
-    }, this.DEBOUNCE_MS);
-
-    this.recalculationDebounce.set(clinicId, timeout);
-  }
-
-  /**
    * Recalculate wait times for all waiting patients in a clinic
    */
   private async recalculateForClinic(clinicId: string): Promise<void> {
     try {
       logger.info('Recalculating wait times for clinic', { clinicId });
 
-      const today = new Date().toISOString().split('T')[0];
+      const now = new Date();
+      const appointments = await this.repository.getWaitingAppointments(clinicId, now);
 
-      // Get all waiting/scheduled appointments for today
-      const { data: appointments, error } = await supabase
-        .from('appointments')
-        .select('id')
-        .eq('clinic_id', clinicId)
-        .eq('appointment_date', today)
-        .in('status', [AppointmentStatus.WAITING, AppointmentStatus.SCHEDULED])
-        .eq('is_present', true);
-
-      if (error || !appointments || appointments.length === 0) {
+      if (appointments.length === 0) {
         logger.debug('No waiting appointments to recalculate', { clinicId });
         return;
       }
 
+      const updates: { id: string;[key: string]: any }[] = [];
+
       // Recalculate for each appointment
-      const recalculationPromises = appointments.map(async (appt) => {
+      // We can run these in parallel as they are independent
+      await Promise.all(appointments.map(async (appt) => {
         try {
           // Clear cache before recalculating to ensure fresh data
           waitTimeEstimationService.clearCache(appt.id);
           const estimation = await waitTimeEstimationService.estimateWaitTime(appt.id, { bypassCache: true });
-          
+
           // Update appointment with new estimation
           const estimatedStartTime = new Date(Date.now() + estimation.waitTimeMinutes * 60000);
-          
-          await supabase
-            .from('appointments')
-            .update({
-              predicted_wait_time: estimation.waitTimeMinutes,
-              predicted_start_time: estimatedStartTime.toISOString(),
-              prediction_mode: estimation.mode,
-              prediction_confidence: estimation.confidence,
-              last_prediction_update: new Date().toISOString(),
-            })
-            .eq('id', appt.id);
+
+          updates.push({
+            id: appt.id,
+            predicted_wait_time: estimation.waitTimeMinutes,
+            predicted_start_time: estimatedStartTime.toISOString(),
+            prediction_mode: estimation.mode,
+            prediction_confidence: estimation.confidence,
+            last_prediction_update: new Date().toISOString(),
+          });
 
           logger.debug('Recalculated wait time for appointment', {
             appointmentId: appt.id,
@@ -541,13 +536,16 @@ export class WaitTimeEstimationOrchestrator {
             error: error instanceof Error ? error.message : String(error),
           });
         }
-      });
+      }));
 
-      await Promise.all(recalculationPromises);
+      // Batch update all appointments
+      if (updates.length > 0) {
+        await this.repository.batchUpdateAppointments(updates);
+      }
 
       logger.info('Completed recalculation for clinic', {
         clinicId,
-        appointmentsRecalculated: appointments.length,
+        appointmentsRecalculated: updates.length,
       });
     } catch (error) {
       logger.error('Error recalculating for clinic', error as Error, { clinicId });

@@ -92,11 +92,11 @@ export interface QueueEntry {
   etaUpdatedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
-  
+
   // Guest patient support
   isGuest?: boolean;
   guestPatientId?: string;
-  
+
   // Relations (optional - populated on demand)
   patient?: Patient;
 }
@@ -147,6 +147,12 @@ export interface QueueStats {
   lastUpdated: Date;
 }
 
+export interface QueueState {
+  totalWaiting: number;
+  totalInProgress: number;
+  averageWaitTime?: number;
+}
+
 /**
  * Queue Summary for Display
  */
@@ -178,7 +184,11 @@ export interface ClinicEstimationConfig {
   mlEnabled: boolean;
   mlModelVersion?: string;
   mlEndpointUrl?: string;
-  rawSettings?: Record<string, unknown>;
+  // New Config Overrides (Optional - falls back to QueueConfig)
+  lateArrivalThresholdMinutes?: number;
+  appointmentRunOverThresholdMinutes?: number;
+  historicalDataLookbackDays?: number;
+  rawSettings: Record<string, unknown>;
 }
 
 export interface WaitTimePredictionRecord {

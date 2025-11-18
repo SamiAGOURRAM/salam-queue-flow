@@ -1,254 +1,97 @@
-# 🔍 Comprehensive Codebase Analysis Report
+# Codebase & Architecture Analysis Report
 
-## 📋 Executive Summary
-
-**Total Issues Found:** 50+
-- **Unused/Dead Files:** 5
-- **Direct Supabase Usage (Should Use Services):** 15+ files
-- **Missing RPC Usage:** 20+ operations
-- **Separation of Concerns Violations:** 10+ files
-- **Empty/Unused Directories:** 2
+**Date**: 2025-01-22
+**Status**: Analysis Complete
+**Scope**: Database Schema, Service Layer (Queue & ML), Architecture Patterns
 
 ---
 
-## 🗑️ 1. UNUSED/DEAD FILES (DELETE)
+## 1. Executive Summary
 
-### **Old/Backup Files**
-1. ✅ `src/components/clinic/AddWalkInDialog.old2.tsx` - Old version, not used
-2. ✅ `src/components/clinic/EnhancedQueueManager.old.tsx` - Old version, not used
-3. ✅ `src/components/clinic/EnhancedQueueManager.backup.tsx` - Backup, not used
+The codebase generally follows a clean **Service-Repository pattern**, but there are significant **architectural violations** in the newer ML/Estimation services where the pattern breaks down.
 
-### **Empty Files**
-4. ✅ `src/hooks/useClinicSearchV2.ts` - Empty file, not used
-
-### **Empty Directories**
-5. ✅ `src/services/queue/estimators/` - Empty directory (all files removed)
-6. ✅ `src/services/queue/simulation/` - Empty directory (all files removed)
-
-**Action:** Delete all above files/directories
+*   **Strengths**: Strong domain modeling (`QueueModels.ts`), event-driven architecture (`EventBus`, `Orchestrator`), and comprehensive audit logging (`queue_overrides`, `audit_logs`).
+*   **Critical Issues**: Direct database access in Services (bypassing Repositories), hardcoded "magic numbers" for thresholds, and schema redundancy.
+*   **Risk**: High technical debt if ML services are expanded without refactoring first.
 
 ---
 
-## ⚠️ 2. DIRECT SUPABASE USAGE (SHOULD USE SERVICES/RPC)
+## 2. Architectural Analysis
 
-### **Critical Issues - Database Operations in Components/Pages**
+### **A. Separation of Concerns (The "Repository Pattern" Violation)**
 
-#### **Pages with Direct Database Operations:**
+**The Rule**: Services should contain *business logic*. Repositories should contain *data access logic*. Services should NEVER call the DB client (`supabase`) directly.
 
-1. **`src/pages/patient/MyQueue.tsx`**
-   - ❌ Line 137-144: Direct `supabase.from("appointments").update()`
-   - ✅ Should use: `QueueService.checkInPatient()`
+**The Violation**:
+*   **`WaitTimeEstimationService.ts`**:
+    *   Methods `getQueueState` and `getHistoricalData` import and use `supabase` client directly.
+    *   *Impact*: Hard to test (cannot mock DB), tight coupling to Supabase, inconsistent error handling.
+*   **`WaitTimeEstimationOrchestrator.ts`**:
+    *   Methods `checkRunningOverAppointments` and `recalculateForClinic` use `supabase` client directly.
+    *   *Impact*: Same as above. Logic for "finding running over appointments" belongs in a Repository.
 
-2. **`src/pages/clinic/ClinicDashboard.tsx`**
-   - ❌ Line 48-52: Direct `supabase.from("clinics").select()`
-   - ❌ Line 58-63: Direct `supabase.from("clinic_staff").select()`
-   - ✅ Should use: Service layer or RPC
+**Recommendation**:
+1.  Create `AnalyticsRepository` for historical data fetching.
+2.  Extend `QueueRepository` to handle `getQueueState`, `getInProgressAppointments`, and batch updates.
 
-3. **`src/pages/clinic/ClinicQueue.tsx`**
-   - ❌ Line 68-72: Direct `supabase.from("clinics").select()`
-   - ❌ Line 71: Direct `supabase.from("clinic_staff").select()`
-   - ✅ Should use: Service layer or RPC
+### **B. Hardcoded Values ("Magic Numbers")**
 
-4. **`src/pages/clinic/TeamManagement.tsx`**
-   - ❌ Line 186: Direct `supabase.from("clinic_staff").delete()`
-   - ✅ Should use: Service layer with RPC
+The code contains numerous hardcoded values that should be in a `Config` object or Database Settings.
 
-5. **`src/pages/patient/PatientProfile.tsx`**
-   - ❌ Line 86: Direct `supabase.from("profiles").update()`
-   - ✅ Should use: Service layer
+**Found in `WaitTimeEstimationService.ts`**:
+*   `CACHE_TTL_MS = 30000` (30 seconds)
+*   `15` (Default wait time minutes in fallback)
+*   `0.3` (Default confidence score)
+*   `30` (Days for historical lookback)
+*   `50` (Batch size for queries)
 
-6. **`src/pages/patient/PatientDashboard.tsx`**
-   - ❌ Line 152: Direct `supabase.from("appointments").delete()`
-   - ❌ Line 167: Direct `supabase.from("appointments").update()`
-   - ✅ Should use: `QueueService` methods
+**Found in `WaitTimeEstimationOrchestrator.ts`**:
+*   `DEBOUNCE_MS = 2000` (2 seconds)
+*   `LATE_ARRIVAL_THRESHOLD_MINUTES = 5`
+*   `DURATION_THRESHOLD_MINUTES = 10`
+*   `5 * 60 * 1000` (5 minute interval)
+*   `30` (Default estimated duration if missing)
 
-7. **`src/pages/clinic/ClinicProfile.tsx`**
-   - ❌ Line 75, 87: Direct `supabase.from("clinics").update()`
-   - ✅ Should use: Service layer with RPC
-
-8. **`src/pages/clinic/ClinicSettings.tsx`**
-   - ❌ Line 159, 212: Direct `supabase.from("clinics").update()`
-   - ✅ Should use: Service layer with RPC
-
-9. **`src/pages/auth/onboarding/ClinicOnboarding.tsx`**
-   - ❌ Line 155: Direct `supabase.from("clinics").insert()`
-   - ❌ Line 174: Direct `supabase.from("clinic_staff").insert()`
-   - ❌ Line 189: Direct `supabase.from("profiles").update()`
-   - ✅ Should use: Service layer with RPC
-
-10. **`src/pages/auth/StaffSignup.tsx`**
-    - ❌ Line 193, 223: Direct `supabase.from("clinic_staff").insert()`
-    - ❌ Line 243: Direct `supabase.from("profiles").update()`
-    - ✅ Should use: Service layer with RPC
-
-11. **`src/pages/AcceptInvitation.tsx`**
-    - ❌ Line 127, 160: Direct `supabase.from("clinic_staff").insert()`
-    - ❌ Line 177: Direct `supabase.from("staff_invitations").update()`
-    - ✅ Should use: Service layer with RPC
-
-#### **Components with Direct Database Operations:**
-
-12. **`src/components/clinic/BookAppointmentDialog.tsx`**
-    - ❌ Line 62-66: Direct `supabase.from("profiles").select()`
-    - ❌ Line 73: Direct `supabase.auth.signUp()` (should be in service)
-    - ❌ Line 94-99: Direct `supabase.from("clinic_staff").select()`
-    - ❌ Line 102-115: Direct `supabase.from("appointments").insert()`
-    - ✅ Should use: `QueueService.createAppointment()` (already exists!)
-
-13. **`src/components/clinic/AddWalkInDialog.tsx`**
-    - ❌ Line 47: Direct `supabase.from("clinics").select()` (settings)
-    - ❌ Line 79: Direct `supabase.from("profiles").select()`
-    - ❌ Line 86: Direct `supabase.from("guest_patients").select()`
-    - ❌ Line 94: Direct `supabase.from("guest_patients").insert()`
-    - ✅ Should use: Service layer with RPC
-
-14. **`src/components/booking/BookingFlow.tsx`**
-    - ❌ Line 393-397: Direct `supabase.from("appointments").insert()`
-    - ✅ Should use: `QueueService.createAppointment()`
+**Recommendation**:
+*   Move these to a `SystemConfig` constant file or, better yet, `clinics.settings` JSONB column so they can be tuned per clinic (e.g., a busy public clinic might need a 2-minute late threshold, while a private one allows 15).
 
 ---
 
-## 🔄 3. MISSING RPC USAGE (SHOULD USE RPC INSTEAD OF DIRECT QUERIES)
+## 3. Database Schema Analysis
 
-### **Operations That Should Use RPC:**
+### **A. Redundancy & Cleanup**
+1.  **`appointments_backup_before_dedup`**:
+    *   *Status*: **DELETE**. Clearly a temporary table.
+2.  **`resource_availabilities` vs `clinic_staff.working_hours`**:
+    *   *Issue*: Data duplication. `working_hours` is JSONB (good for UI), `resource_availabilities` is relational (good for SQL queries).
+    *   *Risk*: They can get out of sync.
+    *   *Recommendation*: Pick ONE as the source of truth. For a "Unicorn" scale app, **Relational (`resource_availabilities`)** is superior for complex queries (e.g., "Find all doctors free at 10:00 AM"). Use a DB Trigger to update the JSONB cache for the UI.
+3.  **`wait_time_predictions` vs `appointments` columns**:
+    *   `appointments` table has `predicted_wait_time`, `predicted_start_time`.
+    *   `wait_time_predictions` table stores a log of predictions.
+    *   *Verdict*: **Keep both**. The table is a history/audit log (crucial for ML training), the column is the "current state".
 
-1. **Patient Lookup/Creation**
-   - Current: Direct `profiles` table queries
-   - Should: `find_or_create_patient(phone_number, full_name)` RPC
-
-2. **Guest Patient Operations**
-   - Current: Direct `guest_patients` table queries
-   - Should: `find_or_create_guest_patient(phone_number, full_name)` RPC
-
-3. **Appointment Creation**
-   - Current: Direct `appointments.insert()` in components
-   - Should: Use existing `create_queue_entry` RPC (via QueueService)
-
-4. **Clinic Settings Updates**
-   - Current: Direct `clinics.update({ settings })`
-   - Should: `update_clinic_settings(clinic_id, settings)` RPC
-
-5. **Staff Operations**
-   - Current: Direct `clinic_staff.insert/delete/update`
-   - Should: `add_clinic_staff()`, `remove_clinic_staff()`, `update_clinic_staff()` RPCs
-
-6. **Profile Updates**
-   - Current: Direct `profiles.update()`
-   - Should: `update_user_profile(user_id, data)` RPC
-
-7. **Check-in Operations**
-   - Current: Direct `appointments.update({ checked_in_at })`
-   - Should: Use `QueueService.checkInPatient()` (which should use RPC)
+### **B. Missing Indexes (Inferred)**
+*   `appointment_metrics` queries by `appointment_id` and `recorded_at`. Needs composite index.
+*   `appointments` queries by `clinic_id` + `appointment_date` + `status`. Needs composite index for the Queue Manager to be fast.
 
 ---
 
-## 🏗️ 4. SEPARATION OF CONCERNS VIOLATIONS
+## 4. Quality & Code Style
 
-### **Business Logic in Components/Pages:**
-
-1. **Patient Lookup Logic** (repeated in multiple files)
-   - `BookAppointmentDialog.tsx` - Has patient lookup logic
-   - `AddWalkInDialog.tsx` - Has patient lookup logic
-   - `BookingFlow.tsx` - Has patient lookup logic
-   - ✅ Should: Extract to `PatientService.findOrCreatePatient()`
-
-2. **Guest Patient Logic** (repeated)
-   - `AddWalkInDialog.tsx` - Has guest patient creation logic
-   - ✅ Should: Extract to `PatientService.findOrCreateGuestPatient()`
-
-3. **Auth User Creation** (in component)
-   - `BookAppointmentDialog.tsx` - Creates auth users
-   - ✅ Should: Extract to `AuthService` or `PatientService`
-
-4. **Clinic/Staff Lookup** (repeated)
-   - Multiple files fetch clinic/staff data directly
-   - ✅ Should: Extract to `ClinicService` and `StaffService`
-
-5. **Settings Fetching** (in component)
-   - `AddWalkInDialog.tsx` - Fetches clinic settings
-   - ✅ Should: Extract to `ClinicService.getSettings()`
+*   **Type Safety**: Good usage of Enums (`AppointmentStatus`, `DisruptionType`).
+*   **Error Handling**: `WaitTimeEstimationService` swallows some errors with `catch(() => null)`. This is dangerous; it should log the error before returning null.
+*   **Logging**: Good usage of structured logger.
 
 ---
 
-## 📦 5. MISSING SERVICE LAYERS
+## 5. Action Plan (Pre-Implementation)
 
-### **Services That Should Exist:**
+Before building the "Smart Queue" features, we must stabilize the foundation:
 
-1. **`PatientService`**
-   - `findOrCreatePatient(phone, name)`
-   - `findOrCreateGuestPatient(phone, name)`
-   - `getPatientProfile(patientId)`
-   - `updatePatientProfile(patientId, data)`
+1.  **Refactor**: Move all `supabase.*` calls from Services to Repositories.
+2.  **Config**: Extract magic numbers to a `QueueConfig` object.
+3.  **Cleanup**: Drop `appointments_backup_before_dedup`.
+4.  **Schema**: Add the new tables defined in the RFC (`waitlist`, `manual_overrides`).
 
-2. **`ClinicService`**
-   - `getClinic(clinicId)`
-   - `getClinicByOwner(ownerId)`
-   - `getClinicSettings(clinicId)`
-   - `updateClinicSettings(clinicId, settings)`
-   - `updateClinic(clinicId, data)`
-
-3. **`StaffService`**
-   - `getStaffByUser(userId)`
-   - `getStaffByClinic(clinicId)`
-   - `addStaff(clinicId, staffData)`
-   - `removeStaff(staffId)`
-   - `updateStaff(staffId, data)`
-
-4. **`AuthService`** (if needed)
-   - `createPatientUser(phone, name)`
-   - `signUpStaff(invitationToken, data)`
-
----
-
-## 🎯 6. REFACTORING PRIORITIES
-
-### **Priority 1 (Critical - Security & Best Practices)**
-1. ✅ Remove direct database operations from components
-2. ✅ Create missing service layers
-3. ✅ Move all database operations to services/repositories
-4. ✅ Use RPC for complex operations
-
-### **Priority 2 (Code Quality)**
-1. ✅ Remove unused/old files
-2. ✅ Extract repeated business logic to services
-3. ✅ Consolidate patient lookup logic
-4. ✅ Consolidate guest patient logic
-
-### **Priority 3 (Optimization)**
-1. ✅ Create RPC functions for common operations
-2. ✅ Add proper error handling in services
-3. ✅ Add logging to service methods
-
----
-
-## 📊 7. STATISTICS
-
-- **Files with Direct Supabase Usage:** 15+
-- **Database Operations in Components:** 25+
-- **Repeated Business Logic Patterns:** 5+
-- **Missing Service Methods:** 20+
-- **RPC Opportunities:** 15+
-
----
-
-## ✅ 8. RECOMMENDED ACTIONS
-
-1. **Immediate:**
-   - Delete unused/old files
-   - Create `PatientService`, `ClinicService`, `StaffService`
-   - Move all direct database operations to services
-
-2. **Short-term:**
-   - Create RPC functions for complex operations
-   - Refactor components to use services
-   - Extract repeated business logic
-
-3. **Long-term:**
-   - Add comprehensive error handling
-   - Add logging to all service methods
-   - Create unit tests for services
-
----
-
-**Next Steps:** Should I start refactoring these issues?
-
+Ready to proceed with this cleanup?

@@ -125,71 +125,71 @@ export class QueueRepository {
   /**
    * Get all queue entries for a clinic on a specific date
    */
-/**
- * Get all queue entries for a clinic on a specific date
- * @param staffId - Staff ID (used to get clinic_id for now)
- * @param targetDate - Target date in YYYY-MM-DD format
- * @param useClinicWide - If true, shows all clinic appointments (default: true for now)
- */
-async getDailySchedule(
-  staffId: string, 
-  targetDate: string,
-  useClinicWide: boolean = true  // ← DEFAULT TO CLINIC-WIDE
-): Promise<{ operating_mode: string; schedule: QueueEntry[] }> {
-  try {
-    if (useClinicWide) {
-      // ======= CLINIC-WIDE MODE (CURRENT) =======
-      logger.debug('Fetching clinic-wide daily schedule via RPC', { staffId, targetDate });
+  /**
+   * Get all queue entries for a clinic on a specific date
+   * @param staffId - Staff ID (used to get clinic_id for now)
+   * @param targetDate - Target date in YYYY-MM-DD format
+   * @param useClinicWide - If true, shows all clinic appointments (default: true for now)
+   */
+  async getDailySchedule(
+    staffId: string,
+    targetDate: string,
+    useClinicWide: boolean = true  // ← DEFAULT TO CLINIC-WIDE
+  ): Promise<{ operating_mode: string; schedule: QueueEntry[] }> {
+    try {
+      if (useClinicWide) {
+        // ======= CLINIC-WIDE MODE (CURRENT) =======
+        logger.debug('Fetching clinic-wide daily schedule via RPC', { staffId, targetDate });
 
-      // Get clinic_id from staff_id using RPC (bypasses RLS)
-      const { data: clinicId, error: clinicError } = await supabase.rpc('get_clinic_from_staff', {
-        p_staff_id: staffId,
-      });
+        // Get clinic_id from staff_id using RPC (bypasses RLS)
+        const { data: clinicId, error: clinicError } = await supabase.rpc('get_clinic_from_staff', {
+          p_staff_id: staffId,
+        });
 
-      if (clinicError || !clinicId) {
-        logger.error('Failed to get clinic from staff via RPC', clinicError, { staffId });
-        throw new DatabaseError(
-          `Staff with ID ${staffId} not found or has no associated clinic`,
-          clinicError
-        );
+        if (clinicError || !clinicId) {
+          logger.error('Failed to get clinic from staff via RPC', clinicError, { staffId });
+          throw new DatabaseError(
+            `Staff with ID ${staffId} not found or has no associated clinic`,
+            clinicError
+          );
+        }
+
+        // Call the clinic-wide function with the clinic_id from RPC
+        const { data, error } = await supabase.rpc('get_daily_schedule_for_clinic', {
+          p_clinic_id: clinicId,
+          p_target_date: targetDate,
+        });
+
+        if (error) {
+          logger.error('Failed to fetch clinic-wide schedule via RPC', error);
+          throw new DatabaseError('Failed to fetch schedule', error);
+        }
+
+        return this.mapScheduleResponse(data, 'clinic_wide');
+
+      } else {
+        // ======= STAFF-SPECIFIC MODE (FOR FUTURE) =======
+        logger.debug('Fetching staff-specific daily schedule via RPC', { staffId, targetDate });
+
+        const { data, error } = await supabase.rpc('get_daily_schedule_for_staff', {
+          p_staff_id: staffId,
+          p_target_date: targetDate,
+        });
+
+        if (error) {
+          logger.error('Failed to fetch staff schedule via RPC', error);
+          throw new DatabaseError('Failed to fetch schedule', error);
+        }
+
+        return this.mapScheduleResponse(data, 'staff_specific');
       }
 
-      // Call the clinic-wide function with the clinic_id from RPC
-      const { data, error } = await supabase.rpc('get_daily_schedule_for_clinic', {
-        p_clinic_id: clinicId,
-        p_target_date: targetDate,
-      });
-
-      if (error) {
-        logger.error('Failed to fetch clinic-wide schedule via RPC', error);
-        throw new DatabaseError('Failed to fetch schedule', error);
-      }
-
-      return this.mapScheduleResponse(data, 'clinic_wide');
-
-    } else {
-      // ======= STAFF-SPECIFIC MODE (FOR FUTURE) =======
-      logger.debug('Fetching staff-specific daily schedule via RPC', { staffId, targetDate });
-
-      const { data, error } = await supabase.rpc('get_daily_schedule_for_staff', {
-        p_staff_id: staffId,
-        p_target_date: targetDate,
-      });
-
-      if (error) {
-        logger.error('Failed to fetch staff schedule via RPC', error);
-        throw new DatabaseError('Failed to fetch schedule', error);
-      }
-
-      return this.mapScheduleResponse(data, 'staff_specific');
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error fetching daily schedule', error as Error);
+      throw new DatabaseError('Unexpected error fetching daily schedule', error as Error);
     }
-
-  } catch (error) {
-    if (error instanceof DatabaseError) throw error;
-    logger.error('Unexpected error fetching daily schedule', error as Error);
-    throw new DatabaseError('Unexpected error fetching daily schedule', error as Error);
   }
-}
 
   async getClinicEstimationConfigByStaffId(staffId: string): Promise<ClinicEstimationConfig | null> {
     try {
@@ -242,6 +242,10 @@ async getDailySchedule(
         mlModelVersion: clinic.ml_model_version ?? undefined,
         mlEndpointUrl: clinic.ml_endpoint_url ?? undefined,
         rawSettings: settings,
+        // Map new overrides
+        lateArrivalThresholdMinutes: coerceNumber(settings['late_arrival_threshold_minutes']),
+        appointmentRunOverThresholdMinutes: coerceNumber(settings['appointment_run_over_threshold_minutes']),
+        historicalDataLookbackDays: coerceNumber(settings['historical_data_lookback_days']),
       };
     } catch (error) {
       logger.error('Failed to load clinic estimation config', error as Error, { staffId });
@@ -267,7 +271,7 @@ async getDailySchedule(
             return 'basic';
         }
       };
-      
+
       const payload = predictions.map(prediction => ({
         appointment_id: prediction.appointmentId,
         clinic_id: prediction.clinicId,
@@ -284,7 +288,7 @@ async getDailySchedule(
       const { error } = await supabase.from('wait_time_predictions').insert(payload);
       if (error) {
         // Log but don't throw - this is non-critical
-        logger.warn('Failed to record wait time predictions (table may not exist)', error, { 
+        logger.warn('Failed to record wait time predictions (table may not exist)', error, {
           count: predictions.length,
           errorCode: error.code,
           errorMessage: error.message
@@ -317,7 +321,7 @@ async getDailySchedule(
       });
 
       if (functionError) {
-        logger.error('Failed to record actual wait time via database function', functionError, { 
+        logger.error('Failed to record actual wait time via database function', functionError, {
           appointmentId,
           actualWaitTime: data.actualWaitTime,
           actualServiceDuration: data.actualServiceDuration,
@@ -325,8 +329,8 @@ async getDailySchedule(
         throw functionError;
       }
 
-      logger.info('Successfully recorded actual wait time', { 
-        appointmentId, 
+      logger.info('Successfully recorded actual wait time', {
+        appointmentId,
         actualWaitTime: data.actualWaitTime,
         actualServiceDuration: data.actualServiceDuration,
       });
@@ -492,7 +496,7 @@ async getDailySchedule(
       logger.debug('Fetching booked slots', { clinicId, date });
 
       const activeStatuses = ['scheduled', 'waiting', 'in_progress'];
-      
+
       const { data, error } = await supabase
         .from('appointments')
         .select('id, start_time, status')
@@ -530,7 +534,7 @@ async getDailySchedule(
     );
   }
 
-    // ====================================================================
+  // ====================================================================
   // THIS IS THE NEW, CORRECT METHOD
   // ====================================================================
   /**
@@ -542,8 +546,8 @@ async getDailySchedule(
       logger.debug('Creating queue entry via RPC', { dto });
 
       // Convert AppointmentType enum to string value
-      const appointmentTypeString = typeof dto.appointmentType === 'string' 
-        ? dto.appointmentType 
+      const appointmentTypeString = typeof dto.appointmentType === 'string'
+        ? dto.appointmentType
         : dto.appointmentType.toString();
 
       const { data, error } = await supabase.rpc('create_queue_entry', {
@@ -571,7 +575,7 @@ async getDailySchedule(
       throw new DatabaseError('Unexpected error creating queue entry via RPC', error as Error);
     }
   }
-  
+
 
 
   async updateQueueEntry(id: string, dto: UpdateQueueEntryDTO): Promise<QueueEntry> {
@@ -587,7 +591,7 @@ async getDailySchedule(
       }
 
       const updateObj: Record<string, unknown> = {};
-      
+
       // Keep existing updatable fields
       if (dto.status !== undefined) updateObj.status = dto.status;
       if (dto.queuePosition !== undefined) updateObj.queue_position = dto.queuePosition;
@@ -603,7 +607,7 @@ async getDailySchedule(
       if (dto.checkedInAt !== undefined) updateObj.checked_in_at = dto.checkedInAt;
       if (dto.actualEndTime !== undefined) updateObj.actual_end_time = dto.actualEndTime;
       if (dto.actualDuration !== undefined) updateObj.actual_duration = dto.actualDuration;
-      
+
       // Always set updated_at to now()
       updateObj.updated_at = new Date().toISOString();
 
@@ -935,31 +939,31 @@ async getDailySchedule(
         appointmentId,
         action,
       });
-      
+
       // Make sure we're using a valid profile ID which is now required due to FK constraint
       let validPerformedBy = createdBy;
-      
+
       // Check if this is a valid profile ID for the current user
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('id')
         .eq('id', createdBy)
         .single();
-        
+
       if (profileError || !profileData) {
         // If the direct profile check fails, try to get the current user's profile
         const { data: currentUserProfile, error: currentUserError } = await supabase.auth.getUser();
-        
+
         if (currentUserError || !currentUserProfile) {
           logger.error('Failed to get current user for queue override', currentUserError || new Error('No current user'), { createdBy });
           throw new DatabaseError('Cannot get current user profile', currentUserError || new Error('No current user'));
         }
-        
+
         logger.debug('Using current user profile instead of provided ID', {
           providedId: createdBy,
           currentUserId: currentUserProfile.user.id
         });
-        
+
         // Use the current user's ID instead
         validPerformedBy = currentUserProfile.user.id;
       } else {
@@ -990,8 +994,8 @@ async getDailySchedule(
         .single();
 
       if (error || !data) {
-        logger.error('Failed to create queue override', error, { 
-          clinicId, 
+        logger.error('Failed to create queue override', error, {
+          clinicId,
           appointmentId,
           insertData: {
             clinic_id: clinicId,
@@ -1067,7 +1071,7 @@ async getDailySchedule(
       clinicId: data.clinic_id,
       patientId: data.patient_id || data.guest_patient_id,
       staffId: data.staff_id,
-      
+
       // New authoritative fields
       startTime: data.start_time ? new Date(data.start_time) : undefined,
       endTime: data.end_time ? new Date(data.end_time) : undefined,
@@ -1148,4 +1152,264 @@ async getDailySchedule(
       createdAt: new Date(data.created_at),
     };
   }
+}
+  async markPatientReturned(appointmentId: string, newPosition: number): Promise < void> {
+  try {
+    const { error } = await supabase
+      .from('absent_patients')
+      .update({
+        returned_at: new Date().toISOString(),
+        new_position: newPosition,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('appointment_id', appointmentId)
+      .is('returned_at', null);
+
+    if(error) {
+      logger.error('Failed to mark patient returned', error, { appointmentId });
+      throw new DatabaseError('Failed to mark patient returned', error);
+    }
+  } catch(error) {
+    if (error instanceof DatabaseError) throw error;
+    logger.error('Unexpected error marking patient returned', error as Error, { appointmentId });
+    throw new DatabaseError('Unexpected error marking patient returned', error as Error);
+  }
+}
+
+  // ============================================
+  // ORCHESTRATOR & ESTIMATION SUPPORT
+  // ============================================
+
+  /**
+   * Get current queue state for estimation
+   */
+  async getQueueState(clinicId: string, date: Date): Promise < { totalWaiting: number; totalInProgress: number; averageWaitTime?: number } | undefined > {
+  try {
+    const dateStr = date.toISOString().split('T')[0];
+
+    // Get all appointments for the clinic on this date
+    const { data: appointments, error } = await supabase
+      .from('appointments')
+      .select('status, checked_in_at, start_time')
+      .eq('clinic_id', clinicId)
+      .eq('appointment_date', dateStr);
+
+    if(error || !appointments) {
+  logger.debug('Could not fetch queue state, using defaults', { clinicId, error });
+  return undefined;
+}
+
+// Calculate queue metrics
+const waiting = appointments.filter(a =>
+  a.status === AppointmentStatus.WAITING || a.status === AppointmentStatus.SCHEDULED
+).length;
+
+const inProgress = appointments.filter(a =>
+  a.status === AppointmentStatus.IN_PROGRESS
+).length;
+
+// Calculate average wait time from completed appointments today
+const completed = appointments.filter(a =>
+  a.status === AppointmentStatus.COMPLETED && a.checked_in_at && a.start_time
+);
+
+let averageWaitTime: number | undefined;
+if (completed.length > 0) {
+  const totalWaitMinutes = completed.reduce((sum, a) => {
+    const scheduled = new Date(a.start_time!).getTime();
+    const checkedIn = new Date(a.checked_in_at!).getTime();
+    const waitMinutes = (checkedIn - scheduled) / 60000;
+    return sum + Math.max(0, waitMinutes);
+  }, 0);
+  averageWaitTime = Math.round(totalWaitMinutes / completed.length);
+}
+
+return {
+  totalWaiting: waiting,
+  totalInProgress: inProgress,
+  averageWaitTime,
+};
+    } catch (error) {
+  logger.warn('Failed to get queue state', { error, clinicId });
+  return undefined;
+}
+  }
+
+  /**
+   * Get all in-progress appointments for a specific date
+   * Used by Orchestrator to check for running-over appointments
+   */
+  async getInProgressAppointments(date: Date): Promise < QueueEntry[] > {
+  try {
+    const dateStr = date.toISOString().split('T')[0];
+
+    const { data, error } = await supabase
+      .from('appointments')
+      .select(`
+          *,
+          patient:profiles!appointments_patient_fkey(id, full_name, phone_number, email),
+          guest_patient:guest_patients(id, full_name, phone_number),
+          clinic:clinics(id, name)
+        `)
+      .eq('appointment_date', dateStr)
+      .eq('status', AppointmentStatus.IN_PROGRESS);
+
+    if(error) {
+      logger.error('Failed to fetch in-progress appointments', error);
+      return [];
+    }
+
+      return this.mapToQueueEntries(data as RawAppointmentRow[]);
+  } catch(error) {
+    logger.error('Unexpected error fetching in-progress appointments', error as Error);
+    return [];
+  }
+}
+
+  /**
+   * Get all waiting appointments for a clinic on a specific date
+   * Used by Orchestrator for recalculation
+   */
+  async getWaitingAppointments(clinicId: string, date: Date): Promise < QueueEntry[] > {
+  try {
+    const dateStr = date.toISOString().split('T')[0];
+
+    const { data, error } = await supabase
+      .from('appointments')
+      .select(`
+          *,
+          patient:profiles!appointments_patient_fkey(id, full_name, phone_number, email),
+          guest_patient:guest_patients(id, full_name, phone_number),
+          clinic:clinics(id, name)
+        `)
+      .eq('clinic_id', clinicId)
+      .eq('appointment_date', dateStr)
+      .in('status', [AppointmentStatus.WAITING, AppointmentStatus.SCHEDULED])
+      .eq('is_present', true);
+
+    if(error) {
+      logger.error('Failed to fetch waiting appointments', error, { clinicId });
+      return [];
+    }
+
+      return this.mapToQueueEntries(data as RawAppointmentRow[]);
+  } catch(error) {
+    logger.error('Unexpected error fetching waiting appointments', error as Error, { clinicId });
+    return [];
+  }
+}
+
+  /**
+   * Batch update appointments (e.g. for mass recalculation)
+   */
+  async batchUpdateAppointments(updates: { id: string;[key: string]: any }[]): Promise < void> {
+  if(updates.length === 0) return;
+
+  try {
+    // Supabase doesn't support bulk update with different values easily in one query
+    // We'll use Promise.all for now, but in a real high-scale system we'd use a stored procedure
+    // or a temporary table approach.
+
+    const promises = updates.map(update => {
+      const { id, ...fields } = update;
+      return supabase
+        .from('appointments')
+        .update({
+          ...fields,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+    });
+
+    await Promise.all(promises);
+  } catch(error) {
+    logger.error('Error in batch update appointments', error as Error);
+    throw new DatabaseError('Error in batch update appointments', error as Error);
+  }
+}
+
+  // ============================================
+  // MAPPERS
+  // ============================================
+
+  private mapToQueueEntry(row: RawAppointmentRow): QueueEntry {
+  return {
+    id: row.id,
+    clinicId: row.clinic_id,
+    patientId: row.patient_id || '',
+    staffId: row.staff_id || undefined,
+    appointmentDate: new Date(row.appointment_date || ''),
+    scheduledTime: row.start_time ? row.start_time.split('T')[1]?.substring(0, 5) : undefined, // Extract HH:MM
+    queuePosition: row.queue_position || 0,
+    originalQueuePosition: row.original_queue_position || undefined,
+    status: (row.status as AppointmentStatus) || AppointmentStatus.SCHEDULED,
+    appointmentType: (row.appointment_type as any) || 'consultation',
+    isPresent: row.is_present || false,
+    markedAbsentAt: row.marked_absent_at ? new Date(row.marked_absent_at) : undefined,
+    returnedAt: row.returned_at ? new Date(row.returned_at) : undefined,
+    skipCount: row.skip_count || 0,
+    skipReason: (row.skip_reason as any) || undefined,
+    overrideBy: row.override_by || undefined,
+    checkedInAt: row.checked_in_at ? new Date(row.checked_in_at) : undefined,
+    actualEndTime: row.actual_end_time ? new Date(row.actual_end_time) : undefined,
+    startTime: row.start_time ? new Date(row.start_time) : undefined,
+    endTime: row.end_time ? new Date(row.end_time) : undefined,
+    estimatedDurationMinutes: row.estimated_duration || undefined,
+    estimatedWaitTime: row.predicted_wait_time || undefined,
+    predictionMode: (row.prediction_mode as EstimationMode) || undefined,
+    predictionConfidence: row.prediction_confidence || undefined,
+    predictedStartTime: row.predicted_start_time ? new Date(row.predicted_start_time) : undefined,
+    etaUpdatedAt: row.last_prediction_update ? new Date(row.last_prediction_update) : undefined,
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
+    isGuest: row.is_guest || false,
+    guestPatientId: row.guest_patient_id || undefined,
+    patient: row.patient ? {
+      id: row.patient.id,
+      fullName: row.patient.full_name || 'Unknown',
+      phoneNumber: row.patient.phone_number || undefined,
+      email: row.patient.email || undefined,
+    } : undefined,
+  };
+}
+
+  private mapToQueueEntries(rows: RawAppointmentRow[] | null): QueueEntry[] {
+  if (!rows) return [];
+  return rows.map(row => this.mapToQueueEntry(row));
+}
+
+  private mapToAbsentPatient(row: RawAbsentPatientRow): AbsentPatient {
+  return {
+    id: row.id,
+    appointmentId: row.appointment_id,
+    clinicId: row.clinic_id,
+    patientId: row.patient_id || '',
+    markedAbsentAt: new Date(row.marked_absent_at),
+    returnedAt: row.returned_at ? new Date(row.returned_at) : undefined,
+    newPosition: row.new_position || undefined,
+    notificationSent: row.notification_sent || false,
+    gracePeriodEndsAt: row.grace_period_ends_at ? new Date(row.grace_period_ends_at) : undefined,
+    autoCancelled: row.auto_cancelled || false,
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
+  };
+}
+
+  private mapScheduleResponse(data: any, source: string): { operating_mode: string; schedule: QueueEntry[] } {
+  // Handle different RPC return structures if needed
+  // Currently assuming both RPCs return { operating_mode: string, schedule: [...] }
+
+  // If data is just an array (legacy RPCs might do this), wrap it
+  if (Array.isArray(data)) {
+    return {
+      operating_mode: 'ordinal_queue', // Default fallback
+      schedule: this.mapToQueueEntries(data),
+    };
+  }
+
+  return {
+    operating_mode: data?.operating_mode || 'ordinal_queue',
+    schedule: this.mapToQueueEntries(data?.schedule || []),
+  };
+}
 }
