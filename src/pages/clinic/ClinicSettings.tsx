@@ -329,14 +329,12 @@ export default function ClinicSettings() {
     {
       value: 'ordinal_queue',
       label: 'Free Queue',
-      labelAr: 'طابور حر',
       description: 'First-in, first-served. No time slots.',
       icon: '📋'
     },
     {
       value: 'time_grid_fixed',
       label: 'Time Slots',
-      labelAr: 'مواعيد محددة',
       description: 'Scheduled appointments with specific times.',
       icon: '🕐'
     },
@@ -749,13 +747,13 @@ export default function ClinicSettings() {
                             <div className="w-36">
                               <div className="font-bold text-base capitalize">{day}</div>
                               <div className="text-sm text-gray-500 capitalize">
-                                {day === 'monday' && 'الإثنين'}
-                                {day === 'tuesday' && 'الثلاثاء'}
-                                {day === 'wednesday' && 'الأربعاء'}
-                                {day === 'thursday' && 'الخميس'}
-                                {day === 'friday' && 'الجمعة'}
-                                {day === 'saturday' && 'السبت'}
-                                {day === 'sunday' && 'الأحد'}
+                                {day === 'monday'}
+                                {day === 'tuesday'}
+                                {day === 'wednesday' }
+                                {day === 'thursday' }
+                                {day === 'friday' }
+                                {day === 'saturday' }
+                                {day === 'sunday' }
                               </div>
                             </div>
                           </div>
@@ -774,7 +772,7 @@ export default function ClinicSettings() {
                                     <span className="text-2xl">{mode.icon}</span>
                                     <div>
                                       <div className="font-medium">{mode.label}</div>
-                                      <div className="text-xs text-gray-500">{mode.labelAr}</div>
+                    
                                     </div>
                                   </div>
                                 </SelectItem>
