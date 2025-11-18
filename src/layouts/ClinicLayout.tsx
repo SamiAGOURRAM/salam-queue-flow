@@ -18,6 +18,8 @@ import type { Database } from "@/integrations/supabase/types";
 
 type ClinicRow = Database["public"]["Tables"]["clinics"]["Row"];
 
+  
+
 export default function ClinicLayout() {
   const { user, loading, isClinicOwner, isStaff, signOut } = useAuth();
   const navigate = useNavigate();

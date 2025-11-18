@@ -75,9 +75,19 @@ export default function ClinicCalendar() {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       const scheduleData = await queueService.getDailySchedule(staffId, dateStr);
       const sortedAppointments = (scheduleData.schedule || []).sort((a, b) => {
-        const timeA = a.startTime ? new Date(a.startTime).getTime() : 0;
-        const timeB = b.startTime ? new Date(b.startTime).getTime() : 0;
-        return timeA - timeB;
+        // ✅ Use startTime if available, fall back to scheduledTime
+        const getTime = (apt: any) => {
+          if (apt.startTime) {
+            return new Date(apt.startTime).getTime();
+          }
+          if (apt.scheduledTime && apt.appointmentDate) {
+            // Combine date + time for proper sorting
+            return new Date(`${apt.appointmentDate}T${apt.scheduledTime}`).getTime();
+          }
+          return 0;
+        };
+        
+        return getTime(a) - getTime(b);
       });
       setAppointments(sortedAppointments);
     } catch (error) {
@@ -327,13 +337,25 @@ export default function ClinicCalendar() {
                     )}
                   >
                     <div className="flex items-center gap-4 flex-1">
-                      <div className={cn(
+                    <div className={cn(
                         "h-12 w-12 rounded-xl flex items-center justify-center font-bold text-sm shadow-md",
                         apt.skipReason === SkipReason.PATIENT_ABSENT && !apt.returnedAt
                           ? "bg-gradient-to-br from-red-400 to-red-500 text-white"
                           : "bg-gradient-to-br from-blue-500 to-cyan-500 text-white"
                       )}>
-                        {apt.startTime ? format(new Date(apt.startTime), 'HH:mm') : '--:--'}
+                        {(() => {
+                          // ✅ NEW: Check both startTime and scheduledTime fields
+                          if (apt.startTime) {
+                            // startTime is a Date object
+                            return format(apt.startTime, 'HH:mm');
+                          } else if (apt.scheduledTime) {
+                            // scheduledTime is a string like "14:30:00" or "14:30"
+                            return typeof apt.scheduledTime === 'string' 
+                              ? apt.scheduledTime.slice(0, 5) 
+                              : '--:--';
+                          }
+                          return '--:--';
+                        })()}
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-bold text-base text-gray-900 truncate">

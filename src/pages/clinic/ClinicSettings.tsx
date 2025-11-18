@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Activity, Save, Clock, Settings } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Activity, Save, Clock, Settings, Calendar, ListOrdered } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -29,7 +30,20 @@ interface AppointmentType {
   name: string;
   duration: number;
   label: string;
-  price?: number;  // NEW: Add this field
+  price?: number;
+}
+
+// ✨ NEW: Queue mode types
+type QueueMode = 'ordinal_queue' | 'time_grid_fixed';
+
+interface DailyQueueModes {
+  monday: QueueMode;
+  tuesday: QueueMode;
+  wednesday: QueueMode;
+  thursday: QueueMode;
+  friday: QueueMode;
+  saturday: QueueMode;
+  sunday: QueueMode;
 }
 
 interface PaymentMethods {
@@ -93,8 +107,22 @@ export default function ClinicSettings() {
   const [avgDuration, setAvgDuration] = useState(15);
   const [bufferTime, setBufferTime] = useState(5);
   const [maxQueueSize, setMaxQueueSize] = useState(50);
+
   const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>(() => [...defaultAppointmentTypes]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethods>(() => ({ ...defaultPaymentMethods }));
+
+
+  // ✨ NEW: Queue Mode State
+  const [dailyQueueModes, setDailyQueueModes] = useState<DailyQueueModes>({
+    monday: 'ordinal_queue',
+    tuesday: 'ordinal_queue',
+    wednesday: 'ordinal_queue',
+    thursday: 'ordinal_queue',
+    friday: 'ordinal_queue',
+    saturday: 'time_grid_fixed',
+    sunday: 'time_grid_fixed',
+  });
+
 
   const fetchClinic = useCallback(async () => {
     if (!user?.id) return;
@@ -129,8 +157,15 @@ export default function ClinicSettings() {
       setAvgDuration(settings.average_appointment_duration || 15);
       setBufferTime(settings.buffer_time || 5);
       setMaxQueueSize(settings.max_queue_size || 50);
+
       setPaymentMethods(settings.payment_methods || { ...defaultPaymentMethods });
       setAppointmentTypes(settings.appointment_types || [...defaultAppointmentTypes]);
+
+      
+      // ✨ NEW: Load queue modes
+      if (settings.daily_queue_modes) {
+        setDailyQueueModes(settings.daily_queue_modes);
+      }
     }
   }, [user]);
 
@@ -192,10 +227,22 @@ export default function ClinicSettings() {
     }
     setSaving(true);
     try {
-      const existingSettings = parseClinicSettings(clinic.settings);
-      const updatedSettings: ClinicSettingsShape = {
-        ...existingSettings,
-        working_hours: workingHours,
+      // ✨ Convert working_hours to operating_hours format
+      const operatingHours: any = {};
+      Object.keys(workingHours).forEach(day => {
+        const dayData = workingHours[day];
+        operatingHours[day] = {
+          is_open: !dayData.closed,
+          start: dayData.open || "09:00",
+          end: dayData.close || "18:00"
+        };
+      });
+  
+      const updatedSettings = {
+        ...(clinic.settings as any),
+        working_hours: workingHours,  // Keep for UI compatibility
+        operating_hours: operatingHours,  // ✨ NEW: For RPC functions
+        slot_duration: avgDuration,  // ✨ NEW: For slot generation
         allow_walk_ins: allowWalkIns,
         average_appointment_duration: avgDuration,
         buffer_time: bufferTime,
@@ -203,13 +250,44 @@ export default function ClinicSettings() {
         payment_methods: paymentMethods,
         appointment_types: appointmentTypes,
       };
+  
+      const { error } = await supabase
+        .from("clinics")
+        .update({ settings: updatedSettings })
+        .eq("id", clinic.id);
+  
+      if (error) throw error;
+  
+      toast({
+        title: "Success",
+        description: "Schedule settings updated",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ✨ NEW: Save Queue Modes
+  const handleSaveQueueModes = async () => {
+    setSaving(true);
+    try {
+      const updatedSettings = {
+        ...(clinic.settings as any),
+        daily_queue_modes: dailyQueueModes,
+      };
 
       // Use ClinicService to update clinic settings
       await clinicService.updateClinicSettings(clinic.id, updatedSettings);
 
       toast({
-        title: "Success",
-        description: "Schedule settings updated",
+        title: "✅ Queue Modes Saved!",
+        description: "Your queue configuration has been updated",
       });
     } catch (error: unknown) {
       toast({
@@ -236,7 +314,33 @@ export default function ClinicSettings() {
     }));
   };
 
+  // ✨ NEW: Update queue mode for a day
+  const updateDayQueueMode = (day: keyof DailyQueueModes, mode: QueueMode) => {
+    setDailyQueueModes((prev) => ({
+      ...prev,
+      [day]: mode,
+    }));
+  };
+
   const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+
+  // ✨ NEW: Queue mode options
+  const queueModeOptions = [
+    {
+      value: 'ordinal_queue',
+      label: 'Free Queue',
+      labelAr: 'طابور حر',
+      description: 'First-in, first-served. No time slots.',
+      icon: '📋'
+    },
+    {
+      value: 'time_grid_fixed',
+      label: 'Time Slots',
+      labelAr: 'مواعيد محددة',
+      description: 'Scheduled appointments with specific times.',
+      icon: '🕐'
+    },
+  ];
 
   if (loading) {
     return (
@@ -248,7 +352,6 @@ export default function ClinicSettings() {
 
   return (
     <div className="space-y-8">
-
       <main className="container mx-auto px-6 py-8 max-w-5xl">
         <div className="mb-8 space-y-2">
           <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent flex items-center gap-3">
@@ -261,13 +364,25 @@ export default function ClinicSettings() {
         </div>
 
         <Tabs defaultValue="basic" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 h-12 bg-white shadow-sm border-2 p-1">
-            <TabsTrigger value="basic" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white">Basic Info</TabsTrigger>
-            <TabsTrigger value="schedule" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white">Schedule</TabsTrigger>
-            <TabsTrigger value="appointments" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white">Appointments</TabsTrigger>
-            <TabsTrigger value="payment" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white">Payment</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-5 h-12 bg-white shadow-sm border-2 p-1">
+            <TabsTrigger value="basic" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white">
+              Basic Info
+            </TabsTrigger>
+            <TabsTrigger value="schedule" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white">
+              Schedule
+            </TabsTrigger>
+            <TabsTrigger value="queue" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white">
+              Queue Mode
+            </TabsTrigger>
+            <TabsTrigger value="appointments" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white">
+              Appointments
+            </TabsTrigger>
+            <TabsTrigger value="payment" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white">
+              Payment
+            </TabsTrigger>
           </TabsList>
 
+          {/* BASIC INFO TAB */}
           <TabsContent value="basic">
             <Card className="shadow-lg border-0 bg-white">
               <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30">
@@ -368,224 +483,374 @@ export default function ClinicSettings() {
             </Card>
           </TabsContent>
 
+          {/* SCHEDULE TAB */}
           <TabsContent value="schedule">
-  <Card className="shadow-lg border-0 bg-white">
-    <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30">
-      <CardTitle className="text-xl flex items-center gap-2">
-        <Clock className="w-5 h-5 text-blue-600" />
-        Working Hours
-      </CardTitle>
-      <CardDescription className="text-base">
-        Set your clinic's opening and closing hours for each day
-      </CardDescription>
-    </CardHeader>
-    <CardContent className="pt-6 space-y-4">
-      {/* Days of the Week */}
-      {days.map((day) => {
-        const dayData = workingHours[day] || { closed: false, open: "09:00", close: "18:00" };
-        const isClosed = dayData.closed ?? false;
+            <Card className="shadow-lg border-0 bg-white">
+              <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30">
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-blue-600" />
+                  Working Hours
+                </CardTitle>
+                <CardDescription className="text-base">
+                  Set your clinic's opening and closing hours for each day
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6 space-y-4">
+                {/* Days of the Week */}
+                {days.map((day) => {
+                  const dayData = workingHours[day] || { closed: false, open: "09:00", close: "18:00" };
+                  const isClosed = dayData.closed ?? false;
 
-        return (
-          <div 
-            key={day} 
-            className="p-4 border-2 rounded-xl hover:border-blue-200 transition-all bg-gradient-to-r from-gray-50 to-blue-50/20"
-          >
-            <div className="flex flex-col md:flex-row md:items-center gap-4">
-              {/* Day Name & Toggle */}
-              <div className="flex items-center justify-between md:w-48">
-                <Label className="text-base font-semibold capitalize">
-                  {day}
-                </Label>
-                <div className="flex items-center gap-2">
-                  <span className={`text-sm font-medium ${isClosed ? 'text-red-600' : 'text-green-600'}`}>
-                    {isClosed ? 'Closed' : 'Open'}
-                  </span>
-                  <Switch
-                    checked={!isClosed}
-                    onCheckedChange={(checked) => {
-                      updateDayHours(day, "closed", !checked);
+                  return (
+                    <div 
+                      key={day} 
+                      className="p-4 border-2 rounded-xl hover:border-blue-200 transition-all bg-gradient-to-r from-gray-50 to-blue-50/20"
+                    >
+                      <div className="flex flex-col md:flex-row md:items-center gap-4">
+                        {/* Day Name & Toggle */}
+                        <div className="flex items-center justify-between md:w-48">
+                          <Label className="text-base font-semibold capitalize">
+                            {day}
+                          </Label>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-medium ${isClosed ? 'text-red-600' : 'text-green-600'}`}>
+                              {isClosed ? 'Closed' : 'Open'}
+                            </span>
+                            <Switch
+                              checked={!isClosed}
+                              onCheckedChange={(checked) => {
+                                updateDayHours(day, "closed", !checked);
+                              }}
+                              className="data-[state=checked]:bg-green-500"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Time Inputs */}
+                        {!isClosed && (
+                          <div className="flex items-center gap-3 flex-1">
+                            {/* Opening Time */}
+                            <div className="flex-1">
+                              <Label className="text-xs text-gray-600 mb-1 block">
+                                Opens
+                              </Label>
+                              <Input
+                                type="time"
+                                value={dayData.open || "09:00"}
+                                onChange={(e) => updateDayHours(day, "open", e.target.value)}
+                                className="h-11 text-center font-medium"
+                              />
+                            </div>
+
+                            {/* Arrow */}
+                            <div className="mt-5">
+                              <svg 
+                                width="20" 
+                                height="20" 
+                                viewBox="0 0 24 24" 
+                                fill="none" 
+                                stroke="currentColor" 
+                                strokeWidth="2" 
+                                className="text-gray-400"
+                              >
+                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                              </svg>
+                            </div>
+
+                            {/* Closing Time */}
+                            <div className="flex-1">
+                              <Label className="text-xs text-gray-600 mb-1 block">
+                                Closes
+                              </Label>
+                              <Input
+                                type="time"
+                                value={dayData.close || "18:00"}
+                                onChange={(e) => updateDayHours(day, "close", e.target.value)}
+                                className="h-11 text-center font-medium"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Closed Message */}
+                        {isClosed && (
+                          <div className="flex-1 text-center py-2 px-4 bg-red-50 rounded-lg">
+                            <p className="text-sm text-red-600 font-medium">
+                              Clinic closed on this day
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Quick Actions */}
+                <div className="flex gap-3 pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const updated: WorkingHours = {};
+                      days.forEach(day => {
+                        updated[day] = { closed: false, open: "09:00", close: "18:00" };
+                      });
+                      setWorkingHours(updated);
+                      toast({
+                        title: "Schedule Reset",
+                        description: "All days set to 9:00 AM - 6:00 PM",
+                      });
                     }}
-                    className="data-[state=checked]:bg-green-500"
-                  />
+                    className="flex-1"
+                  >
+                    Reset to Default
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const updated: WorkingHours = {};
+                      days.forEach(day => {
+                        if (day === 'saturday' || day === 'sunday') {
+                          updated[day] = { closed: true };
+                        } else {
+                          updated[day] = { closed: false, open: "09:00", close: "18:00" };
+                        }
+                      });
+                      setWorkingHours(updated);
+                      toast({
+                        title: "Weekend Closed",
+                        description: "Saturday & Sunday marked as closed",
+                      });
+                    }}
+                    className="flex-1"
+                  >
+                    Close Weekends
+                  </Button>
                 </div>
+
+                {/* Other Settings */}
+                <div className="space-y-4 pt-6 border-t">
+                  {/* Allow Walk-ins */}
+                  <div className="flex items-center justify-between p-4 border rounded-xl bg-gradient-to-r from-gray-50 to-blue-50/20">
+                    <div>
+                      <Label className="text-base font-semibold">Walk-ins Allowed</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Allow patients without appointments
+                      </p>
+                    </div>
+                    <Switch
+                      checked={allowWalkIns}
+                      onCheckedChange={setAllowWalkIns}
+                    />
+                  </div>
+
+                  {/* Average Duration */}
+                  <div>
+                    <Label className="text-base font-semibold mb-2 block">
+                      Average Appointment Duration (minutes)
+                    </Label>
+                    <Input
+                      type="number"
+                      value={avgDuration}
+                      onChange={(e) => setAvgDuration(parseInt(e.target.value) || 15)}
+                      min="5"
+                      max="120"
+                      className="h-11"
+                    />
+                  </div>
+
+                  {/* Buffer Time */}
+                  <div>
+                    <Label className="text-base font-semibold mb-2 block">
+                      Buffer Time Between Appointments (minutes)
+                    </Label>
+                    <Input
+                      type="number"
+                      value={bufferTime}
+                      onChange={(e) => setBufferTime(parseInt(e.target.value) || 0)}
+                      min="0"
+                      max="60"
+                      className="h-11"
+                    />
+                  </div>
+
+                  {/* Max Queue Size */}
+                  <div>
+                    <Label className="text-base font-semibold mb-2 block">
+                      Maximum Queue Size
+                    </Label>
+                    <Input
+                      type="number"
+                      value={maxQueueSize}
+                      onChange={(e) => setMaxQueueSize(parseInt(e.target.value) || 50)}
+                      min="1"
+                      max="200"
+                      className="h-11"
+                    />
+                  </div>
+                </div>
+
+                {/* Save Button */}
+                <Button
+                  onClick={handleSaveSchedule}
+                  disabled={saving}
+                  className="w-full h-12 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg hover:shadow-xl transition-all"
+                >
+                  <Save className="w-5 h-5 mr-2" />
+                  {saving ? "Saving..." : "Save Schedule Settings"}
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ✨ NEW: QUEUE MODE TAB */}
+          <TabsContent value="queue">
+            <div className="space-y-6">
+              {/* Explanation Cards */}
+              <div className="grid md:grid-cols-2 gap-4">
+                {queueModeOptions.map((mode) => (
+                  <Card key={mode.value} className="border-2 hover:border-blue-300 transition-all shadow-lg">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-3 text-lg">
+                        <span className="text-4xl">{mode.icon}</span>
+                        <div>
+                          <div>{mode.label}</div>
+                          <div className="text-sm font-normal text-gray-500">{mode.labelAr}</div>
+                        </div>
+                      </CardTitle>
+                      <CardDescription className="text-base pt-2">{mode.description}</CardDescription>
+                    </CardHeader>
+                  </Card>
+                ))}
               </div>
 
-              {/* Time Inputs */}
-              {!isClosed && (
-                <div className="flex items-center gap-3 flex-1">
-                  {/* Opening Time */}
-                  <div className="flex-1">
-                    <Label className="text-xs text-gray-600 mb-1 block">
-                      Opens
-                    </Label>
-                    <Input
-                      type="time"
-                      value={dayData.open || "09:00"}
-                      onChange={(e) => updateDayHours(day, "open", e.target.value)}
-                      className="h-11 text-center font-medium"
-                    />
+              {/* Daily Configuration */}
+              <Card className="shadow-xl border-0">
+                <CardHeader className="border-b bg-gradient-to-r from-blue-50 to-cyan-50">
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <Calendar className="w-6 h-6 text-blue-600" />
+                    Weekly Queue Configuration
+                  </CardTitle>
+                  <CardDescription className="text-base">
+                    Choose how your queue operates for each day of the week
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="space-y-3">
+                    {days.map((day) => {
+                      const dayKey = day as keyof DailyQueueModes;
+                      const currentMode = dailyQueueModes[dayKey];
+
+                      return (
+                        <div
+                          key={day}
+                          className="flex items-center justify-between p-5 border-2 rounded-2xl hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-cyan-50/30 transition-all"
+                        >
+                          <div className="flex items-center gap-4 flex-1">
+                            <div className="w-36">
+                              <div className="font-bold text-base capitalize">{day}</div>
+                              <div className="text-sm text-gray-500 capitalize">
+                                {day === 'monday' && 'الإثنين'}
+                                {day === 'tuesday' && 'الثلاثاء'}
+                                {day === 'wednesday' && 'الأربعاء'}
+                                {day === 'thursday' && 'الخميس'}
+                                {day === 'friday' && 'الجمعة'}
+                                {day === 'saturday' && 'السبت'}
+                                {day === 'sunday' && 'الأحد'}
+                              </div>
+                            </div>
+                          </div>
+
+                          <Select
+                            value={currentMode}
+                            onValueChange={(value: QueueMode) => updateDayQueueMode(dayKey, value)}
+                          >
+                            <SelectTrigger className="w-[280px] h-11 border-2">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {queueModeOptions.map((mode) => (
+                                <SelectItem key={mode.value} value={mode.value}>
+                                  <div className="flex items-center gap-3 py-1">
+                                    <span className="text-2xl">{mode.icon}</span>
+                                    <div>
+                                      <div className="font-medium">{mode.label}</div>
+                                      <div className="text-xs text-gray-500">{mode.labelAr}</div>
+                                    </div>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      );
+                    })}
                   </div>
 
-                  {/* Arrow */}
-                  <div className="mt-5">
-                    <svg 
-                      width="20" 
-                      height="20" 
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      strokeWidth="2" 
-                      className="text-gray-400"
+                  {/* Quick Actions */}
+                  <div className="grid md:grid-cols-2 gap-3 mt-6 pt-6 border-t">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        const updated: DailyQueueModes = {
+                          monday: 'ordinal_queue',
+                          tuesday: 'ordinal_queue',
+                          wednesday: 'ordinal_queue',
+                          thursday: 'ordinal_queue',
+                          friday: 'ordinal_queue',
+                          saturday: 'ordinal_queue',
+                          sunday: 'ordinal_queue',
+                        };
+                        setDailyQueueModes(updated);
+                        toast({
+                          title: "All Days Set to Free Queue",
+                          description: "All days configured for free queue mode",
+                        });
+                      }}
+                      className="h-11"
                     >
-                      <path d="M5 12h14M12 5l7 7-7 7"/>
-                    </svg>
+                      <ListOrdered className="w-4 h-4 mr-2" />
+                      All Free Queue
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        const updated: DailyQueueModes = {
+                          monday: 'time_grid_fixed',
+                          tuesday: 'time_grid_fixed',
+                          wednesday: 'time_grid_fixed',
+                          thursday: 'time_grid_fixed',
+                          friday: 'time_grid_fixed',
+                          saturday: 'time_grid_fixed',
+                          sunday: 'time_grid_fixed',
+                        };
+                        setDailyQueueModes(updated);
+                        toast({
+                          title: "All Days Set to Time Slots",
+                          description: "All days configured for time slot mode",
+                        });
+                      }}
+                      className="h-11"
+                    >
+                      <Clock className="w-4 h-4 mr-2" />
+                      All Time Slots
+                    </Button>
                   </div>
 
-                  {/* Closing Time */}
-                  <div className="flex-1">
-                    <Label className="text-xs text-gray-600 mb-1 block">
-                      Closes
-                    </Label>
-                    <Input
-                      type="time"
-                      value={dayData.close || "18:00"}
-                      onChange={(e) => updateDayHours(day, "close", e.target.value)}
-                      className="h-11 text-center font-medium"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Closed Message */}
-              {isClosed && (
-                <div className="flex-1 text-center py-2 px-4 bg-red-50 rounded-lg">
-                  <p className="text-sm text-red-600 font-medium">
-                    Clinic closed on this day
-                  </p>
-                </div>
-              )}
+                  {/* Save Button */}
+                  <Button
+                    onClick={handleSaveQueueModes}
+                    disabled={saving}
+                    className="w-full h-12 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg hover:shadow-xl transition-all mt-6"
+                  >
+                    <Save className="w-5 h-5 mr-2" />
+                    {saving ? "Saving..." : "Save Queue Configuration"}
+                  </Button>
+                </CardContent>
+              </Card>
             </div>
-          </div>
-        );
-      })}
+          </TabsContent>
 
-      {/* Quick Actions */}
-      <div className="flex gap-3 pt-4 border-t">
-        <Button
-          variant="outline"
-          onClick={() => {
-            const updated: WorkingHours = {};
-            days.forEach(day => {
-              updated[day] = { closed: false, open: "09:00", close: "18:00" };
-            });
-            setWorkingHours(updated);
-            toast({
-              title: "Schedule Reset",
-              description: "All days set to 9:00 AM - 6:00 PM",
-            });
-          }}
-          className="flex-1"
-        >
-          Reset to Default
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => {
-            const updated: WorkingHours = {};
-            days.forEach(day => {
-              if (day === 'saturday' || day === 'sunday') {
-                updated[day] = { closed: true };
-              } else {
-                updated[day] = { closed: false, open: "09:00", close: "18:00" };
-              }
-            });
-            setWorkingHours(updated);
-            toast({
-              title: "Weekend Closed",
-              description: "Saturday & Sunday marked as closed",
-            });
-          }}
-          className="flex-1"
-        >
-          Close Weekends
-        </Button>
-      </div>
-
-      {/* Other Settings */}
-      <div className="space-y-4 pt-6 border-t">
-        {/* Allow Walk-ins */}
-        <div className="flex items-center justify-between p-4 border rounded-xl bg-gradient-to-r from-gray-50 to-blue-50/20">
-          <div>
-            <Label className="text-base font-semibold">Walk-ins Allowed</Label>
-            <p className="text-sm text-muted-foreground">
-              Allow patients without appointments
-            </p>
-          </div>
-          <Switch
-            checked={allowWalkIns}
-            onCheckedChange={setAllowWalkIns}
-          />
-        </div>
-
-        {/* Average Duration */}
-        <div>
-          <Label className="text-base font-semibold mb-2 block">
-            Average Appointment Duration (minutes)
-          </Label>
-          <Input
-            type="number"
-            value={avgDuration}
-            onChange={(e) => setAvgDuration(parseInt(e.target.value) || 15)}
-            min="5"
-            max="120"
-            className="h-11"
-          />
-        </div>
-
-        {/* Buffer Time */}
-        <div>
-          <Label className="text-base font-semibold mb-2 block">
-            Buffer Time Between Appointments (minutes)
-          </Label>
-          <Input
-            type="number"
-            value={bufferTime}
-            onChange={(e) => setBufferTime(parseInt(e.target.value) || 0)}
-            min="0"
-            max="60"
-            className="h-11"
-          />
-        </div>
-
-        {/* Max Queue Size */}
-        <div>
-          <Label className="text-base font-semibold mb-2 block">
-            Maximum Queue Size
-          </Label>
-          <Input
-            type="number"
-            value={maxQueueSize}
-            onChange={(e) => setMaxQueueSize(parseInt(e.target.value) || 50)}
-            min="1"
-            max="200"
-            className="h-11"
-          />
-        </div>
-      </div>
-
-      {/* Save Button */}
-      <Button
-        onClick={handleSaveSchedule}
-        disabled={saving}
-        className="w-full h-12 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg hover:shadow-xl transition-all"
-      >
-        <Save className="w-5 h-5 mr-2" />
-        {saving ? "Saving..." : "Save Schedule Settings"}
-      </Button>
-    </CardContent>
-  </Card>
-</TabsContent>
-
+          {/* APPOINTMENTS TAB */}
           <TabsContent value="appointments">
             <Card className="shadow-lg border-0 bg-white">
               <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30">
@@ -595,125 +860,125 @@ export default function ClinicSettings() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-6 space-y-6">
-              {appointmentTypes.map((type, index) => (
-              <div key={index} className="flex items-center gap-4 p-4 border rounded-lg hover:border-blue-300 transition-colors">
-                <div className="flex-1 grid grid-cols-3 gap-4">
-                  {/* Type Name */}
-                  <div>
-                    <Label htmlFor={`type-label-${index}`} className="text-sm font-medium">
-                      Type Name
-                    </Label>
-                    <Input
-                      id={`type-label-${index}`}
-                      value={type.label}
-                      onChange={(e) => {
-                        const updated = [...appointmentTypes];
-                        updated[index].label = e.target.value;
-                        setAppointmentTypes(updated);
-                      }}
-                      placeholder="e.g., Consultation"
-                      className="h-11"
-                    />
-                  </div>
+                {appointmentTypes.map((type, index) => (
+                  <div key={index} className="flex items-center gap-4 p-4 border rounded-lg hover:border-blue-300 transition-colors">
+                    <div className="flex-1 grid grid-cols-3 gap-4">
+                      {/* Type Name */}
+                      <div>
+                        <Label htmlFor={`type-label-${index}`} className="text-sm font-medium">
+                          Type Name
+                        </Label>
+                        <Input
+                          id={`type-label-${index}`}
+                          value={type.label}
+                          onChange={(e) => {
+                            const updated = [...appointmentTypes];
+                            updated[index].label = e.target.value;
+                            setAppointmentTypes(updated);
+                          }}
+                          placeholder="e.g., Consultation"
+                          className="h-11"
+                        />
+                      </div>
 
-                  {/* Duration */}
-                  <div>
-                    <Label htmlFor={`type-duration-${index}`} className="text-sm font-medium">
-                      Duration (min)
-                    </Label>
-                    <Input
-                      id={`type-duration-${index}`}
-                      type="number"
-                      value={type.duration}
-                      onChange={(e) => {
-                        const updated = [...appointmentTypes];
-                        updated[index].duration = parseInt(e.target.value) || 15;
-                        setAppointmentTypes(updated);
-                      }}
-                      min="5"
-                      max="240"
-                      placeholder="15"
-                      className="h-11"
-                    />
-                  </div>
+                      {/* Duration */}
+                      <div>
+                        <Label htmlFor={`type-duration-${index}`} className="text-sm font-medium">
+                          Duration (min)
+                        </Label>
+                        <Input
+                          id={`type-duration-${index}`}
+                          type="number"
+                          value={type.duration}
+                          onChange={(e) => {
+                            const updated = [...appointmentTypes];
+                            updated[index].duration = parseInt(e.target.value) || 15;
+                            setAppointmentTypes(updated);
+                          }}
+                          min="5"
+                          max="240"
+                          placeholder="15"
+                          className="h-11"
+                        />
+                      </div>
 
-                  {/* NEW: Price Field */}
-                  <div>
-                    <Label htmlFor={`type-price-${index}`} className="text-sm font-medium">
-                      Price (MAD) <span className="text-gray-400 font-normal">- Optional</span>
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id={`type-price-${index}`}
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={type.price ?? ''}
-                        onChange={(e) => {
-                          const updated = [...appointmentTypes];
-                          const value = e.target.value;
-                          updated[index].price = value === '' ? undefined : parseFloat(value);
-                          setAppointmentTypes(updated);
-                        }}
-                        placeholder="Free"
-                        className="h-11 pr-14"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">
-                        MAD
-                      </span>
+                      {/* Price */}
+                      <div>
+                        <Label htmlFor={`type-price-${index}`} className="text-sm font-medium">
+                          Price (MAD) <span className="text-gray-400 font-normal">- Optional</span>
+                        </Label>
+                        <div className="relative">
+                          <Input
+                            id={`type-price-${index}`}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={type.price ?? ''}
+                            onChange={(e) => {
+                              const updated = [...appointmentTypes];
+                              const value = e.target.value;
+                              updated[index].price = value === '' ? undefined : parseFloat(value);
+                              setAppointmentTypes(updated);
+                            }}
+                            placeholder="Free"
+                            className="h-11 pr-14"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">
+                            MAD
+                          </span>
+                        </div>
+                      </div>
                     </div>
+                    
+                    {/* Delete Button */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        if (appointmentTypes.length <= 1) {
+                          toast({
+                            title: "Cannot Delete",
+                            description: "You must have at least one appointment type",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+                        
+                        const confirmed = window.confirm(
+                          `Are you sure you want to delete "${type.label}"?`
+                        );
+                        
+                        if (confirmed) {
+                          const updated = appointmentTypes.filter((_, i) => i !== index);
+                          setAppointmentTypes(updated);
+                          toast({
+                            title: "Type Deleted",
+                            description: `"${type.label}" has been removed`,
+                          });
+                        }
+                      }}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                        <line x1="10" x2="10" y1="11" y2="17" />
+                        <line x1="14" x2="14" y1="11" y2="17" />
+                      </svg>
+                    </Button>
                   </div>
-                </div>
-                
-                {/* Delete Button */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    if (appointmentTypes.length <= 1) {
-                      toast({
-                        title: "Cannot Delete",
-                        description: "You must have at least one appointment type",
-                        variant: "destructive",
-                      });
-                      return;
-                    }
-                    
-                    const confirmed = window.confirm(
-                      `Are you sure you want to delete "${type.label}"?`
-                    );
-                    
-                    if (confirmed) {
-                      const updated = appointmentTypes.filter((_, i) => i !== index);
-                      setAppointmentTypes(updated);
-                      toast({
-                        title: "Type Deleted",
-                        description: `"${type.label}" has been removed`,
-                      });
-                    }
-                  }}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M3 6h18" />
-                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                    <line x1="10" x2="10" y1="11" y2="17" />
-                    <line x1="14" x2="14" y1="11" y2="17" />
-                  </svg>
-                </Button>
-              </div>
-            ))}
+                ))}
 
                 {/* Add New Type Button */}
                 <Button
@@ -723,7 +988,7 @@ export default function ClinicSettings() {
                       name: `custom_type_${Date.now()}`,
                       duration: 15,
                       label: "New Appointment Type",
-                      price: undefined,  // NEW: Add price field
+                      price: undefined,
                     };
                     setAppointmentTypes([...appointmentTypes, newType]);
                     toast({
@@ -764,6 +1029,7 @@ export default function ClinicSettings() {
             </Card>
           </TabsContent>
 
+          {/* PAYMENT TAB */}
           <TabsContent value="payment">
             <Card className="shadow-lg border-0 bg-white">
               <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30">

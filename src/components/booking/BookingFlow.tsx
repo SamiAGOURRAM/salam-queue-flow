@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueueService } from "@/hooks/useQueueService";
 import { clinicService } from "@/services/clinic";
 import { queueService } from "@/services/queue";
+import { useBookingService } from "@/hooks/useBookingService";
+import { bookingService } from "@/services/booking/BookingService"; 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -12,32 +13,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Info, Users, ArrowRight } from "lucide-react";
+import { 
+  Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, 
+  Info, Users, ArrowRight, Loader2, ListOrdered, Timer 
+} from "lucide-react";
 import { format, startOfDay } from "date-fns";
 import AuthModal from "@/components/auth/AuthModal";
 import { logger } from "@/services/shared/logging/Logger";
 
-interface Clinic {
-  id: string;
-  name: string;
-  specialty: string;
-  settings: {
-    buffer_time?: number;
-    working_hours?: {
-      [key: string]: {
-        open?: string;
-        close?: string;
-        closed?: boolean;
-      };
-    };
-    appointment_types?: Array<{
-      name: string;
-      label: string;
-      duration: number;
-    }>;
-    average_appointment_duration?: number;
-  };
-}
+type QueueMode = 'ordinal_queue' | 'time_grid_fixed' | null;
 
 const ACTIVE_STATUSES = ["scheduled", "waiting", "in_progress"] as const;
 
@@ -51,24 +35,18 @@ const BookingFlow = () => {
   const [staffId, setStaffId] = useState<string | undefined>(undefined);
   const { createAppointment } = useQueueService({ staffId });
 
-  // UI State
+  // State
   const [step, setStep] = useState(1);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  
-  // Data State
-  const [clinic, setClinic] = useState<Clinic | null>(null);
-  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
-  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
-  
-  // Booking Form State
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedTime, setSelectedTime] = useState("");
   const [appointmentType, setAppointmentType] = useState("");
   const [reason, setReason] = useState("");
+  const [bookingResult, setBookingResult] = useState<any>(null);
   
-  // Result State
-  const [queuePosition, setQueuePosition] = useState<number | null>(null);
-  const [totalInQueue, setTotalInQueue] = useState<number | null>(null);
+  // NEW: Queue mode state
+  const [queueMode, setQueueMode] = useState<QueueMode>(null);
+  const [loadingMode, setLoadingMode] = useState(false);
 
   const fetchClinic = useCallback(async () => {
     if (!clinicId) return;
@@ -132,6 +110,51 @@ const BookingFlow = () => {
     }
   }, [selectedDate, clinicId, fetchBookedSlots]);
 
+  // Use the booking service hook with queue mode
+  const {
+    clinicInfo,
+    availableSlots,
+    loadingClinic,
+    loadingSlots,
+    isBooking,
+    bookAppointment,
+    refetchSlots
+  } = useBookingService(clinicId, selectedDate, appointmentType, queueMode);
+
+  // NEW: Fetch queue mode when date or clinic changes
+  useEffect(() => {
+    const fetchQueueMode = async () => {
+      if (!clinicId || !selectedDate) return;
+
+      setLoadingMode(true);
+      try {
+        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+        console.log('📅 DATE DEBUG:', {
+          selectedDate: selectedDate,
+          selectedDateString: selectedDate.toString(),
+          selectedDateISO: selectedDate.toISOString(),
+          formattedDateStr: dateStr,
+          dayOfWeek: selectedDate.toLocaleDateString('en-US', { weekday: 'long' }),
+          utcDay: new Date(dateStr).toLocaleDateString('en-US', { weekday: 'long' })
+        });
+        const mode = await bookingService.getQueueMode(clinicId, dateStr);
+        setQueueMode(mode);
+      } catch (err) {
+        console.error('Error fetching queue mode:', err);
+        toast({
+          title: "Error",
+          description: "Failed to check queue mode for this date.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingMode(false);
+      }
+    };
+
+    fetchQueueMode();
+  }, [clinicId, selectedDate]);
+
+  // Reset time when date/type changes
   useEffect(() => {
     setSelectedTime("");
   }, [selectedDate, appointmentType]);
@@ -282,10 +305,21 @@ const BookingFlow = () => {
 
   const handleNextStep = () => {
     if (step === 1) {
-      if (!selectedDate || !selectedTime || !appointmentType) {
+      // Validation based on queue mode
+      if (!selectedDate || !appointmentType) {
         toast({
           title: "Missing Information",
           description: "Please fill in all appointment details.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Only require time if in time_grid_fixed mode
+      if (queueMode === 'time_grid_fixed' && !selectedTime) {
+        toast({
+          title: "Missing Information",
+          description: "Please select a time slot.",
           variant: "destructive",
         });
         return;
@@ -430,7 +464,12 @@ const BookingFlow = () => {
       });
       
     } catch (error: unknown) {
-      logger.error("Booking failed", error instanceof Error ? error : new Error(String(error)), { clinicId, userId, date: format(selectedDate!, "yyyy-MM-dd"), time: selectedTime });
+      logger.error("Booking failed", error instanceof Error ? error : new Error(String(error)), { 
+        clinicId, 
+        userId: user?.id, 
+        date: format(selectedDate!, "yyyy-MM-dd"), 
+        time: selectedTime 
+      });
       const description =
         error instanceof Error
           ? error.message
@@ -443,39 +482,36 @@ const BookingFlow = () => {
     }
   };
 
-  // ==================== COMPUTED VALUES ====================
+  const getAvailableTimeSlots = () => {
+    if (!availableSlots?.slots) return [];
+    return availableSlots.slots
+      .filter(slot => slot.available)
+      .map(slot => slot.time.substring(0, 5)); // Convert HH:MM:SS to HH:MM
+  };
 
-  const appointmentTypes = getAppointmentTypes();
-  const timeSlots = generateTimeSlots();
-  
-  // Filter out booked slots from available time slots
-  const availableTimeSlots = timeSlots.filter(time => !bookedSlots.includes(time));
 
-  // ==================== RENDER ====================
+  if (loadingClinic) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  const availableTimeSlots = getAvailableTimeSlots();
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50 py-12 px-4 relative overflow-hidden">
-        {/* Decorative Background */}
-        <div className="absolute top-20 left-10 w-72 h-72 bg-gradient-to-br from-blue-400/20 to-cyan-400/20 rounded-full blur-3xl animate-float" />
-        <div className="absolute bottom-20 right-10 w-96 h-96 bg-gradient-to-br from-cyan-400/20 to-blue-400/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }} />
-
-        <div className="max-w-3xl mx-auto relative z-10">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50 py-12 px-4">
+        <div className="max-w-3xl mx-auto">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full shadow-md border border-blue-100 mb-6">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-                <CalendarIcon className="h-4 w-4 text-white" />
-              </div>
-              <span className="text-sm font-semibold text-gray-700">Book Your Appointment</span>
-            </div>
-            
-            {clinic && (
+            {clinicInfo?.clinic && (
               <div>
                 <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent mb-2">
-                  {clinic.name}
+                  {clinicInfo.clinic.name}
                 </h1>
-                <p className="text-gray-600 text-lg">{clinic.specialty}</p>
+                <p className="text-gray-600 text-lg">{clinicInfo.clinic.specialty}</p>
               </div>
             )}
           </div>
@@ -486,7 +522,7 @@ const BookingFlow = () => {
               <div key={s} className="flex items-center">
                 <div className={`flex items-center justify-center w-10 h-10 rounded-full font-semibold transition-all ${
                   step >= s 
-                    ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg scale-110" 
+                    ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg" 
                     : "bg-gray-200 text-gray-500"
                 }`}>
                   {s}
@@ -500,9 +536,7 @@ const BookingFlow = () => {
             ))}
           </div>
 
-          {/* Main Card */}
-          <Card className="shadow-2xl border-0 backdrop-blur-sm bg-white/95 rounded-2xl overflow-hidden">
-            
+          <Card className="shadow-2xl border-0 backdrop-blur-sm bg-white/95 rounded-2xl">
             {/* STEP 1: Select Date & Time */}
             {step === 1 && (
               <div className="p-8 space-y-6">
@@ -514,15 +548,15 @@ const BookingFlow = () => {
                 <div className="space-y-6">
                   {/* Appointment Type */}
                   <div>
-                    <Label htmlFor="appointmentType" className="text-base font-semibold mb-2 block">
+                    <Label className="text-base font-semibold mb-2 block">
                       Appointment Type
                     </Label>
                     <Select value={appointmentType} onValueChange={setAppointmentType}>
-                      <SelectTrigger className="h-12 bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-blue-500">
+                      <SelectTrigger className="h-12">
                         <SelectValue placeholder="Select type..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {appointmentTypes.map((type) => (
+                        {clinicInfo?.appointmentTypes?.map((type) => (
                           <SelectItem key={type.name} value={type.name}>
                             {type.label} ({type.duration} min)
                           </SelectItem>
@@ -531,109 +565,137 @@ const BookingFlow = () => {
                     </Select>
                   </div>
 
-                  {/* Date & Time Grid */}
-                  <div className="grid md:grid-cols-2 gap-6">
-                    {/* Date Picker */}
-                    <div>
-                      <Label className="text-base font-semibold mb-2 block">Select Date</Label>
-                      <div className="border-2 border-gray-100 rounded-xl p-4 bg-gray-50">
-                        <Calendar
-                          mode="single"
-                          selected={selectedDate}
-                          onSelect={setSelectedDate}
-                          disabled={(date) => date < startOfDay(new Date()) || isDayClosed(date)}
-                          className="rounded-xl"
-                        />
-                      </div>
-                    </div>
+                  {/* Date Selection */}
+                  <div>
+                    <Label className="text-base font-semibold mb-2 block">Select Date</Label>
+                    <div className="flex flex-col md:flex-row items-start gap-6">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={setSelectedDate}
+                        disabled={(date) => date < startOfDay(new Date()) || isDayClosed(date)}
+                        className="rounded-xl"
+                      />
 
-                    {/* Time Slots */}
-                    <div>
-                      <Label className="text-base font-semibold mb-2 block">
-                        Select Time
-                        {isLoadingSlots && (
-                          <span className="ml-2 text-xs text-blue-600 font-normal animate-pulse">
-                            (Checking availability...)
-                          </span>
-                        )}
-                      </Label>
-                      
-                      {!appointmentType && (
-                        <div className="flex items-center gap-2 p-4 bg-blue-50 border border-blue-200 rounded-xl text-blue-700 text-sm">
-                          <Info className="h-4 w-4 flex-shrink-0" />
-                          <span>Please select an appointment type first</span>
-                        </div>
-                      )}
-                      
-                      {appointmentType && availableTimeSlots.length === 0 && !isLoadingSlots && (
-                        <div className="flex items-center gap-2 p-4 bg-orange-50 border border-orange-200 rounded-xl text-orange-700 text-sm">
-                          <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                          <span>No available slots for this date. Please try another day.</span>
-                        </div>
-                      )}
-                      
-                      {appointmentType && availableTimeSlots.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-green-600 bg-green-50 px-3 py-1.5 rounded-lg">
-                              {availableTimeSlots.length} slot{availableTimeSlots.length !== 1 ? 's' : ''} available
-                            </span>
-                            {bookedSlots.length > 0 && (
-                              <span className="text-xs text-gray-500">
-                                ({bookedSlots.length} already booked)
-                              </span>
+                      {/* Queue Mode Info Badge */}
+                      {selectedDate && queueMode && !loadingMode && (
+                        <div className={`flex-1 p-4 rounded-xl ${
+                          queueMode === 'ordinal_queue' 
+                            ? 'bg-purple-50 border-2 border-purple-200' 
+                            : 'bg-blue-50 border-2 border-blue-200'
+                        }`}>
+                          <div className="flex items-start gap-3">
+                            {queueMode === 'ordinal_queue' ? (
+                              <ListOrdered className="h-6 w-6 text-purple-600 mt-0.5" />
+                            ) : (
+                              <Timer className="h-6 w-6 text-blue-600 mt-0.5" />
                             )}
-                          </div>
-                          <div className="grid grid-cols-3 gap-2 max-h-96 overflow-y-auto pr-2">
-                            {availableTimeSlots.map((time) => (
-                              <Button
-                                key={time}
-                                variant={selectedTime === time ? "default" : "outline"}
-                                onClick={() => setSelectedTime(time)}
-                                className={`w-full h-11 transition-all ${
-                                  selectedTime === time
-                                    ? "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-lg"
-                                    : "bg-white hover:bg-gray-50 border-gray-200"
-                                }`}
-                              >
-                                {time}
-                              </Button>
-                            ))}
+                            <div>
+                              <h3 className="font-semibold text-lg mb-1">
+                                {queueMode === 'ordinal_queue' ? 'Free Queue Mode' : 'Scheduled Slots Mode'}
+                              </h3>
+                              <p className="text-sm text-gray-600">
+                                {queueMode === 'ordinal_queue' 
+                                  ? 'First-come, first-served. Join the queue and get a queue number.'
+                                  : 'Select a specific time slot for your appointment.'}
+                              </p>
+                            </div>
                           </div>
                         </div>
                       )}
                     </div>
                   </div>
 
+                  {/* Time Selection OR Queue Join - CONDITIONAL */}
+                  {queueMode === 'time_grid_fixed' && (
+                    <div>
+                      <Label className="text-base font-semibold mb-2 block">
+                        Select Time
+                        {loadingSlots && (
+                          <span className="ml-2 text-xs text-blue-600">
+                            (Checking availability...)
+                          </span>
+                        )}
+                      </Label>
+
+                      {!appointmentType && (
+                        <div className="flex items-center gap-2 p-4 bg-blue-50 rounded-xl">
+                          <Info className="h-4 w-4" />
+                          <span>Please select an appointment type first</span>
+                        </div>
+                      )}
+
+                      {appointmentType && availableTimeSlots.length === 0 && !loadingSlots && (
+                        <div className="flex items-center gap-2 p-4 bg-orange-50 rounded-xl">
+                          <AlertCircle className="h-4 w-4" />
+                          <span>No available slots for this date.</span>
+                        </div>
+                      )}
+
+                      {appointmentType && availableTimeSlots.length > 0 && (
+                        <div className="grid grid-cols-3 gap-2 max-h-96 overflow-y-auto p-2">
+                          {availableTimeSlots.map((time) => (
+                            <Button
+                              key={time}
+                              variant={selectedTime === time ? "default" : "outline"}
+                              onClick={() => setSelectedTime(time)}
+                              className="w-full"
+                            >
+                              {time}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Free Queue Mode - No Time Selection Needed */}
+                  {queueMode === 'ordinal_queue' && appointmentType && (
+                    <div className="p-6 bg-purple-50 border-2 border-purple-200 rounded-xl">
+                      <div className="flex items-start gap-3">
+                        <Users className="h-6 w-6 text-purple-600 mt-0.5" />
+                        <div>
+                          <h3 className="font-semibold text-lg mb-1">Ready to Join Queue</h3>
+                          <p className="text-sm text-gray-700">
+                            No time slot needed. You'll receive a queue number when you confirm your booking.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Reason */}
                   <div>
-                    <Label htmlFor="reason" className="text-base font-semibold mb-2 block">
+                    <Label className="text-base font-semibold mb-2 block">
                       Reason for Visit (Optional)
                     </Label>
                     <Textarea
-                      id="reason"
                       value={reason}
                       onChange={(e) => setReason(e.target.value)}
                       placeholder="Briefly describe your reason for visit..."
                       rows={3}
-                      className="resize-none bg-gray-50 border-0 rounded-xl focus-visible:ring-2 focus-visible:ring-blue-500"
                     />
                   </div>
                 </div>
 
                 <Button
                   onClick={handleNextStep}
-                  className="w-full gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg hover:shadow-xl transition-all"
+                  className="w-full"
                   size="lg"
-                  disabled={!selectedDate || !selectedTime || !appointmentType}
+                  disabled={
+                    !selectedDate || 
+                    !appointmentType || 
+                    loadingMode ||
+                    (queueMode === 'time_grid_fixed' && !selectedTime)
+                  }
                 >
-                  Continue
-                  <ArrowRight className="h-4 w-4" />
+                  {queueMode === 'ordinal_queue' ? 'Join Queue' : 'Continue'}
+                  <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             )}
 
-            {/* STEP 2: Confirm Booking */}
+            {/* STEP 2: Confirm */}
             {step === 2 && (
               <div className="p-8 space-y-6">
                 <div>
@@ -641,140 +703,127 @@ const BookingFlow = () => {
                   <p className="text-muted-foreground">Review your appointment details</p>
                 </div>
 
-                <div className="space-y-4 p-6 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl border border-blue-100">
+                <div className="space-y-4 p-6 bg-blue-50 rounded-xl">
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-sky-500 text-white flex items-center justify-center flex-shrink-0 shadow-lg">
-                      <CalendarIcon className="h-5 w-5" />
-                    </div>
+                    <CalendarIcon className="h-5 w-5 text-blue-600 mt-1" />
                     <div>
-                      <p className="font-semibold text-lg text-blue-900">Date & Time</p>
+                      <p className="font-semibold">Date</p>
                       <p className="text-gray-700">
-                        {selectedDate && format(selectedDate, "EEEE, MMMM d, yyyy")} at {selectedTime}
+                        {selectedDate && format(selectedDate, "EEEE, MMMM d, yyyy")}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-sky-500 text-white flex items-center justify-center flex-shrink-0 shadow-lg">
-                      <Clock className="h-5 w-5" />
+                  {/* Show time only for time_grid_fixed mode */}
+                  {queueMode === 'time_grid_fixed' && selectedTime && (
+                    <div className="flex items-start gap-3">
+                      <Clock className="h-5 w-5 text-blue-600 mt-1" />
+                      <div>
+                        <p className="font-semibold">Time</p>
+                        <p className="text-gray-700">{selectedTime}</p>
+                      </div>
                     </div>
+                  )}
+
+                  {/* Show queue mode badge */}
+                  {queueMode === 'ordinal_queue' && (
+                    <div className="flex items-start gap-3">
+                      <ListOrdered className="h-5 w-5 text-purple-600 mt-1" />
+                      <div>
+                        <p className="font-semibold">Queue Mode</p>
+                        <p className="text-gray-700">First-come, first-served (no fixed time)</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-start gap-3">
+                    <Clock className="h-5 w-5 text-blue-600 mt-1" />
                     <div>
-                      <p className="font-semibold text-lg text-blue-900">Appointment Type</p>
+                      <p className="font-semibold">Appointment Type</p>
                       <p className="text-gray-700 capitalize">
-                        {appointmentTypes.find(t => t.name === appointmentType)?.label}
-                        {" "}
-                        ({appointmentTypes.find(t => t.name === appointmentType)?.duration} min)
+                        {clinicInfo?.appointmentTypes?.find(t => t.name === appointmentType)?.label}
                       </p>
                     </div>
                   </div>
 
                   {reason && (
-                    <div className="pt-4 border-t border-blue-200">
-                      <p className="font-semibold mb-1 text-blue-900">Reason for Visit</p>
+                    <div className="pt-4 border-t">
+                      <p className="font-semibold mb-1">Reason for Visit</p>
                       <p className="text-gray-700">{reason}</p>
                     </div>
                   )}
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <Button variant="outline" onClick={() => setStep(1)} className="flex-1" size="lg">
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={() => setStep(1)} className="flex-1">
                     Back
                   </Button>
-                  <Button
-                    onClick={handleSubmitBooking}
-                    className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg hover:shadow-xl transition-all"
-                    size="lg"
+                  <Button 
+                    onClick={handleSubmitBooking} 
+                    className="flex-1"
+                    disabled={isBooking}
                   >
-                    Confirm Booking
+                    {isBooking ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Booking...
+                      </>
+                    ) : (
+                      queueMode === 'ordinal_queue' ? 'Join Queue' : 'Confirm Booking'
+                    )}
                   </Button>
                 </div>
               </div>
             )}
 
             {/* STEP 3: Success */}
-            {step === 3 && (
+            {step === 3 && bookingResult && (
               <div className="text-center space-y-6 py-8 px-6">
-                <div className="w-20 h-20 bg-gradient-to-br from-green-400 to-emerald-400 rounded-full flex items-center justify-center mx-auto shadow-xl">
+                <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto">
                   <CheckCircle2 className="h-12 w-12 text-white" />
                 </div>
                 
                 <div>
-                  <h2 className="text-3xl font-bold mb-2">Booking Confirmed!</h2>
+                  <h2 className="text-3xl font-bold mb-2">
+                    {queueMode === 'ordinal_queue' ? 'Joined Queue!' : 'Booking Confirmed!'}
+                  </h2>
                   <p className="text-muted-foreground text-lg">
-                    Your appointment has been successfully booked.
+                    {queueMode === 'ordinal_queue' 
+                      ? 'You have successfully joined the queue.'
+                      : 'Your appointment has been successfully booked.'}
                   </p>
                 </div>
 
-                {/* Queue Position */}
-                {queuePosition !== null && (
-                  <div className="max-w-md mx-auto p-6 bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-xl">
-                    <div className="flex items-center justify-center gap-3 mb-3">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg">
-                        <Users className="h-6 w-6 text-white" />
-                      </div>
-                      <div className="text-left">
-                        <p className="text-sm text-blue-700 font-medium">Your Queue Position</p>
-                        <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-                          #{queuePosition}
-                        </p>
-                      </div>
-                    </div>
-                    {totalInQueue && (
-                      <p className="text-sm text-blue-600">
-                        {totalInQueue === 1 
-                          ? "You're the only one in the queue today!" 
-                          : `${totalInQueue} patient${totalInQueue > 1 ? 's' : ''} in queue today`}
-                      </p>
-                    )}
+                {bookingResult.queuePosition && (
+                  <div className="p-6 bg-blue-50 rounded-xl">
+                    <Users className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                    <p className="text-sm text-gray-600">Your Queue Position</p>
+                    <p className="text-3xl font-bold text-blue-600">
+                      #{bookingResult.queuePosition}
+                    </p>
                   </div>
                 )}
 
-                {/* Summary */}
-                <div className="p-6 bg-blue-50 border border-blue-100 rounded-xl text-left max-w-md mx-auto">
-                  <h3 className="font-semibold mb-3 text-blue-900">Appointment Summary</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Clinic:</span>
-                      <span className="font-medium text-gray-900">{clinic?.name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Date:</span>
-                      <span className="font-medium text-gray-900">
-                        {selectedDate && format(selectedDate, "MMM d, yyyy")}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Time:</span>
-                      <span className="font-medium text-gray-900">{selectedTime}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Type:</span>
-                      <span className="font-medium text-gray-900 capitalize">
-                        {appointmentTypes.find(t => t.name === appointmentType)?.label}
-                      </span>
-                    </div>
-                    {queuePosition !== null && (
-                      <div className="flex justify-between pt-2 border-t border-blue-200">
-                        <span className="text-muted-foreground">Queue Position:</span>
-                        <span className="font-bold text-blue-600">#{queuePosition}</span>
-                      </div>
-                    )}
+                {queueMode === 'time_grid_fixed' && selectedTime && (
+                  <div className="p-6 bg-blue-50 rounded-xl">
+                    <Clock className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                    <p className="text-sm text-gray-600">Scheduled Time</p>
+                    <p className="text-3xl font-bold text-blue-600">
+                      {selectedTime}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-2">
+                      {selectedDate && format(selectedDate, "MMMM d, yyyy")}
+                    </p>
                   </div>
-                </div>
+                )}
 
-                {/* Action Buttons */}
-                <div className="flex gap-3 justify-center flex-wrap">
-                  <Button
-                    onClick={() => navigate("/")}
-                    className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg"
-                  >
+                <div className="flex gap-3 justify-center">
+                  <Button onClick={() => navigate("/")}>
                     Browse More Clinics
                   </Button>
-                  {user && (
-                    <Button variant="outline" onClick={() => navigate("/patient/dashboard")}>
-                      View My Appointments
-                    </Button>
-                  )}
+                  <Button variant="outline" onClick={() => navigate("/patient/dashboard")}>
+                    View My Appointments
+                  </Button>
                 </div>
               </div>
             )}
@@ -794,7 +843,6 @@ const BookingFlow = () => {
         }
       `}</style>
 
-      {/* Auth Modal */}
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
