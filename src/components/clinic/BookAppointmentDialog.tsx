@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -21,12 +22,25 @@ import { logger } from "@/services/shared/logging/Logger";
 
 // Appointment types are fetched from clinic settings, no hardcoded defaults
 
+interface PrefillPatientInfo {
+  patientId?: string;
+  fullName?: string;
+  phoneNumber?: string;
+}
+
 interface BookAppointmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clinicId: string;
   onSuccess: () => void;
   preselectedDate?: Date;
+  prefillPatient?: PrefillPatientInfo;
+  defaultAppointmentType?: string;
+  defaultReason?: string;
+  defaultStaffId?: string;
+  isWalkIn?: boolean;
+  title?: string;
+  description?: string;
 }
 
 export function BookAppointmentDialog({
@@ -35,10 +49,17 @@ export function BookAppointmentDialog({
   clinicId,
   onSuccess,
   preselectedDate,
+  prefillPatient,
+  defaultAppointmentType,
+  defaultReason,
+  defaultStaffId,
+  isWalkIn = false,
+  title,
+  description,
 }: BookAppointmentDialogProps) {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-  const [date, setDate] = useState<Date | undefined>(preselectedDate);
+  const [date, setDate] = useState<Date | undefined>(preselectedDate ?? (isWalkIn ? new Date() : undefined));
   const [time, setTime] = useState("");
   const [appointmentType, setAppointmentType] = useState<string>("");
   const [reason, setReason] = useState("");
@@ -62,6 +83,32 @@ export function BookAppointmentDialog({
       setDate(preselectedDate);
     }
   }, [preselectedDate]);
+
+  // Prefill patient info when provided
+  useEffect(() => {
+    if (open && prefillPatient) {
+      if (prefillPatient.fullName) setFullName(prefillPatient.fullName);
+      if (prefillPatient.phoneNumber) setPhone(prefillPatient.phoneNumber);
+    }
+  }, [open, prefillPatient]);
+
+  useEffect(() => {
+    if (open && defaultAppointmentType) {
+      setAppointmentType(defaultAppointmentType);
+    }
+  }, [open, defaultAppointmentType]);
+
+  useEffect(() => {
+    if (open && defaultReason) {
+      setReason(defaultReason);
+    }
+  }, [open, defaultReason]);
+
+  useEffect(() => {
+    if (open && isWalkIn && !preselectedDate) {
+      setDate((current) => current ?? new Date());
+    }
+  }, [open, isWalkIn, preselectedDate]);
 
   // Fetch clinic settings
   useEffect(() => {
@@ -91,7 +138,8 @@ export function BookAppointmentDialog({
         // For now: one doctor per clinic assumption
         // Future: can extend to support multiple resources (doctors, beds, etc.)
         if (staff.length > 0) {
-          setSelectedStaffId(staff[0].id);
+          const preferred = defaultStaffId ? staff.find(s => s.id === defaultStaffId) : null;
+          setSelectedStaffId(preferred ? preferred.id : staff[0].id);
           // Keep staff list for future multi-doctor support, but don't show in UI
           setStaffList(staff);
         } else {
@@ -112,7 +160,7 @@ export function BookAppointmentDialog({
       }
     };
     fetchDoctor();
-  }, [clinicId, open, toast]);
+  }, [clinicId, open, toast, defaultStaffId]);
 
   // Fetch booked slots when date or staff changes
   const fetchBookedSlots = useCallback(async () => {
@@ -266,20 +314,18 @@ export function BookAppointmentDialog({
     try {
       // Check if patient exists using PatientService
       // Note: For booked appointments, we prefer registered users over guests
-      let patientId: string;
+    let patientId: string | undefined = prefillPatient?.patientId;
       
+    if (!patientId) {
       const patientResult = await patientService.findOrCreatePatient(phone, fullName);
       
       if (patientResult.patientId) {
-        // Found registered patient - use it
         patientId = patientResult.patientId;
       } else {
-        // No registered patient found - create new auth user for booked appointment
-        // Note: This creates a full auth account (not a guest) for scheduled appointments
         const tempEmail = `${phone.replace(/\+/g, '')}@scheduled.temp`;
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: tempEmail,
-          password: Math.random().toString(36).slice(-12), // Random password
+          password: Math.random().toString(36).slice(-12),
           options: {
             data: {
               full_name: fullName,
@@ -294,6 +340,7 @@ export function BookAppointmentDialog({
 
         patientId = authData.user.id;
       }
+    }
 
       // Create appointment using QueueService
       const appointmentDate = format(date, "yyyy-MM-dd");
@@ -312,11 +359,11 @@ export function BookAppointmentDialog({
       await createAppointment({
         clinicId,
         staffId: selectedStaffId,
-        patientId,
+        patientId: patientId!,
         guestPatientId: null,
         isGuest: false,
         appointmentType: appointmentType as any, // Type assertion since clinic can define custom types
-        isWalkIn: false,
+        isWalkIn,
         startTime: startDateTime.toISOString(),
         endTime: endDateTime.toISOString(),
         reasonForVisit: reason,
@@ -349,13 +396,16 @@ export function BookAppointmentDialog({
     }
   };
 
+  const dialogTitle = title || (isWalkIn ? "Add Walk-in Patient" : "Book Appointment for Patient");
+  const dialogDescription = description || (isWalkIn ? "Schedule a patient who arrived without a prior booking." : "Schedule an appointment for a patient by entering their details");
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Book Appointment for Patient</DialogTitle>
+          <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>
-            Schedule an appointment for a patient by entering their details
+            {dialogDescription}
           </DialogDescription>
         </DialogHeader>
 

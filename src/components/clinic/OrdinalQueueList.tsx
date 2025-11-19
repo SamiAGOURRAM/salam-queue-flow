@@ -4,7 +4,8 @@
  */
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { QueueEntry, UserCheck, Clock, UserX } from "@/services/queue";
+import { QueueEntry } from "@/services/queue";
+import { Clock, UserCheck, UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 

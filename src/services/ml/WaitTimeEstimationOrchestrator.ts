@@ -26,14 +26,11 @@ import { waitTimeEstimationService } from './WaitTimeEstimationService';
 import { QueueRepository } from '../queue/repositories/QueueRepository';
 import { QueueConfig } from '@/config/QueueConfig';
 import {
-  QueueEventType,
-  QueueEventPayload,
   Disruption,
   DisruptionType,
   EstimationContext,
   AppointmentStatus,
 } from '../queue/models/QueueModels';
-import { supabase } from '@/integrations/supabase/client';
 
 /**
  * Disruption types that trigger recalculation
@@ -224,7 +221,7 @@ export class WaitTimeEstimationOrchestrator {
 
         const latenessMinutes = (checkedInDateTime.getTime() - scheduledDateTime.getTime()) / 60000;
 
-        if (latenessMinutes > this.LATE_ARRIVAL_THRESHOLD_MINUTES) {
+        if (latenessMinutes > QueueConfig.DEFAULTS.LATE_ARRIVAL_THRESHOLD_MINUTES) {
           logger.info('Late arrival detected', {
             appointmentId: event.appointmentId,
             latenessMinutes,
@@ -319,7 +316,7 @@ export class WaitTimeEstimationOrchestrator {
         const estimatedDuration = appointment.estimatedDurationMinutes;
         const difference = actualDuration - estimatedDuration;
 
-        if (Math.abs(difference) > this.DURATION_THRESHOLD_MINUTES) {
+        if (Math.abs(difference) > QueueConfig.DEFAULTS.APPOINTMENT_RUN_OVER_THRESHOLD_MINUTES) {
           const disruptionType = difference > 0
             ? DisruptionType.LONGER_THAN_EXPECTED
             : DisruptionType.SHORTER_THAN_EXPECTED;

@@ -5,7 +5,7 @@ import { bookingService } from '@/services/booking/BookingService';
 import { BookingRequest } from '@/services/booking/types';
 import { useToast } from '@/hooks/use-toast';
 
-type QueueMode = 'ordinal_queue' | 'time_grid_fixed' | null;
+type QueueMode = 'fluid' | 'fixed' | 'hybrid' | null;
 
 export const useBookingService = (
   clinicId?: string, 
@@ -29,7 +29,8 @@ export const useBookingService = (
   const dateStr = selectedDate 
   ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
   : '';
-  const shouldFetchSlots = !!clinicId && !!dateStr && !!appointmentType && queueMode === 'time_grid_fixed';
+  // Fetch slots only for Fixed or Hybrid modes (not Fluid/Free Queue)
+  const shouldFetchSlots = !!clinicId && !!dateStr && !!appointmentType && (queueMode === 'fixed' || queueMode === 'hybrid');
   
   // 🐛 DEBUG: Log the conditions
   useEffect(() => {
@@ -38,12 +39,12 @@ export const useBookingService = (
       hasDateStr: !!dateStr,
       hasAppointmentType: !!appointmentType,
       queueMode,
-      isTimeGridMode: queueMode === 'time_grid_fixed',
+      isTimeSlotMode: queueMode === 'fixed' || queueMode === 'hybrid',
       RESULT: shouldFetchSlots
     });
   }, [clinicId, dateStr, appointmentType, queueMode, shouldFetchSlots]);
 
-  // Fetch available slots - ONLY if mode is time_grid_fixed
+  // Fetch available slots - ONLY if mode is fixed or hybrid (not fluid)
   const { 
     data: availableSlots, 
     isLoading: loadingSlots,
@@ -96,7 +97,7 @@ export const useBookingService = (
     });
   }, [availableSlots, loadingSlots, slotsError]);
 
-  // Real-time subscription - only for time_grid_fixed
+  // Real-time subscription - only for fixed or hybrid modes
   useEffect(() => {
     if (!shouldFetchSlots) return;
 
@@ -143,15 +144,15 @@ export const useBookingService = (
       console.log('✅ Booking success:', data);
       
       if (data.success) {
-        const modeText = queueMode === 'ordinal_queue' ? 'Joined Queue!' : 'Booking Confirmed!';
+        const modeText = queueMode === 'fluid' ? 'Joined Queue!' : 'Booking Confirmed!';
         
         toast({
           title: `✅ ${modeText}`,
           description: `Queue position: #${data.queuePosition}`,
         });
         
-        // Only invalidate slots if we're in time_grid_fixed mode
-        if (queueMode === 'time_grid_fixed') {
+        // Only invalidate slots if we're in fixed or hybrid mode
+        if (queueMode === 'fixed' || queueMode === 'hybrid') {
           queryClient.invalidateQueries({ 
             queryKey: ['available-slots', clinicId, dateStr, appointmentType] 
           });

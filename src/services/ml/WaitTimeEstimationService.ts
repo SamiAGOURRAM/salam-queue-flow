@@ -17,7 +17,6 @@ import { HistoricalAverageEstimator } from './estimators/HistoricalAverageEstima
 import { QueueRepository } from '../queue/repositories/QueueRepository';
 import { logger } from '../shared/logging/Logger';
 import { NotFoundError, DatabaseError } from '../shared/errors';
-import { supabase } from '@/integrations/supabase/client';
 import type { QueueEntry } from '../queue/models/QueueModels';
 
 export class WaitTimeEstimationService {

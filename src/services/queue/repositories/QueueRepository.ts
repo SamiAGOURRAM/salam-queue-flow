@@ -86,6 +86,11 @@ type RawAppointmentRow = {
   patient?: PatientProfile | null;
   guest_patient?: GuestPatientProfile | null;
   clinic?: ClinicInfo | null;
+  priority_score?: number | null;
+  is_gap_filler?: boolean | null;
+  promoted_from_waitlist?: boolean | null;
+  late_arrival_converted?: boolean | null;
+  original_slot_time?: string | null;
 };
 
 type RawAbsentPatientRow = {
@@ -117,14 +122,12 @@ type RawQueueOverrideRow = {
 };
 
 type ClinicScheduleResponse = {
+  queue_mode?: string;
   operating_mode?: string;
   schedule?: RawAppointmentRow[] | null;
 };
 
 export class QueueRepository {
-  /**
-   * Get all queue entries for a clinic on a specific date
-   */
   /**
    * Get all queue entries for a clinic on a specific date
    * @param staffId - Staff ID (used to get clinic_id for now)
@@ -134,8 +137,8 @@ export class QueueRepository {
   async getDailySchedule(
     staffId: string,
     targetDate: string,
-    useClinicWide: boolean = true  // ← DEFAULT TO CLINIC-WIDE
-  ): Promise<{ operating_mode: string; schedule: QueueEntry[] }> {
+    useClinicWide: boolean = true
+  ): Promise<{ queue_mode: string; operating_mode: string; schedule: QueueEntry[] }> {
     try {
       if (useClinicWide) {
         // ======= CLINIC-WIDE MODE (CURRENT) =======
@@ -188,6 +191,50 @@ export class QueueRepository {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error fetching daily schedule', error as Error);
       throw new DatabaseError('Unexpected error fetching daily schedule', error as Error);
+    }
+  }
+
+  /**
+   * Get clinic queue configuration (grace_period_minutes, etc.)
+   */
+  async getClinicQueueConfigByStaffId(staffId: string): Promise<{
+    gracePeriodMinutes: number;
+    allowOverflow: boolean;
+    dailyCapacityLimit: number | null;
+    settings?: Record<string, unknown> | null;
+  } | null> {
+    try {
+      // Get clinic_id from staff_id
+      const { data: clinicId, error: clinicError } = await supabase.rpc('get_clinic_from_staff', {
+        p_staff_id: staffId,
+      });
+
+      if (clinicError || !clinicId) {
+        logger.warn('Clinic not found for staff', { staffId, error: clinicError });
+        return null;
+      }
+
+      // Get clinic config
+      const { data, error } = await supabase
+        .from('clinics')
+        .select('grace_period_minutes, allow_overflow, daily_capacity_limit, settings')
+        .eq('id', clinicId)
+        .single();
+
+      if (error || !data) {
+        logger.warn('Clinic queue config not found', { clinicId, error });
+        return null;
+      }
+
+      return {
+        gracePeriodMinutes: data.grace_period_minutes ?? 15, // Default 15 minutes
+        allowOverflow: data.allow_overflow ?? false,
+        dailyCapacityLimit: data.daily_capacity_limit ?? null,
+        settings: data.settings as Record<string, unknown> | null,
+      };
+    } catch (error) {
+      logger.warn('Failed to get clinic queue config', { error, staffId });
+      return null;
     }
   }
 
@@ -611,25 +658,30 @@ export class QueueRepository {
       // Always set updated_at to now()
       updateObj.updated_at = new Date().toISOString();
 
-      // First, try to update
-      const { data: updateData, error: updateError } = await supabase
+      // First, try to update without select to avoid 406 errors when RLS blocks
+      // We'll check success by fetching the record afterwards
+      const { error: updateError } = await supabase
         .from('appointments')
         .update(updateObj)
-        .eq('id', id)
-        .select('id')
-        .maybeSingle();
+        .eq('id', id);
 
       if (updateError) {
+        // Check if it's a 406 error (Not Acceptable) which indicates RLS blocking or format mismatch
+        // PGRST116 is the PostgREST error code for "Not Acceptable"
+        const is406Error = updateError.code === 'PGRST116' || 
+                          updateError.message?.includes('406') || 
+                          updateError.message?.includes('Not Acceptable') ||
+                          updateError.message?.includes('application/vnd.pgrst.object');
+        
+        if (is406Error) {
+          logger.error('Update blocked by RLS policy or format mismatch (406 error)', { id, dto, error: updateError });
+          throw new DatabaseError('No rows updated. You may not have permission to update this appointment, or the request format was invalid.', updateError);
+        }
         logger.error('Failed to update queue entry', updateError, { id, dto });
         throw new DatabaseError('Failed to update queue entry', updateError);
       }
 
-      if (!updateData) {
-        logger.error('No rows updated - RLS policy may be blocking', { id, dto });
-        throw new DatabaseError('No rows updated. You may not have permission to update this appointment.', null);
-      }
-
-      // Now fetch the full updated entry
+      // Now fetch the full updated entry to verify the update succeeded
       const { data, error } = await supabase
         .from('appointments')
         .select(`
@@ -639,11 +691,17 @@ export class QueueRepository {
           clinic:clinics(id, name)
         `)
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
-      if (error || !data) {
+      if (error) {
         logger.error('Failed to fetch updated queue entry', error, { id, dto });
         throw new DatabaseError('Failed to fetch updated queue entry', error);
+      }
+
+      if (!data) {
+        // If we can't fetch the record after update, it means the update was blocked by RLS
+        logger.error('No rows updated - RLS policy may be blocking (cannot fetch after update)', { id, dto });
+        throw new DatabaseError('No rows updated. You may not have permission to update this appointment.', null);
       }
 
       return this.mapToQueueEntry(data as RawAppointmentRow);
@@ -762,12 +820,13 @@ export class QueueRepository {
     try {
       logger.debug('Fetching absent patients', { clinicId, startDate, endDate });
 
+      // Remove patient:profiles relationship - it doesn't exist as a foreign key
+      // Only select appointment relationship which exists
       const { data, error } = await supabase
         .from('absent_patients')
         .select(`
           *,
-          appointment:appointments(*),
-          patient:profiles(id, full_name, phone_number)
+          appointment:appointments(*)
         `)
         .eq('clinic_id', clinicId)
         .gte('marked_absent_at', startDate)
@@ -809,40 +868,52 @@ export class QueueRepository {
       });
 
       // Build insert object based on patient type
+      if (!patientId) {
+        throw new Error('Patient ID is required to mark an absence');
+      }
+
       const insertData: Record<string, unknown> = {
         appointment_id: appointmentId,
         clinic_id: clinicId,
+        patient_id: patientId,
+        marked_absent_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       };
 
-      // Handle guest vs registered patient
-      if (isGuest && guestPatientId) {
-        insertData.guest_patient_id = guestPatientId;
-        insertData.is_guest = true;
-        insertData.patient_id = null;
-      } else if (patientId) {
-        insertData.patient_id = patientId;
-        insertData.is_guest = false;
-        insertData.guest_patient_id = null;
-      } else {
-        throw new Error('Either patientId or (isGuest + guestPatientId) must be provided');
-      }
-
-      const { data, error } = await supabase
+      // Insert the record first
+      const { data: insertResult, error: insertError } = await supabase
         .from('absent_patients')
         .insert(insertData)
-        .select(`
-          *,
-          appointment:appointments(*),
-          patient:profiles(id, full_name, phone_number)
-        `)
-        .single();
+        .select('*')
+        .maybeSingle();
 
-      if (error || !data) {
-        logger.error('Failed to create absent patient record', error, { appointmentId });
-        throw new DatabaseError('Failed to create absent patient record', error);
+      if (insertError) {
+        logger.error('Failed to create absent patient record', insertError, { appointmentId });
+        throw new DatabaseError('Failed to create absent patient record', insertError);
       }
 
-      return this.mapToAbsentPatient(data as RawAbsentPatientRow);
+      // If insert succeeded but select returned no data (shouldn't happen, but handle gracefully)
+      if (!insertResult) {
+        // Try to fetch the record we just inserted
+        const { data: fetchedData, error: fetchError } = await supabase
+          .from('absent_patients')
+          .select('*')
+          .eq('appointment_id', appointmentId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (fetchError || !fetchedData) {
+          logger.error('Insert succeeded but could not fetch absent patient record', fetchError, { appointmentId });
+          // Still throw error since we can't return the data
+          throw new DatabaseError('Absent patient record created but could not be retrieved', fetchError);
+        }
+
+        return this.mapToAbsentPatient(fetchedData as RawAbsentPatientRow);
+      }
+
+      return this.mapToAbsentPatient(insertResult as RawAbsentPatientRow);
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error creating absent patient', error as Error, { appointmentId });
@@ -867,17 +938,47 @@ export class QueueRepository {
         })
         .eq('appointment_id', appointmentId)
         .is('returned_at', null)
-        .select()
-        .single();
+        .select('*')
+        .maybeSingle();
 
-      if (error || !data) {
+      if (error) {
+        logger.error('Failed to mark patient as returned', error, { appointmentId });
         throw new DatabaseError('Failed to mark patient as returned', error);
+      }
+
+      if (!data) {
+        throw new DatabaseError('No absent patient record found to mark as returned', null);
       }
 
       return this.mapToAbsentPatient(data as RawAbsentPatientRow);
     } catch (error) {
       logger.error('Error marking patient as returned', error as Error, { appointmentId });
       throw new DatabaseError('Error marking patient as returned', error as Error);
+    }
+  }
+
+  async resolveAbsentPatientRecord(
+    appointmentId: string,
+    resolution: 'rebooked' | 'waitlist'
+  ): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('absent_patients')
+        .update({
+          returned_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          auto_cancelled: resolution === 'waitlist',
+        })
+        .eq('appointment_id', appointmentId)
+        .is('returned_at', null);
+
+      if (error) {
+        throw new DatabaseError('Failed to resolve absent patient record', error);
+      }
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error resolving absent patient record', error as Error, { appointmentId });
+      throw new DatabaseError('Unexpected error resolving absent patient record', error as Error);
     }
   }
 
@@ -931,7 +1032,9 @@ export class QueueRepository {
     createdBy: string,
     reason?: string,
     previousPosition?: number,
-    newPosition?: number
+    newPosition?: number,
+    previousState?: Record<string, any>,
+    newState?: Record<string, any>
   ): Promise<QueueOverride> {
     try {
       logger.debug('Creating queue override', {
@@ -959,13 +1062,37 @@ export class QueueRepository {
           throw new DatabaseError('Cannot get current user profile', currentUserError || new Error('No current user'));
         }
 
-        logger.debug('Using current user profile instead of provided ID', {
-          providedId: createdBy,
-          currentUserId: currentUserProfile.user.id
-        });
+        // In Supabase, profiles.id typically matches auth.users.id
+        // Try to get the profile using the user ID directly
+        const { data: userProfile, error: userProfileError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', currentUserProfile.user.id)
+          .maybeSingle();
 
-        // Use the current user's ID instead
-        validPerformedBy = currentUserProfile.user.id;
+        if (userProfileError) {
+          logger.error('Error querying profile for current user', userProfileError, { 
+            userId: currentUserProfile.user.id,
+            providedId: createdBy 
+          });
+          throw new DatabaseError('Error querying profile for current user', userProfileError);
+        }
+
+        if (!userProfile) {
+          // If profile doesn't exist, try using the user ID directly (in case profiles.id = auth.users.id)
+          logger.warn('Profile not found for user, using user ID directly', { 
+            userId: currentUserProfile.user.id,
+            providedId: createdBy 
+          });
+          validPerformedBy = currentUserProfile.user.id;
+        } else {
+          logger.debug('Using current user profile instead of provided ID', {
+            providedId: createdBy,
+            userId: currentUserProfile.user.id,
+            profileId: userProfile.id
+          });
+          validPerformedBy = userProfile.id;
+        }
       } else {
         validPerformedBy = profileData.id;
       }
@@ -979,6 +1106,17 @@ export class QueueRepository {
         new_position: newPosition,
       });
 
+      // Ensure validPerformedBy is not null/undefined before inserting
+      if (!validPerformedBy) {
+        logger.error('Cannot create queue override: performed_by is required but not found', {
+          clinicId,
+          appointmentId,
+          action,
+          createdBy,
+        });
+        throw new DatabaseError('Cannot create queue override: performed_by is required', new Error('performed_by is null or undefined'));
+      }
+
       const { data, error } = await supabase
         .from('queue_overrides')
         .insert({
@@ -989,6 +1127,7 @@ export class QueueRepository {
           reason: reason || null,
           previous_position: previousPosition ?? null,
           new_position: newPosition ?? null,
+          // Note: previous_state and new_state are not in the table schema, removed
         })
         .select('*')
         .single();
@@ -1028,6 +1167,8 @@ export class QueueRepository {
         previousPosition: data.previous_position,
         newPosition: data.new_position,
         createdAt: new Date(data.created_at),
+        previousState: data.previous_state || undefined,
+        newState: data.new_state || undefined,
       };
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
@@ -1037,20 +1178,178 @@ export class QueueRepository {
   }
 
   // ============================================
+  // ORCHESTRATOR & ESTIMATION SUPPORT
+  // ============================================
+
+  /**
+   * Get current queue state for estimation
+   */
+  async getQueueState(clinicId: string, date: Date): Promise<{ totalWaiting: number; totalInProgress: number; averageWaitTime?: number } | undefined> {
+    try {
+      const dateStr = date.toISOString().split('T')[0];
+
+      // Get all appointments for the clinic on this date
+      const { data: appointments, error } = await supabase
+        .from('appointments')
+        .select('status, checked_in_at, start_time')
+        .eq('clinic_id', clinicId)
+        .eq('appointment_date', dateStr);
+
+      if (error || !appointments) {
+        logger.debug('Could not fetch queue state, using defaults', { clinicId, error });
+        return undefined;
+      }
+
+      // Calculate queue metrics
+      const waiting = appointments.filter(a =>
+        a.status === AppointmentStatus.WAITING || a.status === AppointmentStatus.SCHEDULED
+      ).length;
+
+      const inProgress = appointments.filter(a =>
+        a.status === AppointmentStatus.IN_PROGRESS
+      ).length;
+
+      // Calculate average wait time from completed appointments today
+      const completed = appointments.filter(a =>
+        a.status === AppointmentStatus.COMPLETED && a.checked_in_at && a.start_time
+      );
+
+      let averageWaitTime: number | undefined;
+      if (completed.length > 0) {
+        const totalWaitMinutes = completed.reduce((sum, a) => {
+          const scheduled = new Date(a.start_time!).getTime();
+          const checkedIn = new Date(a.checked_in_at!).getTime();
+          const waitMinutes = (checkedIn - scheduled) / 60000;
+          return sum + Math.max(0, waitMinutes);
+        }, 0);
+        averageWaitTime = Math.round(totalWaitMinutes / completed.length);
+      }
+
+      return {
+        totalWaiting: waiting,
+        totalInProgress: inProgress,
+        averageWaitTime,
+      };
+    } catch (error) {
+      logger.warn('Failed to get queue state', { error, clinicId });
+      return undefined;
+    }
+  }
+
+  /**
+   * Get all in-progress appointments for a specific date
+   * Used by Orchestrator to check for running-over appointments
+   */
+  async getInProgressAppointments(date: Date): Promise<QueueEntry[]> {
+    try {
+      const dateStr = date.toISOString().split('T')[0];
+
+      const { data, error } = await supabase
+        .from('appointments')
+        .select(`
+          *,
+          patient:profiles!appointments_patient_fkey(id, full_name, phone_number, email),
+          guest_patient:guest_patients(id, full_name, phone_number),
+          clinic:clinics(id, name)
+        `)
+        .eq('appointment_date', dateStr)
+        .eq('status', AppointmentStatus.IN_PROGRESS);
+
+      if (error) {
+        logger.error('Failed to fetch in-progress appointments', error);
+        return [];
+      }
+
+      return this.mapToQueueEntries(data as RawAppointmentRow[]);
+    } catch (error) {
+      logger.error('Unexpected error fetching in-progress appointments', error as Error);
+      return [];
+    }
+  }
+
+  /**
+   * Get all waiting appointments for a clinic on a specific date
+   * Used by Orchestrator for recalculation
+   */
+  async getWaitingAppointments(clinicId: string, date: Date): Promise<QueueEntry[]> {
+    try {
+      const dateStr = date.toISOString().split('T')[0];
+
+      const { data, error } = await supabase
+        .from('appointments')
+        .select(`
+          *,
+          patient:profiles!appointments_patient_fkey(id, full_name, phone_number, email),
+          guest_patient:guest_patients(id, full_name, phone_number),
+          clinic:clinics(id, name)
+        `)
+        .eq('clinic_id', clinicId)
+        .eq('appointment_date', dateStr)
+        .in('status', [AppointmentStatus.WAITING, AppointmentStatus.SCHEDULED])
+        .eq('is_present', true);
+
+      if (error) {
+        logger.error('Failed to fetch waiting appointments', error, { clinicId });
+        return [];
+      }
+
+      return this.mapToQueueEntries(data as RawAppointmentRow[]);
+    } catch (error) {
+      logger.error('Unexpected error fetching waiting appointments', error as Error, { clinicId });
+      return [];
+    }
+  }
+
+  /**
+   * Batch update appointments (e.g. for mass recalculation)
+   */
+  async batchUpdateAppointments(updates: { id: string;[key: string]: any }[]): Promise<void> {
+    if (updates.length === 0) return;
+
+    try {
+      // Supabase doesn't support bulk update with different values easily in one query
+      // We'll use Promise.all for now, but in a real high-scale system we'd use a stored procedure
+      // or a temporary table approach.
+
+      const promises = updates.map(update => {
+        const { id, ...fields } = update;
+        return supabase
+          .from('appointments')
+          .update({
+            ...fields,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', id);
+      });
+
+      await Promise.all(promises);
+    } catch (error) {
+      logger.error('Error in batch update appointments', error as Error);
+      throw new DatabaseError('Error in batch update appointments', error as Error);
+    }
+  }
+
+  // ============================================
   // MAPPING FUNCTIONS
   // ============================================
 
-  private mapScheduleResponse(
-    data: ClinicScheduleResponse | null,
-    fallbackMode: string
-  ): { operating_mode: string; schedule: QueueEntry[] } {
-    const scheduleSource: RawAppointmentRow[] = Array.isArray(data?.schedule)
-      ? (data?.schedule as RawAppointmentRow[])
-      : [];
+  private mapScheduleResponse(data: any, source: string): { queue_mode: string; operating_mode: string; schedule: QueueEntry[] } {
+    // Handle different RPC return structures if needed
+    // Currently assuming both RPCs return { queue_mode: string, operating_mode: string, schedule: [...] }
+
+    // If data is just an array (legacy RPCs might do this), wrap it
+    if (Array.isArray(data)) {
+      return {
+        queue_mode: 'fluid', // Default fallback
+        operating_mode: 'fluid', // Default fallback (clean standard)
+        schedule: this.mapToQueueEntries(data),
+      };
+    }
 
     return {
-      operating_mode: data?.operating_mode ?? fallbackMode,
-      schedule: this.mapToQueueEntries(scheduleSource),
+      queue_mode: data?.queue_mode || 'fluid',
+      operating_mode: data?.operating_mode || 'fluid', // Clean standard fallback
+      schedule: this.mapToQueueEntries(data?.schedule || []),
     };
   }
 
@@ -1077,7 +1376,7 @@ export class QueueRepository {
       endTime: data.end_time ? new Date(data.end_time) : undefined,
 
       // Deprecated fields, mapped for backward compatibility during transition
-      appointmentDate: data.start_time ? new Date(data.start_time) : new Date(data.appointment_date),
+      appointmentDate: data.start_time ? new Date(data.start_time) : new Date(data.appointment_date || ''),
       scheduledTime: data.start_time ? new Date(data.start_time).toTimeString().substring(0, 5) : undefined,
 
       queuePosition: data.queue_position,
@@ -1114,6 +1413,11 @@ export class QueueRepository {
       skipCount: data.skip_count || 0,
       skipReason: data.skip_reason,
       overrideBy: data.override_by,
+      priorityScore: data.priority_score ?? 100,
+      isGapFiller: data.is_gap_filler || false,
+      promotedFromWaitlist: data.promoted_from_waitlist || false,
+      lateArrivalConverted: data.late_arrival_converted || false,
+      originalSlotTime: data.original_slot_time ? new Date(data.original_slot_time) : undefined,
     };
   }
 
@@ -1121,6 +1425,7 @@ export class QueueRepository {
     if (!data || !data.length) return [];
     return data.map(item => this.mapToQueueEntry(item));
   }
+
   private mapToAbsentPatient(data: RawAbsentPatientRow): AbsentPatient {
     return {
       id: data.id,
@@ -1152,264 +1457,4 @@ export class QueueRepository {
       createdAt: new Date(data.created_at),
     };
   }
-}
-  async markPatientReturned(appointmentId: string, newPosition: number): Promise < void> {
-  try {
-    const { error } = await supabase
-      .from('absent_patients')
-      .update({
-        returned_at: new Date().toISOString(),
-        new_position: newPosition,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('appointment_id', appointmentId)
-      .is('returned_at', null);
-
-    if(error) {
-      logger.error('Failed to mark patient returned', error, { appointmentId });
-      throw new DatabaseError('Failed to mark patient returned', error);
-    }
-  } catch(error) {
-    if (error instanceof DatabaseError) throw error;
-    logger.error('Unexpected error marking patient returned', error as Error, { appointmentId });
-    throw new DatabaseError('Unexpected error marking patient returned', error as Error);
-  }
-}
-
-  // ============================================
-  // ORCHESTRATOR & ESTIMATION SUPPORT
-  // ============================================
-
-  /**
-   * Get current queue state for estimation
-   */
-  async getQueueState(clinicId: string, date: Date): Promise < { totalWaiting: number; totalInProgress: number; averageWaitTime?: number } | undefined > {
-  try {
-    const dateStr = date.toISOString().split('T')[0];
-
-    // Get all appointments for the clinic on this date
-    const { data: appointments, error } = await supabase
-      .from('appointments')
-      .select('status, checked_in_at, start_time')
-      .eq('clinic_id', clinicId)
-      .eq('appointment_date', dateStr);
-
-    if(error || !appointments) {
-  logger.debug('Could not fetch queue state, using defaults', { clinicId, error });
-  return undefined;
-}
-
-// Calculate queue metrics
-const waiting = appointments.filter(a =>
-  a.status === AppointmentStatus.WAITING || a.status === AppointmentStatus.SCHEDULED
-).length;
-
-const inProgress = appointments.filter(a =>
-  a.status === AppointmentStatus.IN_PROGRESS
-).length;
-
-// Calculate average wait time from completed appointments today
-const completed = appointments.filter(a =>
-  a.status === AppointmentStatus.COMPLETED && a.checked_in_at && a.start_time
-);
-
-let averageWaitTime: number | undefined;
-if (completed.length > 0) {
-  const totalWaitMinutes = completed.reduce((sum, a) => {
-    const scheduled = new Date(a.start_time!).getTime();
-    const checkedIn = new Date(a.checked_in_at!).getTime();
-    const waitMinutes = (checkedIn - scheduled) / 60000;
-    return sum + Math.max(0, waitMinutes);
-  }, 0);
-  averageWaitTime = Math.round(totalWaitMinutes / completed.length);
-}
-
-return {
-  totalWaiting: waiting,
-  totalInProgress: inProgress,
-  averageWaitTime,
-};
-    } catch (error) {
-  logger.warn('Failed to get queue state', { error, clinicId });
-  return undefined;
-}
-  }
-
-  /**
-   * Get all in-progress appointments for a specific date
-   * Used by Orchestrator to check for running-over appointments
-   */
-  async getInProgressAppointments(date: Date): Promise < QueueEntry[] > {
-  try {
-    const dateStr = date.toISOString().split('T')[0];
-
-    const { data, error } = await supabase
-      .from('appointments')
-      .select(`
-          *,
-          patient:profiles!appointments_patient_fkey(id, full_name, phone_number, email),
-          guest_patient:guest_patients(id, full_name, phone_number),
-          clinic:clinics(id, name)
-        `)
-      .eq('appointment_date', dateStr)
-      .eq('status', AppointmentStatus.IN_PROGRESS);
-
-    if(error) {
-      logger.error('Failed to fetch in-progress appointments', error);
-      return [];
-    }
-
-      return this.mapToQueueEntries(data as RawAppointmentRow[]);
-  } catch(error) {
-    logger.error('Unexpected error fetching in-progress appointments', error as Error);
-    return [];
-  }
-}
-
-  /**
-   * Get all waiting appointments for a clinic on a specific date
-   * Used by Orchestrator for recalculation
-   */
-  async getWaitingAppointments(clinicId: string, date: Date): Promise < QueueEntry[] > {
-  try {
-    const dateStr = date.toISOString().split('T')[0];
-
-    const { data, error } = await supabase
-      .from('appointments')
-      .select(`
-          *,
-          patient:profiles!appointments_patient_fkey(id, full_name, phone_number, email),
-          guest_patient:guest_patients(id, full_name, phone_number),
-          clinic:clinics(id, name)
-        `)
-      .eq('clinic_id', clinicId)
-      .eq('appointment_date', dateStr)
-      .in('status', [AppointmentStatus.WAITING, AppointmentStatus.SCHEDULED])
-      .eq('is_present', true);
-
-    if(error) {
-      logger.error('Failed to fetch waiting appointments', error, { clinicId });
-      return [];
-    }
-
-      return this.mapToQueueEntries(data as RawAppointmentRow[]);
-  } catch(error) {
-    logger.error('Unexpected error fetching waiting appointments', error as Error, { clinicId });
-    return [];
-  }
-}
-
-  /**
-   * Batch update appointments (e.g. for mass recalculation)
-   */
-  async batchUpdateAppointments(updates: { id: string;[key: string]: any }[]): Promise < void> {
-  if(updates.length === 0) return;
-
-  try {
-    // Supabase doesn't support bulk update with different values easily in one query
-    // We'll use Promise.all for now, but in a real high-scale system we'd use a stored procedure
-    // or a temporary table approach.
-
-    const promises = updates.map(update => {
-      const { id, ...fields } = update;
-      return supabase
-        .from('appointments')
-        .update({
-          ...fields,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id);
-    });
-
-    await Promise.all(promises);
-  } catch(error) {
-    logger.error('Error in batch update appointments', error as Error);
-    throw new DatabaseError('Error in batch update appointments', error as Error);
-  }
-}
-
-  // ============================================
-  // MAPPERS
-  // ============================================
-
-  private mapToQueueEntry(row: RawAppointmentRow): QueueEntry {
-  return {
-    id: row.id,
-    clinicId: row.clinic_id,
-    patientId: row.patient_id || '',
-    staffId: row.staff_id || undefined,
-    appointmentDate: new Date(row.appointment_date || ''),
-    scheduledTime: row.start_time ? row.start_time.split('T')[1]?.substring(0, 5) : undefined, // Extract HH:MM
-    queuePosition: row.queue_position || 0,
-    originalQueuePosition: row.original_queue_position || undefined,
-    status: (row.status as AppointmentStatus) || AppointmentStatus.SCHEDULED,
-    appointmentType: (row.appointment_type as any) || 'consultation',
-    isPresent: row.is_present || false,
-    markedAbsentAt: row.marked_absent_at ? new Date(row.marked_absent_at) : undefined,
-    returnedAt: row.returned_at ? new Date(row.returned_at) : undefined,
-    skipCount: row.skip_count || 0,
-    skipReason: (row.skip_reason as any) || undefined,
-    overrideBy: row.override_by || undefined,
-    checkedInAt: row.checked_in_at ? new Date(row.checked_in_at) : undefined,
-    actualEndTime: row.actual_end_time ? new Date(row.actual_end_time) : undefined,
-    startTime: row.start_time ? new Date(row.start_time) : undefined,
-    endTime: row.end_time ? new Date(row.end_time) : undefined,
-    estimatedDurationMinutes: row.estimated_duration || undefined,
-    estimatedWaitTime: row.predicted_wait_time || undefined,
-    predictionMode: (row.prediction_mode as EstimationMode) || undefined,
-    predictionConfidence: row.prediction_confidence || undefined,
-    predictedStartTime: row.predicted_start_time ? new Date(row.predicted_start_time) : undefined,
-    etaUpdatedAt: row.last_prediction_update ? new Date(row.last_prediction_update) : undefined,
-    createdAt: new Date(row.created_at),
-    updatedAt: new Date(row.updated_at),
-    isGuest: row.is_guest || false,
-    guestPatientId: row.guest_patient_id || undefined,
-    patient: row.patient ? {
-      id: row.patient.id,
-      fullName: row.patient.full_name || 'Unknown',
-      phoneNumber: row.patient.phone_number || undefined,
-      email: row.patient.email || undefined,
-    } : undefined,
-  };
-}
-
-  private mapToQueueEntries(rows: RawAppointmentRow[] | null): QueueEntry[] {
-  if (!rows) return [];
-  return rows.map(row => this.mapToQueueEntry(row));
-}
-
-  private mapToAbsentPatient(row: RawAbsentPatientRow): AbsentPatient {
-  return {
-    id: row.id,
-    appointmentId: row.appointment_id,
-    clinicId: row.clinic_id,
-    patientId: row.patient_id || '',
-    markedAbsentAt: new Date(row.marked_absent_at),
-    returnedAt: row.returned_at ? new Date(row.returned_at) : undefined,
-    newPosition: row.new_position || undefined,
-    notificationSent: row.notification_sent || false,
-    gracePeriodEndsAt: row.grace_period_ends_at ? new Date(row.grace_period_ends_at) : undefined,
-    autoCancelled: row.auto_cancelled || false,
-    createdAt: new Date(row.created_at),
-    updatedAt: new Date(row.updated_at),
-  };
-}
-
-  private mapScheduleResponse(data: any, source: string): { operating_mode: string; schedule: QueueEntry[] } {
-  // Handle different RPC return structures if needed
-  // Currently assuming both RPCs return { operating_mode: string, schedule: [...] }
-
-  // If data is just an array (legacy RPCs might do this), wrap it
-  if (Array.isArray(data)) {
-    return {
-      operating_mode: 'ordinal_queue', // Default fallback
-      schedule: this.mapToQueueEntries(data),
-    };
-  }
-
-  return {
-    operating_mode: data?.operating_mode || 'ordinal_queue',
-    schedule: this.mapToQueueEntries(data?.schedule || []),
-  };
-}
 }

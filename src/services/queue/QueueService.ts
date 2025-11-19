@@ -8,6 +8,7 @@ import { QueueRepository } from './repositories/QueueRepository';
 import { eventBus } from '../shared/events/EventBus';
 import { logger } from '../shared/logging/Logger';
 import { NotFoundError, ValidationError, BusinessRuleError, ConflictError, DatabaseError } from '../shared/errors';
+import { QueueStrategyFactory } from './strategies/QueueStrategy';
 import {
   QueueEntry,
   QueueFilters,
@@ -15,6 +16,7 @@ import {
   CreateQueueEntryDTO,
   UpdateQueueEntryDTO,
   MarkAbsentDTO,
+  ResolveAbsentDTO,
   CallNextPatientDTO,
   ReorderQueueDTO,
   AppointmentStatus,
@@ -39,7 +41,7 @@ export class QueueService {
    * Fetches the daily schedule for a staff member, including operating mode.
    * This is the new primary method for retrieving all schedule-related data.
    */
-  async getDailySchedule(staffId: string, targetDate: string): Promise<{ operating_mode: string; schedule: QueueEntry[] }> {
+  async getDailySchedule(staffId: string, targetDate: string): Promise<{ queue_mode: string; operating_mode: string; schedule: QueueEntry[] }> {
     // Reduced verbosity - only log in debug mode
     logger.debug('Fetching daily schedule for staff', { staffId, targetDate });
     try {
@@ -48,7 +50,7 @@ export class QueueService {
       // Estimates should ONLY be calculated when disruptions occur (via WaitTimeEstimationOrchestrator)
       // The schedule already contains predicted_wait_time and predicted_start_time from the database
       // which were calculated during disruption events
-      logger.debug(`Retrieved schedule for staff ${staffId} with mode ${scheduleData.operating_mode}`, { count: scheduleData.schedule.length });
+      logger.debug(`Retrieved schedule for staff ${staffId} with mode ${scheduleData.queue_mode}`, { count: scheduleData.schedule.length });
       return {
         ...scheduleData,
         schedule: scheduleData.schedule,
@@ -161,34 +163,103 @@ export class QueueService {
 
     const scheduleData = await this.getDailySchedule(dto.staffId, new Date(dto.date).toISOString().split('T')[0]);
     
-    const waitingPatients = scheduleData.schedule.filter(e => 
-      (e.status === AppointmentStatus.WAITING || e.status === AppointmentStatus.SCHEDULED) && 
-      e.skipReason !== SkipReason.PATIENT_ABSENT &&
-      e.isPresent
-    );
+    // Use Strategy Pattern to determine next patient
+    // Cast queue_mode to QueueMode type (fixed | fluid | hybrid)
+    const strategy = QueueStrategyFactory.getStrategy(scheduleData.queue_mode as any);
+    
+    const nextPatientResult = await strategy.getNextPatient(scheduleData.schedule, {
+      currentTime: new Date(),
+      clinicId: dto.clinicId,
+      staffId: dto.staffId,
+    });
 
-    if (waitingPatients.length === 0) {
+    if (!nextPatientResult || !nextPatientResult.patient) {
       throw new NotFoundError('No patients present and waiting in queue');
     }
 
-    // The schedule is already sorted by the database function (time, then position)
-    const nextPatient = waitingPatients[0];
+    // Extract the actual QueueEntry from the result
+    const nextPatient = nextPatientResult.patient;
+
+    // Validate that nextPatient has an id (should always be a QueueEntry)
+    if (!nextPatient.id) {
+      logger.error('Strategy returned patient without id', { nextPatient, nextPatientResult });
+      throw new DatabaseError('Invalid patient data returned from queue strategy - missing id');
+    }
+
+    // CRITICAL: Re-fetch the patient entry to get the latest isPresent status
+    // This prevents race conditions where the schedule data might be stale
+    // after marking a patient as present
+    // For guest appointments, the id should still be the appointment id
+    const latestEntry = await this.getQueueEntry(nextPatient.id);
+    
+    // CRITICAL: Check if patient is physically present before calling
+    if (!latestEntry.isPresent) {
+      throw new BusinessRuleError(
+        `Patient "${latestEntry.patient?.fullName || 'Unknown'}" is not physically present. Please mark them as present, wait for grace period, or mark as absent.`
+      );
+    }
 
     // Set checked_in_at when staff calls "Call Next" (patient enters consultation room)
     // This replaces actual_start_time for simplicity
+    // Use latestEntry instead of nextPatient to ensure we're working with fresh data
     const now = new Date().toISOString();
-    const updatedEntry = await this.repository.updateQueueEntry(nextPatient.id, {
+    const updatedEntry = await this.repository.updateQueueEntry(latestEntry.id, {
       status: AppointmentStatus.IN_PROGRESS,
       checkedInAt: now,
-      isPresent: true, // Mark as present when called
+      // isPresent should already be true (checked above)
     });
 
-    await this.repository.createQueueOverride(dto.clinicId, nextPatient.id, QueueActionType.CALL_PRESENT, dto.performedBy, undefined, nextPatient.queuePosition, nextPatient.queuePosition);
+    await this.repository.createQueueOverride(dto.clinicId, latestEntry.id, QueueActionType.CALL_PRESENT, dto.performedBy, undefined, latestEntry.queuePosition, latestEntry.queuePosition);
     
     const event = QueueEventFactory.createPatientCalledEvent(updatedEntry, dto.performedBy);
     await eventBus.publish(event);
 
     logger.info('Next patient called successfully', { appointmentId: updatedEntry.id, position: updatedEntry.queuePosition });
+    return updatedEntry;
+  }
+
+  /**
+   * Marks a patient as physically present (ready to be called).
+   * This is separate from check-in - staff manually marks patients as present when they arrive.
+   */
+  async markPatientPresent(appointmentId: string, performedBy: string): Promise<QueueEntry> {
+    logger.info('Marking patient as present', { appointmentId, performedBy });
+
+    const entry = await this.getQueueEntry(appointmentId);
+
+    if (entry.status === AppointmentStatus.COMPLETED || entry.status === AppointmentStatus.CANCELLED) {
+      throw new BusinessRuleError('Cannot mark completed or cancelled appointment as present');
+    }
+
+    const updatedEntry = await this.repository.updateQueueEntry(entry.id, {
+      isPresent: true,
+      // If status is 'scheduled', change to 'waiting' when marked present
+      status: entry.status === AppointmentStatus.SCHEDULED ? AppointmentStatus.WAITING : entry.status,
+    });
+
+    await this.repository.createQueueOverride(entry.clinicId, entry.id, QueueActionType.PRIORITY_BOOST, performedBy, 'Patient marked as present', entry.queuePosition, entry.queuePosition);
+
+    logger.info('Patient marked as present successfully', { appointmentId });
+    return updatedEntry;
+  }
+
+  /**
+   * Marks a patient as not physically present.
+   */
+  async markPatientNotPresent(appointmentId: string, performedBy: string): Promise<QueueEntry> {
+    logger.info('Marking patient as not present', { appointmentId, performedBy });
+
+    const entry = await this.getQueueEntry(appointmentId);
+
+    if (entry.status === AppointmentStatus.IN_PROGRESS) {
+      throw new BusinessRuleError('Cannot mark in-progress appointment as not present');
+    }
+
+    const updatedEntry = await this.repository.updateQueueEntry(entry.id, {
+      isPresent: false,
+    });
+
+    logger.info('Patient marked as not present successfully', { appointmentId });
     return updatedEntry;
   }
 
@@ -248,6 +319,36 @@ export class QueueService {
     const event = QueueEventFactory.createPatientReturnedEvent(updatedEntry, newPosition);
     await eventBus.publish(event);
 
+    return updatedEntry;
+  }
+
+  async resolveAbsentAppointment(dto: ResolveAbsentDTO): Promise<QueueEntry> {
+    logger.info('Resolving absent appointment', { dto });
+
+    const entry = await this.getQueueEntry(dto.appointmentId);
+
+    if (entry.skipReason !== SkipReason.PATIENT_ABSENT) {
+      throw new BusinessRuleError('Only absent appointments can be resolved.');
+    }
+
+    // Simply mark the absent patient record as returned
+    // The actual rebooking will be handled separately (like a walk-in)
+    // No need for queue override - the new appointment will be created fresh
+    await this.repository.resolveAbsentPatientRecord(entry.id, dto.resolution);
+
+    // Cancel the original appointment
+    const nowIso = new Date().toISOString();
+    const updatedEntry = await this.repository.updateQueueEntry(entry.id, {
+      status: AppointmentStatus.CANCELLED,
+      skipReason: SkipReason.PATIENT_ABSENT,
+      returnedAt: nowIso,
+      isPresent: false,
+    });
+
+    logger.info('Absent appointment resolved - patient can now be rebooked', { 
+      appointmentId: entry.id, 
+      resolution: dto.resolution 
+    });
     return updatedEntry;
   }
 

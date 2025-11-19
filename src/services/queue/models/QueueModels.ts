@@ -42,7 +42,12 @@ export enum QueueActionType {
   LATE_ARRIVAL = 'late_arrival',
   EMERGENCY = 'emergency',
   REORDER = 'reorder',
+  SWAP = 'swap',
+  FORCE_ADD = 'force_add',
+  PRIORITY_BOOST = 'priority_boost',
 }
+
+export type QueueMode = 'fixed' | 'fluid' | 'hybrid';
 
 // ============================================
 // DOMAIN ENTITIES
@@ -93,12 +98,37 @@ export interface QueueEntry {
   createdAt: Date;
   updatedAt: Date;
 
+  // Smart Queue Logic Fields (RFC)
+  priorityScore?: number;
+  isGapFiller?: boolean;
+  promotedFromWaitlist?: boolean;
+  lateArrivalConverted?: boolean;
+  originalSlotTime?: Date;
+
   // Guest patient support
   isGuest?: boolean;
   guestPatientId?: string;
 
   // Relations (optional - populated on demand)
   patient?: Patient;
+}
+
+/**
+ * Waitlist Entry (RFC)
+ */
+export interface WaitlistEntry {
+  id: string;
+  clinicId: string;
+  patientId?: string;
+  guestPatientId?: string;
+  requestedDate: Date;
+  requestedTimeRangeStart?: string;
+  requestedTimeRangeEnd?: string;
+  priorityScore: number;
+  status: 'waiting' | 'notified' | 'promoted' | 'expired' | 'cancelled';
+  createdAt: Date;
+  updatedAt: Date;
+  notes?: string;
 }
 
 /**
@@ -133,6 +163,8 @@ export interface QueueOverride {
   previousPosition?: number;
   newPosition?: number;
   createdAt: Date;
+  previousState?: Record<string, any>;
+  newState?: Record<string, any>;
 }
 
 /**
@@ -184,6 +216,13 @@ export interface ClinicEstimationConfig {
   mlEnabled: boolean;
   mlModelVersion?: string;
   mlEndpointUrl?: string;
+  
+  // Queue Logic Config (RFC)
+  queueMode?: QueueMode;
+  allowOverflow?: boolean;
+  dailyCapacityLimit?: number;
+  lateArrivalPolicy?: 'priority_walk_in' | 'reschedule_only';
+  
   // New Config Overrides (Optional - falls back to QueueConfig)
   lateArrivalThresholdMinutes?: number;
   appointmentRunOverThresholdMinutes?: number;
@@ -304,6 +343,9 @@ export interface UpdateQueueEntryDTO {
   checkedInAt?: string; // Set when staff calls "Call Next"
   actualEndTime?: string;
   actualDuration?: number;
+  // RFC Fields
+  priorityScore?: number;
+  isGapFiller?: boolean;
 }
 
 /**
@@ -316,11 +358,18 @@ export interface MarkAbsentDTO {
   gracePeriodMinutes?: number; // Default: 15 minutes
 }
 
+export interface ResolveAbsentDTO {
+  appointmentId: string;
+  performedBy: string;
+  resolution: 'rebooked' | 'waitlist';
+}
+
 /**
  * DTO for calling next patient
  */
 export interface CallNextPatientDTO {
   clinicId: string;
+  staffId: string; // Mandatory now for schedule fetching
   date: Date;
   performedBy: string;
   skipAbsentPatients?: boolean; // Default: true
@@ -346,4 +395,48 @@ export interface QueueFilters {
   status?: AppointmentStatus[];
   includeAbsent?: boolean;
   includeCompleted?: boolean;
+}
+
+/**
+ * Context for Disruption Logic
+ */
+export interface Disruption {
+  type: DisruptionType;
+  appointmentId: string;
+  clinicId: string;
+  reason: string;
+  timestamp: Date;
+}
+
+export enum DisruptionType {
+  LATE_ARRIVAL = 'late_arrival',
+  NO_SHOW = 'no_show',
+  PATIENT_RETURNED = 'patient_returned',
+  LONGER_THAN_EXPECTED = 'longer_than_expected',
+  SHORTER_THAN_EXPECTED = 'shorter_than_expected',
+  QUEUE_OVERRIDE = 'queue_override',
+  EMERGENCY_INSERTED = 'emergency_inserted',
+  DOCTOR_LATE = 'doctor_late',
+  MULTIPLE_NO_SHOWS = 'multiple_no_shows',
+  APPOINTMENT_RUNNING_OVER = 'appointment_running_over',
+}
+
+export interface EstimationContext {
+  appointment: QueueEntry;
+  queueState: QueueState;
+  staffInfo?: {
+    activeStaffCount: number;
+    staffUtilization?: number;
+    averageConsultationDuration?: number;
+  };
+  historicalData?: {
+    averageWaitTime: number;
+    averageWaitTimeForType?: number;
+    averageWaitTimeForTimeSlot?: number;
+  };
+  clinicConfig?: {
+    bufferTime?: number;
+    averageAppointmentDuration?: number;
+    operatingMode?: EstimationMode;
+  };
 }

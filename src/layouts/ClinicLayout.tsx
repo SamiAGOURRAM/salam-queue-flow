@@ -21,45 +21,120 @@ type ClinicRow = Database["public"]["Tables"]["clinics"]["Row"];
   
 
 export default function ClinicLayout() {
-  const { user, loading, isClinicOwner, isStaff, signOut } = useAuth();
+  const { user, loading, isClinicOwner, isStaff, rolesLoading, userRoles, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [clinic, setClinic] = useState<ClinicRow | null>(null);
 
   const fetchClinic = useCallback(async () => {
     if (!user) return;
+    
+    // Debug: Log current role state
+    logger.debug("Fetching clinic - checking roles", { 
+      userId: user?.id, 
+      isClinicOwner, 
+      isStaff,
+      rolesLoading,
+      userRolesCount: userRoles.length,
+      hasRoles: userRoles.length > 0
+    });
+    
+    // If roles are still loading, wait for them to finish
+    // This prevents the initial false negative when roles haven't loaded yet
+    if (rolesLoading) {
+      logger.debug("Roles still loading, will retry when roles are available", { userId: user?.id });
+      return;
+    }
+    
+    // Even if rolesLoading is false, we need to ensure roles have actually been loaded
+    // When waiting for another instance's promise, rolesLoading might be false before userRoles is set
+    // Check if we have roles OR if isClinicOwner/isStaff are true (which means roles have been processed)
+    const hasRolesLoaded = userRoles.length > 0 || isClinicOwner || isStaff;
+    
+    if (!hasRolesLoaded) {
+      // Roles haven't loaded yet, even though rolesLoading is false
+      // This can happen when waiting for another instance's promise
+      logger.debug("Roles not loaded yet (waiting for promise resolution), will retry", { userId: user?.id });
+      return;
+    }
+    
+    // If roles have finished loading and user has no clinic owner or staff role, they shouldn't be here
+    if (!isClinicOwner && !isStaff) {
+      logger.warn("User is not clinic owner or staff", { userId: user?.id, roles: userRoles });
+      return;
+    }
+    
     try {
       let query = supabase.from("clinics").select("*");
 
       if (isClinicOwner) {
+        logger.debug("User is clinic owner, fetching clinic by owner_id", { userId: user?.id });
         query = query.eq("owner_id", user?.id);
-      } else {
+      } else if (isStaff) {
         // For staff, get clinic from clinic_staff table
-        const { data: staffData } = await supabase
+        const { data: staffData, error: staffError } = await supabase
           .from("clinic_staff")
           .select("clinic_id")
           .eq("user_id", user?.id)
-          .single();
+          .maybeSingle();
+
+        if (staffError) {
+          // Check if it's a 406 error (RLS blocking or format mismatch)
+          const is406Error = staffError.code === 'PGRST116' || 
+                            staffError.message?.includes('406') || 
+                            staffError.message?.includes('Not Acceptable') ||
+                            staffError.message?.includes('application/vnd.pgrst.object');
+          
+          if (is406Error) {
+            logger.error("RLS policy blocking clinic_staff access or format mismatch", { userId: user?.id, error: staffError });
+            return;
+          }
+          logger.error("Error fetching clinic_staff", staffError, { userId: user?.id });
+          return;
+        }
 
         if (staffData) {
           query = query.eq("id", staffData.clinic_id);
+        } else {
+          // Staff user but no clinic_staff record found
+          logger.warn("Staff user has no clinic_staff record", { userId: user?.id });
+          return;
         }
       }
 
-      const { data } = await query.single();
-      setClinic(data);
+      // Use .maybeSingle() instead of .single() to avoid 406 errors when RLS blocks
+      const { data, error } = await query.maybeSingle();
+      
+      if (error) {
+        // Check if it's a 406 error (RLS blocking or format mismatch)
+        const is406Error = error.code === 'PGRST116' || 
+                          error.message?.includes('406') || 
+                          error.message?.includes('Not Acceptable') ||
+                          error.message?.includes('application/vnd.pgrst.object');
+        
+        if (is406Error) {
+          logger.error("RLS policy blocking clinic access or format mismatch", { userId: user?.id, isClinicOwner, isStaff, error });
+        } else {
+          logger.error("Error fetching clinic", error, { userId: user?.id, isClinicOwner });
+        }
+        return;
+      }
+
+      setClinic(data || null);
     } catch (error) {
       logger.error("Error fetching clinic", error instanceof Error ? error : new Error(String(error)), { userId: user?.id, isClinicOwner });
     }
-  }, [isClinicOwner, user]);
+  }, [isClinicOwner, isStaff, rolesLoading, user, userRoles]);
 
   useEffect(() => {
     if (!loading && !user) {
       navigate("/auth/login");
-    } else if (user) {
+    } else if (user && !loading && !rolesLoading) {
+      // Wait for user, loading, and rolesLoading to be complete before fetching clinic
+      // The fetchClinic callback will re-run when isClinicOwner/isStaff change
       fetchClinic();
     }
-  }, [user, loading, navigate, fetchClinic]);
+  }, [user, loading, rolesLoading, isClinicOwner, isStaff, navigate, fetchClinic]);
 
   const navigationItems = [
     {

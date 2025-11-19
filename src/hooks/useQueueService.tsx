@@ -21,6 +21,7 @@ import { QueueEntry, CreateQueueEntryDTO, MarkAbsentDTO, ReorderQueueDTO, CallNe
 
 export interface ScheduleData {
   operatingMode: string;
+  queueMode: string; // 'fluid' | 'fixed' | 'hybrid'
   schedule: QueueEntry[];
 }
 
@@ -33,7 +34,7 @@ interface UseQueueServiceOptions {
 export function useQueueService(options: UseQueueServiceOptions) {
   const { staffId, autoRefresh = true, refreshInterval } = options;
 
-  const [scheduleData, setScheduleData] = useState<ScheduleData>({ operatingMode: 'none', schedule: [] });
+  const [scheduleData, setScheduleData] = useState<ScheduleData>({ operatingMode: 'none', queueMode: 'fluid', schedule: [] });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
   
@@ -43,14 +44,18 @@ export function useQueueService(options: UseQueueServiceOptions) {
   const refreshSchedule = useCallback(async () => {
     if (!staffId) {
       setIsLoading(false);
-      setScheduleData({ operatingMode: 'none', schedule: [] });
+      setScheduleData({ operatingMode: 'none', queueMode: 'fluid', schedule: [] });
       return;
     }
     setIsLoading(true);
     try {
       const today = new Date().toISOString().split('T')[0];
       const data = await queueService.getDailySchedule(staffId, today);
-      setScheduleData(data);
+      setScheduleData({
+        operatingMode: data.operating_mode || 'none',
+        queueMode: data.queue_mode || 'fluid',
+        schedule: data.schedule || [],
+      });
       setError(null);
     } catch (err) {
       const error = err as Error;
@@ -132,6 +137,11 @@ export function useQueueService(options: UseQueueServiceOptions) {
     { success: 'Patient Returned to Queue', error: 'Failed to Return Patient' }
   );
 
+  const resolveAbsentAppointment = (appointmentId: string, performedBy: string, resolution: 'rebooked' | 'waitlist') => performAction(
+    queueService.resolveAbsentAppointment({ appointmentId, performedBy, resolution }),
+    { success: 'Absent patient resolved', error: 'Failed to resolve absent patient' }
+  );
+
   const completeAppointment = (appointmentId: string, performedBy: string) => performAction(
     queueService.completeAppointment(appointmentId, performedBy),
     { success: 'Appointment Completed', error: 'Failed to Complete' }
@@ -147,11 +157,22 @@ export function useQueueService(options: UseQueueServiceOptions) {
     { success: 'Patient Checked In', error: 'Failed to Check In' }
   );
 
+  const markPatientPresent = (appointmentId: string, performedBy: string) => performAction(
+    queueService.markPatientPresent(appointmentId, performedBy),
+    { success: 'Patient Marked as Present', error: 'Failed to Mark Present' }
+  );
+
+  const markPatientNotPresent = (appointmentId: string, performedBy: string) => performAction(
+    queueService.markPatientNotPresent(appointmentId, performedBy),
+    { success: 'Patient Marked as Not Present', error: 'Failed to Mark Not Present' }
+  );
+
 
   return {
     isLoading,
     error,
     operatingMode: scheduleData.operatingMode,
+    queueMode: scheduleData.queueMode,
     schedule: scheduleData.schedule,
     refreshSchedule,
     createAppointment,
@@ -159,6 +180,9 @@ export function useQueueService(options: UseQueueServiceOptions) {
     callNextPatient,
     markPatientAbsent,
     markPatientReturned,
+    markPatientPresent,
+    markPatientNotPresent,
+    resolveAbsentAppointment,
     completeAppointment,
     reorderQueue,
   };

@@ -39,6 +39,11 @@ export const QueueConfig = {
          * If below this, the system falls back to rule-based estimation.
          */
         ML_CONFIDENCE_THRESHOLD: 0.3,
+
+        /**
+         * How often (in minutes) the system checks for running-over appointments.
+         */
+        PERIODIC_CHECK_INTERVAL_MINUTES: 5,
     },
 
     // System Limits (Not overridable by clinics for safety)
