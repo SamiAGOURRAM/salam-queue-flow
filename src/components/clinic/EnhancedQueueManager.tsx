@@ -100,8 +100,8 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
     }
   }, [staffId]);
 
-  // Determine if we should show slotted view (fixed/hybrid) or queue view (fluid)
-  const isSlottedMode = queueMode === 'fixed' || queueMode === 'hybrid';
+  // Determine if we should show slotted view (slotted) or queue view (fluid)
+  const isSlottedMode = queueMode === 'slotted';
 
   // Derived state logic - includes all scheduled appointments for today (even future ones)
   const { currentPatient, waitingPatients, absentPatients, summary } = useMemo(() => {
@@ -307,7 +307,7 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
               </CardHeader>
               <CardContent>
                 {isSlottedMode ? (
-                  // Slotted View (Fixed/Hybrid)
+                  // Slotted View (Time-based)
                   <SlottedQueueView
                     schedule={schedule}
                     currentPatient={currentPatient}

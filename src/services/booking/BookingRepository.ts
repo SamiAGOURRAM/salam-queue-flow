@@ -165,7 +165,7 @@ export class BookingRepository {
   /**
    * NEW: Get queue mode for a specific date
    */
-  async getQueueModeForDate(clinicId: string, date: string): Promise<'fluid' | 'fixed' | 'hybrid' | null> {
+  async getQueueModeForDate(clinicId: string, date: string): Promise<'fluid' | 'slotted' | null> {
     const { data, error } = await supabase.rpc('get_queue_mode_for_date', {
       p_clinic_id: clinicId,
       p_date: date
@@ -191,11 +191,13 @@ export class BookingRepository {
 
     // ✨ Migrate legacy terms to clean standard
     if (mode === 'ordinal_queue') mode = 'fluid';
-    if (mode === 'time_grid_fixed') mode = 'fixed';
+    if (mode === 'time_grid_fixed') mode = 'slotted';
+    // Migrate old modes to new unified mode
+    if (mode === 'fixed' || mode === 'hybrid') mode = 'slotted';
   
     console.log('🔍 Queue mode processed:', { original: data, cleaned: mode });
   
-    return mode as 'fluid' | 'fixed' | 'hybrid' | null;
+    return mode as 'fluid' | 'slotted' | null;
   }
 
   /**
@@ -219,7 +221,7 @@ export class BookingRepository {
       };
     }
 
-    // For time slots mode (fixed or hybrid), use the new RPC function
+    // For time slots mode (slotted), use the new RPC function
     const { data, error } = await supabase.rpc('get_available_slots_for_mode', {
       p_clinic_id: clinicId,
       p_appointment_date: date,
@@ -233,7 +235,7 @@ export class BookingRepository {
 
     return {
       ...data,
-      mode: mode || 'fixed' // Use the detected mode (fixed or hybrid)
+      mode: mode || 'slotted' // Use the detected mode (slotted)
     } as AvailableSlotsResponse;
   }
 

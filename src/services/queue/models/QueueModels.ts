@@ -47,7 +47,7 @@ export enum QueueActionType {
   PRIORITY_BOOST = 'priority_boost',
 }
 
-export type QueueMode = 'fixed' | 'fluid' | 'hybrid';
+export type QueueMode = 'slotted' | 'fluid';
 
 // ============================================
 // DOMAIN ENTITIES

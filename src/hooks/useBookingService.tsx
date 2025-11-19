@@ -5,7 +5,7 @@ import { bookingService } from '@/services/booking/BookingService';
 import { BookingRequest } from '@/services/booking/types';
 import { useToast } from '@/hooks/use-toast';
 
-type QueueMode = 'fluid' | 'fixed' | 'hybrid' | null;
+type QueueMode = 'fluid' | 'slotted' | null;
 
 export const useBookingService = (
   clinicId?: string, 
@@ -29,8 +29,8 @@ export const useBookingService = (
   const dateStr = selectedDate 
   ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
   : '';
-  // Fetch slots only for Fixed or Hybrid modes (not Fluid/Free Queue)
-  const shouldFetchSlots = !!clinicId && !!dateStr && !!appointmentType && (queueMode === 'fixed' || queueMode === 'hybrid');
+  // Fetch slots only for Slotted mode (not Fluid/Free Queue)
+  const shouldFetchSlots = !!clinicId && !!dateStr && !!appointmentType && queueMode === 'slotted';
   
   // 🐛 DEBUG: Log the conditions
   useEffect(() => {
@@ -39,7 +39,7 @@ export const useBookingService = (
       hasDateStr: !!dateStr,
       hasAppointmentType: !!appointmentType,
       queueMode,
-      isTimeSlotMode: queueMode === 'fixed' || queueMode === 'hybrid',
+      isTimeSlotMode: queueMode === 'slotted',
       RESULT: shouldFetchSlots
     });
   }, [clinicId, dateStr, appointmentType, queueMode, shouldFetchSlots]);
@@ -151,8 +151,8 @@ export const useBookingService = (
           description: `Queue position: #${data.queuePosition}`,
         });
         
-        // Only invalidate slots if we're in fixed or hybrid mode
-        if (queueMode === 'fixed' || queueMode === 'hybrid') {
+        // Only invalidate slots if we're in slotted mode
+        if (queueMode === 'slotted') {
           queryClient.invalidateQueries({ 
             queryKey: ['available-slots', clinicId, dateStr, appointmentType] 
           });

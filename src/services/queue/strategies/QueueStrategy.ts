@@ -3,12 +3,15 @@
  * Defines how the "Next Patient" is selected based on the Clinic's Operating Mode.
  * 
  * Key Understanding:
- * - Fixed & Hybrid: Both are "slotted" modes (time-based, no shifting)
- * - Fixed: Basic early call + gap fill
- * - Hybrid: Enhanced with cascade notifications + auto waitlist promotion
- * - Fluid: Completely different (priority-based, aggressive shifting)
+ * - Slotted: Time-based mode (fixed appointment times, no shifting)
+ *   - Allows early calls if patient is present (frees up their slot for walk-ins/waitlist)
+ *   - Gap filling: Freed slots can be used for walk-ins/waitlist
+ *   - NO shifting: Scheduled times remain fixed
+ * - Fluid: Priority-based mode (completely different paradigm)
+ *   - Dynamic reordering based on priority score
+ *   - Aggressive shifting: Everyone moves up when disruptions occur
  * 
- * Gap Filling Priority (when slot becomes available):
+ * Gap Filling Priority (when slot becomes available in Slotted mode):
  * 1. Waitlist patient (if enabled) - They're READY and EXPECTING a call
  * 2. First scheduled patient who IS present (check sequentially)
  * 3. Walk-in (if available)
@@ -70,13 +73,17 @@ export interface NextPatientResult {
 }
 
 /**
- * Fixed Strategy: Time is King (Basic Slotted Mode)
+ * Slotted Strategy: Time is King (Time-Based Mode)
  * - Next patient is the earliest scheduled time with a present patient
  * - Allows early calls if patient is present (frees up their slot for walk-ins/waitlist)
  * - NO shifting: Scheduled times remain fixed
  * - Gap filling: Freed slots can be used for walk-ins/waitlist
+ * 
+ * This replaces both Fixed and Hybrid modes, which were functionally identical.
+ * Advanced features (cascade notifications, auto waitlist promotion) can be added
+ * as configurable settings in the future, not separate modes.
  */
-export class FixedQueueStrategy implements IQueueStrategy {
+export class SlottedQueueStrategy implements IQueueStrategy {
   async getNextPatient(
     schedule: QueueEntry[], 
     context: QueueContext,
@@ -151,11 +158,11 @@ export class FixedQueueStrategy implements IQueueStrategy {
   }
 
   async handleLateArrival(appointment: QueueEntry, schedule: QueueEntry[]): Promise<QueueAction> {
-    // Fixed Mode: Late arrivals can use original slot if available
+    // Slotted Mode: Late arrivals can use original slot if available
     // Otherwise, wait for next available slot or add to waitlist with priority
     return {
       action: 'insert',
-      reason: 'Late arrival in Fixed Mode - check for available slot or waitlist',
+      reason: 'Late arrival in Slotted Mode - check for available slot or waitlist',
     };
   }
 }
@@ -207,109 +214,25 @@ export class FluidQueueStrategy implements IQueueStrategy {
   }
 }
 
-/**
- * Hybrid Strategy: Intelligent Fixed (Enhanced Slotted Mode)
- * - Same base logic as Fixed (time-based, no shifting)
- * - Enhanced features:
- *   - Cascade notifications to multiple future patients (they can come early)
- *   - Automatic waitlist promotion when no scheduled patients want to come early
- *   - Batch processing of multiple no-shows
- *   - Smarter late arrival handling with better slot reassignment
- */
-export class HybridQueueStrategy implements IQueueStrategy {
-  async getNextPatient(
-    schedule: QueueEntry[], 
-    context: QueueContext,
-    waitlist?: WaitlistEntry[]
-  ): Promise<NextPatientResult | null> {
-    const now = context.currentTime;
-    
-    // PRIORITY 1: Check waitlist FIRST (more aggressive than Fixed)
-    if (context.allowWaitlist && waitlist && waitlist.length > 0) {
-      const topWaitlist = waitlist[0];
-      const availableSlot = this.findAvailableSlot(schedule, now);
-      if (availableSlot) {
-        // Auto-promote waitlist (more aggressive than Fixed)
-        return {
-          patient: topWaitlist as any,
-          type: 'waitlist',
-          reason: 'Hybrid: Auto-promote waitlist for throughput',
-          requiresNotification: true
-        };
-      }
-    }
-    
-    // PRIORITY 2: Find first scheduled patient who IS present (same as Fixed)
-    const scheduledPatients = schedule
-      .filter(p => p.status === 'waiting' && !p.skipReason)
-      .sort((a, b) => {
-        const timeA = a.startTime ? new Date(a.startTime).getTime() : Infinity;
-        const timeB = b.startTime ? new Date(b.startTime).getTime() : Infinity;
-        return timeA - timeB;
-      });
-    
-    for (const patient of scheduledPatients) {
-      if (patient.isPresent) {
-        return {
-          patient: patient,
-          type: 'scheduled',
-          reason: 'First scheduled patient who is present',
-          canCallEarly: true,
-          requiresNotification: true
-        };
-      }
-    }
-    
-    // TODO: Enhanced features (to be implemented):
-    // - Cascade notifications to multiple future patients
-    // - Automatic waitlist promotion check
-    // - Batch no-show processing
-
-    return null;
-  }
-
-  /**
-   * Find available slot (from no-show/cancellation)
-   */
-  private findAvailableSlot(schedule: QueueEntry[], currentTime: Date): QueueEntry | null {
-    const now = currentTime.getTime();
-    
-    for (const appointment of schedule) {
-      if (appointment.status === 'waiting' && !appointment.isPresent) {
-        const slotTime = appointment.startTime ? new Date(appointment.startTime).getTime() : Infinity;
-        if (slotTime <= now) {
-          return appointment;
-        }
-      }
-    }
-    
-    return null;
-  }
-
-  async handleLateArrival(appointment: QueueEntry, schedule: QueueEntry[]): Promise<QueueAction> {
-    // Hybrid Mode: Enhanced late arrival handling
-    // - Try original slot first
-    // - Then next available slot
-    // - Then waitlist with HIGH priority (they had original slot)
-    return {
-      action: 'insert',
-      reason: 'Late arrival in Hybrid Mode - smart slot reassignment or waitlist with priority',
-    };
-  }
-}
+// Note: HybridQueueStrategy removed - merged into SlottedQueueStrategy
+// Fixed and Hybrid were functionally identical, so they're now a single "Slotted" mode
+// Advanced features can be added as configurable settings in the future
 
 /**
  * Factory to get the correct strategy
  */
 export class QueueStrategyFactory {
-  static getStrategy(mode: QueueMode): IQueueStrategy {
+  static getStrategy(mode: QueueMode | 'fixed' | 'hybrid'): IQueueStrategy {
+    // Handle legacy modes for backward compatibility (migrate 'fixed'/'hybrid' to 'slotted')
+    if (mode === 'fixed' || mode === 'hybrid') {
+      return new SlottedQueueStrategy();
+    }
+    
     switch (mode) {
-      case 'fixed':
-        return new FixedQueueStrategy();
+      case 'slotted':
+        return new SlottedQueueStrategy();
       case 'fluid':
         return new FluidQueueStrategy();
-      case 'hybrid':
-        return new HybridQueueStrategy();
       default:
         // Default to Fluid for backward compatibility
         return new FluidQueueStrategy();

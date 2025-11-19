@@ -9,7 +9,7 @@ export interface BookingSlot {
     slots: BookingSlot[];
     duration?: number;
     bufferTime?: number;
-    mode?: 'fluid' | 'fixed' | 'hybrid' | null;  // ← Clean Standard: Queue mode indicator
+    mode?: 'fluid' | 'slotted' | null;  // ← Clean Standard: Queue mode indicator
   }
   
   export interface BookingRequest {
@@ -38,7 +38,7 @@ export interface BookingSlot {
   /**
  * Queue mode type definition (Clean Standard)
  */
-export type QueueMode = 'fluid' | 'fixed' | 'hybrid' | null;
+export type QueueMode = 'fluid' | 'slotted' | null;
 
 /**
  * Manual assignment response (for staff assigning time to free queue patients)

@@ -33,8 +33,8 @@ interface AppointmentType {
   price?: number;
 }
 
-// ✨ NEW: Queue mode types (Clean Standard: 'fluid', 'fixed', 'hybrid')
-type QueueMode = 'fluid' | 'fixed' | 'hybrid';
+// ✨ NEW: Queue mode types (Simplified: 'fluid', 'slotted')
+type QueueMode = 'fluid' | 'slotted';
 
 interface DailyQueueModes {
   monday: QueueMode;
@@ -86,14 +86,16 @@ const parseClinicSettings = (settings: ClinicRow["settings"] | null): ClinicSett
   return settings as ClinicSettingsShape;
 };
 
-// ✨ Helper: Migrate legacy queue mode terms to clean standard
+// ✨ Helper: Migrate legacy queue mode terms to simplified standard
 const migrateQueueMode = (mode: string | undefined): QueueMode => {
   if (!mode) return 'fluid'; // Default
-  // Legacy terms -> Clean standard
+  // Legacy terms -> Simplified standard
   if (mode === 'ordinal_queue') return 'fluid';
-  if (mode === 'time_grid_fixed') return 'fixed'; // Default Time Slots to Fixed
-  // Already clean standard
-  if (mode === 'fluid' || mode === 'fixed' || mode === 'hybrid') return mode as QueueMode;
+  if (mode === 'time_grid_fixed') return 'slotted';
+  // Migrate old modes to new unified mode
+  if (mode === 'fixed' || mode === 'hybrid') return 'slotted';
+  // Already simplified standard
+  if (mode === 'fluid' || mode === 'slotted') return mode as QueueMode;
   // Fallback
   return 'fluid';
 };
@@ -124,15 +126,15 @@ export default function ClinicSettings() {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethods>(() => ({ ...defaultPaymentMethods }));
 
 
-  // ✨ NEW: Queue Mode State (Clean Standard)
+  // ✨ NEW: Queue Mode State (Simplified)
   const [dailyQueueModes, setDailyQueueModes] = useState<DailyQueueModes>({
     monday: 'fluid',
     tuesday: 'fluid',
     wednesday: 'fluid',
     thursday: 'fluid',
     friday: 'fluid',
-    saturday: 'fixed',
-    sunday: 'fixed',
+    saturday: 'slotted',
+    sunday: 'slotted',
   });
 
 
@@ -346,7 +348,7 @@ export default function ClinicSettings() {
 
   const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
-  // ✨ NEW: Queue mode options (Clean Standard)
+  // ✨ NEW: Queue mode options (Simplified)
   const queueModeOptions = [
     {
       value: 'fluid' as QueueMode,
@@ -355,16 +357,10 @@ export default function ClinicSettings() {
       icon: '📋'
     },
     {
-      value: 'fixed' as QueueMode,
-      label: 'Fixed Slots',
-      description: 'Strict time-based scheduling. Time is king. No shifting.',
+      value: 'slotted' as QueueMode,
+      label: 'Time Slots',
+      description: 'Time-based scheduling with fixed appointment slots. Early calls and gap filling enabled.',
       icon: '🕐'
-    },
-    {
-      value: 'hybrid' as QueueMode,
-      label: 'Hybrid',
-      description: 'Mixed blocks: Scheduled slots + Walk-in periods. Flexible.',
-      icon: '🔄'
     },
   ];
 
@@ -841,24 +837,24 @@ export default function ClinicSettings() {
                       variant="outline"
                       onClick={() => {
                         const updated: DailyQueueModes = {
-                          monday: 'fixed',
-                          tuesday: 'fixed',
-                          wednesday: 'fixed',
-                          thursday: 'fixed',
-                          friday: 'fixed',
-                          saturday: 'fixed',
-                          sunday: 'fixed',
+                          monday: 'slotted',
+                          tuesday: 'slotted',
+                          wednesday: 'slotted',
+                          thursday: 'slotted',
+                          friday: 'slotted',
+                          saturday: 'slotted',
+                          sunday: 'slotted',
                         };
                         setDailyQueueModes(updated);
                         toast({
-                          title: "All Days Set to Fixed Slots",
-                          description: "All days configured for fixed slot mode",
+                          title: "All Days Set to Time Slots",
+                          description: "All days configured for time slot mode",
                         });
                       }}
                       className="h-11"
                     >
                       <Clock className="w-4 h-4 mr-2" />
-                      All Fixed Slots
+                      All Time Slots
                     </Button>
                   </div>
 

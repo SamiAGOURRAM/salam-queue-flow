@@ -164,7 +164,7 @@ export class QueueService {
     const scheduleData = await this.getDailySchedule(dto.staffId, new Date(dto.date).toISOString().split('T')[0]);
     
     // Use Strategy Pattern to determine next patient
-    // Cast queue_mode to QueueMode type (fixed | fluid | hybrid)
+    // Cast queue_mode to QueueMode type (slotted | fluid)
     const strategy = QueueStrategyFactory.getStrategy(scheduleData.queue_mode as any);
     
     const nextPatientResult = await strategy.getNextPatient(scheduleData.schedule, {

@@ -9,9 +9,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { QueueEntry, AppointmentStatus, SkipReason } from "@/services/queue";
-import { Clock, UserCheck, UserX, Plus, AlertCircle } from "lucide-react";
+import { Clock, UserCheck, UserX, Plus, AlertCircle, Filter, Sun, Moon, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import { useState, useMemo, Fragment } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface SlottedQueueViewProps {
   schedule: QueueEntry[];
@@ -42,6 +50,8 @@ interface TimeSlot {
   };
 }
 
+type TimeFilter = "all" | "morning" | "afternoon" | "evening";
+
 export function SlottedQueueView({
   schedule,
   currentPatient,
@@ -55,6 +65,8 @@ export function SlottedQueueView({
   workingDayStart,
   workingDayEnd,
 }: SlottedQueueViewProps) {
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
+
   // Generate time slots - only show upcoming appointments and free time ranges
   const generateTimeSlots = (): TimeSlot[] => {
     const slots: TimeSlot[] = [];
@@ -166,226 +178,330 @@ export function SlottedQueueView({
     return slots.sort((a, b) => a.time.getTime() - b.time.getTime());
   };
 
-  const timeSlots = generateTimeSlots();
+  const allTimeSlots = generateTimeSlots();
+  
+  // Filter slots by time period
+  const filteredSlots = useMemo(() => {
+    if (timeFilter === "all") return allTimeSlots;
+    
+    return allTimeSlots.filter(slot => {
+      const hour = slot.time.getHours();
+      if (timeFilter === "morning") return hour >= 6 && hour < 12;
+      if (timeFilter === "afternoon") return hour >= 12 && hour < 17;
+      if (timeFilter === "evening") return hour >= 17 && hour < 22;
+      return true;
+    });
+  }, [allTimeSlots, timeFilter]);
+
   const getInitials = (name?: string) => !name ? "?" : name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   const formatTime = (date: Date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  
+  // Count slots for header
+  const scheduledCount = allTimeSlots.filter(s => !s.isEmpty).length;
 
   return (
-    <div className="space-y-4">
-      {/* Time Slot Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-        {timeSlots.map((slot, index) => (
-          <div
-            key={index}
-            onClick={() => onSlotClick?.(slot)}
-            className={cn(
-              "relative p-4 rounded-xl border-2 transition-all cursor-pointer",
-              slot.isCurrent
-                ? "border-green-500 bg-gradient-to-br from-green-50 to-emerald-50 shadow-lg scale-105"
-                : slot.isNext
-                ? "border-orange-400 bg-gradient-to-br from-orange-50 to-amber-50 shadow-md"
-                : slot.isEmpty
-                ? slot.isPast
-                  ? "border-gray-200 bg-gray-50/50 opacity-60"
-                  : "border-blue-200 bg-blue-50/30 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md"
-                : slot.isPast
-                ? "border-slate-200 bg-slate-50"
-                : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
-            )}
-          >
-            {/* Time Header */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Clock className={cn(
-                  "h-4 w-4",
-                  slot.isCurrent ? "text-green-600" : slot.isNext ? "text-orange-600" : "text-slate-500"
-                )} />
-                <span className={cn(
-                  "text-sm font-bold",
-                  slot.isCurrent ? "text-green-900" : slot.isNext ? "text-orange-900" : "text-slate-700"
-                )}>
-                  {formatTime(slot.time)}
-                </span>
-              </div>
-              {slot.isCurrent && (
-                <Badge className="bg-green-600 text-white text-xs">Active</Badge>
-              )}
-              {slot.isNext && !slot.isCurrent && (
-                <Badge className="bg-orange-500 text-white text-xs">Next</Badge>
-              )}
-              {slot.freeTimeRange && !slot.isPast && (
-                <Badge variant="outline" className="border-green-400 text-green-600 text-xs">
-                  <Plus className="h-3 w-3 mr-1" />Free Time
-                </Badge>
-              )}
-            </div>
-
-            {/* Patient Info, Free Time Range, or Empty State */}
-            {slot.freeTimeRange ? (
-              // Free Time Range Display
-              <div className="text-center py-4">
-                <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-2">
-                  <Plus className="h-6 w-6 text-green-600" />
-                </div>
-                <p className="text-xs text-slate-500 font-medium">Free Time</p>
-                <p className="text-xs text-slate-400 mt-1">
-                  {formatTime(slot.freeTimeRange.start)} - {formatTime(slot.freeTimeRange.end)}
-                </p>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  ({Math.round(slot.freeTimeRange.durationMinutes)} min available)
-                </p>
-                {!slot.isPast && (
-                  <p className="text-xs text-green-600 mt-2 font-medium">Available for booking</p>
-                )}
-              </div>
-            ) : slot.appointment ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
-                    <AvatarFallback className={cn(
-                      "text-xs font-bold",
-                      slot.isCurrent 
-                        ? "bg-gradient-to-br from-green-400 to-emerald-500 text-white"
-                        : slot.isNext
-                        ? "bg-gradient-to-br from-orange-400 to-amber-500 text-white"
-                        : "bg-gradient-to-br from-slate-300 to-slate-400 text-white"
-                    )}>
-                      {getInitials(slot.appointment.patient?.fullName)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm truncate text-slate-900">
-                      {slot.appointment.patient?.fullName || 'Patient'}
-                    </p>
-                    <p className="text-xs text-slate-500 truncate">
-                      {slot.appointment.appointmentType}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Status Badges */}
-                <div className="flex flex-wrap gap-1">
-                  {slot.appointment.isPresent ? (
-                    <Badge variant="outline" className="text-green-600 border-green-600 text-xs">
-                      <UserCheck className="h-3 w-3 mr-1" />Checked In
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-amber-600 border-amber-600 text-xs">
-                      <AlertCircle className="h-3 w-3 mr-1" />Not Present
-                    </Badge>
-                  )}
-                  {slot.appointment.skipReason === SkipReason.PATIENT_ABSENT && (
-                    <Badge variant="outline" className="text-red-600 border-red-600 text-xs">
-                      <UserX className="h-3 w-3 mr-1" />Absent
-                    </Badge>
-                  )}
-                </div>
-
-                {/* Actions - Only show for non-completed appointments */}
-                {slot.appointment.status !== AppointmentStatus.COMPLETED && 
-                 slot.appointment.status !== AppointmentStatus.CANCELLED &&
-                 slot.appointment.status !== AppointmentStatus.NO_SHOW && (
-                  <div className="flex flex-col gap-1.5">
-                    {!slot.appointment.isPresent && (slot.appointment.status === AppointmentStatus.WAITING || slot.appointment.status === AppointmentStatus.SCHEDULED) && (
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onMarkPresent?.(slot.appointment!.id);
-                        }}
-                        disabled={actionLoading}
-                        size="sm"
-                        className="w-full bg-green-600 hover:bg-green-700 text-white text-xs"
-                      >
-                        <UserCheck className="h-3 w-3 mr-1" />Mark Present
-                      </Button>
-                    )}
-                    {slot.appointment.isPresent && slot.appointment.status !== AppointmentStatus.IN_PROGRESS && (
-                      <>
-                        <Button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onMarkNotPresent?.(slot.appointment!.id);
-                          }}
-                          disabled={actionLoading}
-                          size="sm"
-                          variant="outline"
-                          className="w-full border-amber-300 text-amber-600 hover:bg-amber-50 text-xs"
-                        >
-                          <AlertCircle className="h-3 w-3 mr-1" />Mark Not Present
-                        </Button>
-                      </>
-                    )}
-                    {(slot.appointment.status === AppointmentStatus.WAITING || slot.appointment.status === AppointmentStatus.SCHEDULED) && (
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onMarkAbsent?.(slot.appointment!.id);
-                        }}
-                        disabled={actionLoading}
-                        size="sm"
-                        variant="outline"
-                        className="w-full border-red-300 text-red-600 hover:bg-red-50 text-xs"
-                      >
-                        <UserX className="h-3 w-3 mr-1" />Mark Absent
-                      </Button>
-                    )}
-                  </div>
-                )}
-
-                {/* Wait Time / Status */}
-                {slot.appointment.checkedInAt && slot.appointment.startTime && (
-                  <p className="text-xs text-slate-500 flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {(() => {
-                      const checkedIn = new Date(slot.appointment.checkedInAt!);
-                      const scheduled = new Date(slot.appointment.startTime!);
-                      const waitMinutes = (checkedIn.getTime() - scheduled.getTime()) / (1000 * 60);
-                      
-                      // Use grace period from clinic settings (default 15 minutes)
-                      const graceThreshold = gracePeriodMinutes || 15;
-                      
-                      if (waitMinutes < -graceThreshold) {
-                        // Checked in more than grace period early
-                        return `Entered ${Math.abs(Math.round(waitMinutes))}m early`;
-                      } else if (waitMinutes > graceThreshold) {
-                        // Checked in late (beyond grace period)
-                        return `Checked in ${Math.round(waitMinutes)}m late`;
-                      } else {
-                        // On time (within grace period)
-                        return `On time`;
-                      }
-                    })()}
-                  </p>
-                )}
-                {slot.appointment.startTime && !slot.appointment.checkedInAt && (
-                  <p className="text-xs text-slate-500 flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    Scheduled for {formatTime(new Date(slot.appointment.startTime))}
-                  </p>
-                )}
-              </div>
-            ) : null}
+    <div className="space-y-6">
+      {/* Header with Title and Filter */}
+      <div className="flex items-center justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-slate-600" />
+            <h2 className="text-2xl font-semibold text-slate-900">Time Slots</h2>
           </div>
-        ))}
+          <p className="text-sm text-slate-500">
+            {scheduledCount} {scheduledCount === 1 ? 'scheduled appointment' : 'scheduled appointments'}
+          </p>
+        </div>
+        
+        {/* Time Filter */}
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-slate-500" />
+          <Select value={timeFilter} onValueChange={(value) => setTimeFilter(value as TimeFilter)}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Filter by time" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-3 w-3" />
+                  All Day
+                </div>
+              </SelectItem>
+              <SelectItem value="morning">
+                <div className="flex items-center gap-2">
+                  <Sun className="h-3 w-3" />
+                  Morning
+                </div>
+              </SelectItem>
+              <SelectItem value="afternoon">
+                <div className="flex items-center gap-2">
+                  <Sun className="h-3 w-3" />
+                  Afternoon
+                </div>
+              </SelectItem>
+              <SelectItem value="evening">
+                <div className="flex items-center gap-2">
+                  <Moon className="h-3 w-3" />
+                  Evening
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Time Slot Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+        {filteredSlots.length === 0 ? (
+          <div className="col-span-full py-12 text-center">
+            <div className="mx-auto w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+              <Calendar className="h-8 w-8 text-slate-400" />
+            </div>
+            <p className="text-slate-600 font-medium">No slots found</p>
+            <p className="text-sm text-slate-500 mt-1">
+              {timeFilter !== "all" ? `Try adjusting the ${timeFilter} filter` : "No appointments scheduled"}
+            </p>
+          </div>
+        ) : (
+          <Fragment key="slots">
+            {filteredSlots.map((slot, index) => (
+            <div
+              key={index}
+              onClick={() => onSlotClick?.(slot)}
+              className={cn(
+                "relative rounded-xl border-2 transition-all cursor-pointer group",
+                "transform hover:scale-[1.02] hover:shadow-lg",
+                slot.isCurrent
+                  ? "border-green-500 bg-gradient-to-br from-green-50 via-emerald-50 to-green-50 shadow-xl ring-2 ring-green-200 ring-offset-2"
+                  : slot.isNext
+                  ? "border-orange-400 bg-gradient-to-br from-orange-50 via-amber-50 to-orange-50 shadow-lg ring-1 ring-orange-200"
+                  : slot.isEmpty
+                  ? slot.isPast
+                    ? "border-slate-200 bg-slate-50/50 opacity-60"
+                    : "border-blue-200 bg-gradient-to-br from-blue-50/50 to-cyan-50/30 hover:border-blue-400 hover:bg-blue-50 hover:shadow-md"
+                  : slot.isPast
+                  ? "border-slate-200 bg-white/60"
+                  : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-md"
+              )}
+            >
+              <div className="p-6">
+                {/* Time Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className={cn(
+                      "p-1.5 rounded-lg",
+                      slot.isCurrent ? "bg-green-100" : slot.isNext ? "bg-orange-100" : "bg-slate-100"
+                    )}>
+                      <Clock className={cn(
+                        "h-4 w-4",
+                        slot.isCurrent ? "text-green-700" : slot.isNext ? "text-orange-700" : "text-slate-600"
+                      )} />
+                    </div>
+                    <span className={cn(
+                      "text-lg font-bold tracking-tight",
+                      slot.isCurrent ? "text-green-900" : slot.isNext ? "text-orange-900" : "text-slate-800"
+                    )}>
+                      {formatTime(slot.time)}
+                    </span>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {slot.isCurrent && (
+                      <Badge className="bg-green-600 text-white text-xs font-medium px-2.5 py-0.5 shadow-sm">
+                        Active
+                      </Badge>
+                    )}
+                    {slot.isNext && !slot.isCurrent && (
+                      <Badge className="bg-orange-500 text-white text-xs font-medium px-2.5 py-0.5 shadow-sm">
+                        Next
+                      </Badge>
+                    )}
+                    {slot.freeTimeRange && !slot.isPast && (
+                      <Badge variant="outline" className="border-green-400 text-green-700 text-xs font-medium px-2.5 py-0.5 bg-green-50">
+                        <Plus className="h-3 w-3 mr-1" />Free
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                {/* Patient Info, Free Time Range, or Empty State */}
+                {slot.freeTimeRange ? (
+                  // Free Time Range Display
+                  <div className="text-center py-6">
+                    <div className="h-16 w-16 rounded-full bg-gradient-to-br from-green-100 to-emerald-100 flex items-center justify-center mx-auto mb-4 shadow-sm">
+                      <Plus className="h-8 w-8 text-green-600" />
+                    </div>
+                    <p className="text-sm text-slate-700 font-semibold mb-1">Free Time</p>
+                    <p className="text-xs text-slate-500 mb-2">
+                      {formatTime(slot.freeTimeRange.start)} - {formatTime(slot.freeTimeRange.end)}
+                    </p>
+                    <p className="text-xs text-slate-400 mb-3">
+                      {Math.round(slot.freeTimeRange.durationMinutes)} min available
+                    </p>
+                    {!slot.isPast && (
+                      <Badge className="bg-green-600 text-white text-xs font-medium px-3 py-1">
+                        Available for booking
+                      </Badge>
+                    )}
+                  </div>
+                ) : slot.appointment ? (
+                  <div className="space-y-4">
+                    {/* Patient Info */}
+                    <div className="flex items-start gap-3">
+                      <Avatar className={cn(
+                        "h-14 w-14 border-2 shadow-md flex-shrink-0",
+                        slot.isCurrent ? "border-green-300 ring-2 ring-green-200" : 
+                        slot.isNext ? "border-orange-300 ring-2 ring-orange-200" : 
+                        "border-slate-200"
+                      )}>
+                        <AvatarFallback className={cn(
+                          "text-sm font-bold",
+                          slot.isCurrent 
+                            ? "bg-gradient-to-br from-green-500 to-emerald-600 text-white"
+                            : slot.isNext
+                            ? "bg-gradient-to-br from-orange-500 to-amber-600 text-white"
+                            : "bg-gradient-to-br from-slate-400 to-slate-500 text-white"
+                        )}>
+                          {getInitials(slot.appointment.patient?.fullName)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <p className="font-semibold text-base truncate text-slate-900 leading-tight">
+                          {slot.appointment.patient?.fullName || 'Patient'}
+                        </p>
+                        <p className="text-sm text-slate-600 truncate">
+                          {slot.appointment.appointmentType}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Status Badges */}
+                    <div className="flex flex-wrap gap-2">
+                      {slot.appointment.isPresent ? (
+                        <Badge variant="outline" className="text-green-700 border-green-300 bg-green-50 text-xs font-medium px-2.5 py-1">
+                          <UserCheck className="h-3 w-3 mr-1.5" />Checked In
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 text-xs font-medium px-2.5 py-1">
+                          <AlertCircle className="h-3 w-3 mr-1.5" />Not Present
+                        </Badge>
+                      )}
+                      {slot.appointment.skipReason === SkipReason.PATIENT_ABSENT && (
+                        <Badge variant="outline" className="text-red-700 border-red-300 bg-red-50 text-xs font-medium px-2.5 py-1">
+                          <UserX className="h-3 w-3 mr-1.5" />Absent
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Actions - Only show for non-completed appointments */}
+                    {slot.appointment.status !== AppointmentStatus.COMPLETED && 
+                     slot.appointment.status !== AppointmentStatus.CANCELLED &&
+                     slot.appointment.status !== AppointmentStatus.NO_SHOW && (
+                      <div className="flex flex-col gap-2 pt-2 border-t border-slate-100">
+                        {!slot.appointment.isPresent && (slot.appointment.status === AppointmentStatus.WAITING || slot.appointment.status === AppointmentStatus.SCHEDULED) && (
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onMarkPresent?.(slot.appointment!.id);
+                            }}
+                            disabled={actionLoading}
+                            size="sm"
+                            className="w-full bg-green-600 hover:bg-green-700 text-white text-xs font-medium h-9 shadow-sm"
+                          >
+                            <UserCheck className="h-3.5 w-3.5 mr-1.5" />Mark Present
+                          </Button>
+                        )}
+                        {slot.appointment.isPresent && slot.appointment.status !== AppointmentStatus.IN_PROGRESS && (
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onMarkNotPresent?.(slot.appointment!.id);
+                            }}
+                            disabled={actionLoading}
+                            size="sm"
+                            variant="outline"
+                            className="w-full border-amber-300 text-amber-700 hover:bg-amber-50 text-xs font-medium h-9"
+                          >
+                            <AlertCircle className="h-3.5 w-3.5 mr-1.5" />Mark Not Present
+                          </Button>
+                        )}
+                        {(slot.appointment.status === AppointmentStatus.WAITING || slot.appointment.status === AppointmentStatus.SCHEDULED) && (
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onMarkAbsent?.(slot.appointment!.id);
+                            }}
+                            disabled={actionLoading}
+                            size="sm"
+                            variant="outline"
+                            className="w-full border-red-300 text-red-700 hover:bg-red-50 text-xs font-medium h-9"
+                          >
+                            <UserX className="h-3.5 w-3.5 mr-1.5" />Mark Absent
+                          </Button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Wait Time / Status */}
+                    {slot.appointment.checkedInAt && slot.appointment.startTime && (
+                      <div className="flex items-center gap-2 text-xs text-slate-600 pt-2 border-t border-slate-100">
+                        <Clock className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                        <span className="font-medium">
+                          {(() => {
+                            const checkedIn = new Date(slot.appointment.checkedInAt!);
+                            const scheduled = new Date(slot.appointment.startTime!);
+                            const waitMinutes = (checkedIn.getTime() - scheduled.getTime()) / (1000 * 60);
+                            
+                            // Use grace period from clinic settings (default 15 minutes)
+                            const graceThreshold = gracePeriodMinutes || 15;
+                            
+                            if (waitMinutes < -graceThreshold) {
+                              // Checked in more than grace period early
+                              return `Entered ${Math.abs(Math.round(waitMinutes))}m early`;
+                            } else if (waitMinutes > graceThreshold) {
+                              // Checked in late (beyond grace period)
+                              return `Checked in ${Math.round(waitMinutes)}m late`;
+                            } else {
+                              // On time (within grace period)
+                              return `On time`;
+                            }
+                          })()}
+                        </span>
+                      </div>
+                    )}
+                    {slot.appointment.startTime && !slot.appointment.checkedInAt && (
+                      <div className="flex items-center gap-2 text-xs text-slate-600 pt-2 border-t border-slate-100">
+                        <Clock className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                        <span className="font-medium">
+                          Scheduled for {formatTime(new Date(slot.appointment.startTime))}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            ))}
+          </Fragment>
+        )}
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
-        <div className="flex items-center gap-2">
-          <div className="h-4 w-4 rounded border-2 border-green-500 bg-green-50"></div>
-          <span className="text-xs text-slate-600">Currently Serving</span>
+      <div className="flex flex-wrap items-center gap-6 p-5 bg-gradient-to-r from-slate-50 to-slate-100/50 rounded-xl border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-2.5">
+          <div className="h-5 w-5 rounded-md border-2 border-green-500 bg-green-50 shadow-sm"></div>
+          <span className="text-sm font-medium text-slate-700">Currently Serving</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="h-4 w-4 rounded border-2 border-orange-400 bg-orange-50"></div>
-          <span className="text-xs text-slate-600">Next Patient</span>
+        <div className="flex items-center gap-2.5">
+          <div className="h-5 w-5 rounded-md border-2 border-orange-400 bg-orange-50 shadow-sm"></div>
+          <span className="text-sm font-medium text-slate-700">Next Patient</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="h-4 w-4 rounded border-2 border-green-200 bg-green-50"></div>
-          <span className="text-xs text-slate-600">Free Time Range (Available)</span>
+        <div className="flex items-center gap-2.5">
+          <div className="h-5 w-5 rounded-md border-2 border-blue-200 bg-blue-50 shadow-sm"></div>
+          <span className="text-sm font-medium text-slate-700">Free Time (Available)</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="h-4 w-4 rounded border-2 border-slate-200 bg-slate-50 opacity-60"></div>
-          <span className="text-xs text-slate-600">Past</span>
+        <div className="flex items-center gap-2.5">
+          <div className="h-5 w-5 rounded-md border-2 border-slate-200 bg-slate-50 opacity-60 shadow-sm"></div>
+          <span className="text-sm font-medium text-slate-700">Past</span>
         </div>
       </div>
     </div>

@@ -21,7 +21,7 @@ import { QueueEntry, CreateQueueEntryDTO, MarkAbsentDTO, ReorderQueueDTO, CallNe
 
 export interface ScheduleData {
   operatingMode: string;
-  queueMode: string; // 'fluid' | 'fixed' | 'hybrid'
+  queueMode: string; // 'fluid' | 'slotted'
   schedule: QueueEntry[];
 }
 
