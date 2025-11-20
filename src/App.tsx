@@ -41,6 +41,9 @@ import PatientLayout from "./layouts/PatientLayout.tsx";
 // Protected Route Component
 import { ProtectedRoute } from "./components/auth/ProtectedRoute.tsx";
 
+// Chat Widget
+import { ChatWidget } from "./components/chat/ChatWidget.tsx";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -101,6 +104,8 @@ const App = () => (
           {/* ======================================================= */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        {/* Global Chat Widget */}
+        <ChatWidget />
       </TooltipProvider>
     </BrowserRouter>
   </QueryClientProvider>
