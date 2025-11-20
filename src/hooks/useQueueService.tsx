@@ -41,6 +41,15 @@ export function useQueueService(options: UseQueueServiceOptions) {
   const [queueService] = useState(() => new QueueService());
   const { toast } = useToast();
 
+  // Helper function to get today's date in local timezone (YYYY-MM-DD)
+  const getTodayLocal = (): string => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const refreshSchedule = useCallback(async () => {
     if (!staffId) {
       setIsLoading(false);
@@ -49,8 +58,29 @@ export function useQueueService(options: UseQueueServiceOptions) {
     }
     setIsLoading(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getTodayLocal(); // Use local timezone instead of UTC
+      logger.debug("Fetching appointments for Live Queue", {
+        staffId,
+        date: today,
+        note: "Live Queue always shows today's appointments"
+      });
+      
       const data = await queueService.getDailySchedule(staffId, today);
+      
+      logger.debug("Appointments fetched for Live Queue", {
+        date: today,
+        count: data.schedule?.length || 0,
+        queueMode: data.queue_mode,
+        operatingMode: data.operating_mode,
+        appointments: data.schedule?.map(apt => ({
+          id: apt.id,
+          patient: apt.patient?.fullName || apt.guestPatient?.fullName || 'Unknown',
+          status: apt.status,
+          appointmentDate: apt.appointmentDate,
+          startTime: apt.startTime,
+        })) || []
+      });
+      
       setScheduleData({
         operatingMode: data.operating_mode || 'none',
         queueMode: data.queue_mode || 'fluid',
@@ -60,7 +90,7 @@ export function useQueueService(options: UseQueueServiceOptions) {
     } catch (err) {
       const error = err as Error;
       setError(error);
-      logger.error('Failed to refresh schedule', error, { staffId });
+      logger.error('Failed to refresh schedule', error, { staffId, date: getTodayLocal() });
     } finally {
       setIsLoading(false);
     }

@@ -9,12 +9,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
-import { Calendar as CalendarIcon, Plus, Clock, UserX, CheckCircle2, Activity, XCircle } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, Clock, UserX, CheckCircle2, Activity, XCircle, AlertCircle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { BookAppointmentDialog } from "@/components/clinic/BookAppointmentDialog";
-import { format } from "date-fns";
+import { format, isToday, isSameDay } from "date-fns";
 import { logger } from "@/services/shared/logging/Logger";
 import { QueueEntry, SkipReason } from "@/services/queue";
 import { QueueService } from "@/services/queue/QueueService";
@@ -73,6 +73,19 @@ export default function ClinicCalendar() {
     setLoadingAppointments(true);
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const isViewingToday = dateStr === todayStr;
+      
+      logger.debug("Fetching appointments for calendar", {
+        staffId,
+        selectedDate: dateStr,
+        today: todayStr,
+        isViewingToday,
+        note: isViewingToday 
+          ? "Calendar and Live Queue should show same appointments" 
+          : "Calendar shows different date than Live Queue (which only shows today)"
+      });
+      
       const scheduleData = await queueService.getDailySchedule(staffId, dateStr);
       const sortedAppointments = (scheduleData.schedule || []).sort((a, b) => {
         // ✅ Use startTime if available, fall back to scheduledTime
@@ -89,9 +102,22 @@ export default function ClinicCalendar() {
         
         return getTime(a) - getTime(b);
       });
+      
+      logger.debug("Appointments fetched for calendar", {
+        date: dateStr,
+        count: sortedAppointments.length,
+        appointments: sortedAppointments.map(apt => ({
+          id: apt.id,
+          patient: apt.patient?.fullName || apt.guestPatient?.fullName || 'Unknown',
+          status: apt.status,
+          appointmentDate: apt.appointmentDate,
+          startTime: apt.startTime,
+        }))
+      });
+      
       setAppointments(sortedAppointments);
     } catch (error) {
-      logger.error("Error fetching appointments", error as Error);
+      logger.error("Error fetching appointments", error as Error, { staffId, selectedDate: format(selectedDate, 'yyyy-MM-dd') });
       toast({ 
         title: "Error", 
         description: "Failed to load appointments", 
@@ -283,7 +309,15 @@ export default function ClinicCalendar() {
                 <CardTitle className="text-xl font-bold mb-2">
                   Appointments for {format(selectedDate, 'MMMM d, yyyy')}
                 </CardTitle>
-                <CardDescription className="text-base">
+                <CardDescription className="text-base space-y-2">
+                  {!isToday(selectedDate) && (
+                    <div className="flex items-center gap-2 text-amber-600 font-medium bg-amber-50 px-3 py-1.5 rounded-md border border-amber-200">
+                      <AlertCircle className="w-4 h-4" />
+                      <span>
+                        Viewing {format(selectedDate, 'MMMM d')} - Live Queue only shows today's appointments
+                      </span>
+                    </div>
+                  )}
                   {isClosed ? (
                     <span className="flex items-center gap-2 text-red-600 font-semibold">
                       <XCircle className="w-4 h-4" />
