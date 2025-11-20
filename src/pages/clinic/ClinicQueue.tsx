@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { clinicService } from "@/services/clinic";
 import { staffService } from "@/services/staff";
 import { Button } from "@/components/ui/button";
-import { UserPlus, Calendar, XCircle, Sparkles, Clock, Users, Activity, AlertCircle } from "lucide-react";
+import { UserPlus, Calendar, XCircle, Users, AlertCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { BookAppointmentDialog } from "@/components/clinic/BookAppointmentDialog";
 import { EnhancedQueueManager } from "@/components/clinic/EnhancedQueueManager";
@@ -168,69 +168,6 @@ export default function ClinicQueue() {
             <XCircle className="w-5 h-5 mr-2" />
             End Day
           </Button>
-        </div>
-      </div>
-
-      {/* Quick Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="group relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-white to-blue-50/50 rounded-2xl p-5">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-500/10 to-transparent rounded-full blur-2xl"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-gray-600">Waiting</span>
-              <div className="p-2 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 group-hover:scale-110 transition-transform">
-                <Clock className="w-4 h-4 text-blue-600" />
-              </div>
-            </div>
-            <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-              {queueSummary.waiting}
-            </div>
-          </div>
-        </div>
-
-        <div className="group relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-white to-green-50/50 rounded-2xl p-5">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-green-500/10 to-transparent rounded-full blur-2xl"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-gray-600">Active</span>
-              <div className="p-2 rounded-lg bg-gradient-to-br from-green-100 to-emerald-200 group-hover:scale-110 transition-transform">
-                <Activity className="w-4 h-4 text-green-600 animate-pulse" />
-              </div>
-            </div>
-            <div className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-              {queueSummary.inProgress}
-            </div>
-          </div>
-        </div>
-
-        <div className="group relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-white to-orange-50/50 rounded-2xl p-5">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-500/10 to-transparent rounded-full blur-2xl"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-gray-600">Absent</span>
-              <div className="p-2 rounded-lg bg-gradient-to-br from-orange-100 to-amber-200 group-hover:scale-110 transition-transform">
-                <Users className="w-4 h-4 text-orange-600" />
-              </div>
-            </div>
-            <div className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
-              {queueSummary.absent}
-            </div>
-          </div>
-        </div>
-
-        <div className="group relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-white to-purple-50/50 rounded-2xl p-5">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-purple-500/10 to-transparent rounded-full blur-2xl"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-gray-600">Completed</span>
-              <div className="p-2 rounded-lg bg-gradient-to-br from-purple-100 to-purple-200 group-hover:scale-110 transition-transform">
-                <Sparkles className="w-4 h-4 text-purple-600" />
-              </div>
-            </div>
-            <div className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-              {queueSummary.completed}
-            </div>
-          </div>
         </div>
       </div>
 

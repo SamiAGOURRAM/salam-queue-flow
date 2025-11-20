@@ -196,24 +196,10 @@ export function SlottedQueueView({
   const getInitials = (name?: string) => !name ? "?" : name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   const formatTime = (date: Date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   
-  // Count slots for header
-  const scheduledCount = allTimeSlots.filter(s => !s.isEmpty).length;
-
   return (
     <div className="space-y-6">
-      {/* Header with Title and Filter */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-slate-600" />
-            <h2 className="text-2xl font-semibold text-slate-900">Time Slots</h2>
-          </div>
-          <p className="text-sm text-slate-500">
-            {scheduledCount} {scheduledCount === 1 ? 'scheduled appointment' : 'scheduled appointments'}
-          </p>
-        </div>
-        
-        {/* Time Filter */}
+      {/* Time Filter */}
+      <div className="flex items-center justify-end">
         <div className="flex items-center gap-2">
           <Filter className="h-4 w-4 text-slate-500" />
           <Select value={timeFilter} onValueChange={(value) => setTimeFilter(value as TimeFilter)}>

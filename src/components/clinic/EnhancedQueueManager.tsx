@@ -289,14 +289,18 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
                       disabled={
                         actionLoading || 
                         !!currentPatient || 
-                        (isSlottedMode && waitingPatients.filter(p => p.isPresent || (p.startTime && new Date(p.startTime) <= new Date())).length === 0)
+                        (isSlottedMode 
+                          ? waitingPatients.filter(p => p.isPresent || (p.startTime && new Date(p.startTime) <= new Date())).length === 0
+                          : waitingPatients.filter(p => p.isPresent).length === 0)
                       } 
                       size="lg"
                       title={
                         currentPatient 
                           ? "Complete current appointment first"
-                          : waitingPatients.filter(p => p.isPresent || (p.startTime && new Date(p.startTime) <= new Date())).length === 0
-                          ? "No patients present or ready"
+                          : (isSlottedMode 
+                            ? waitingPatients.filter(p => p.isPresent || (p.startTime && new Date(p.startTime) <= new Date())).length === 0
+                            : waitingPatients.filter(p => p.isPresent).length === 0)
+                          ? "No patients present - mark patients as present to call them"
                           : "Call next patient"
                       }
                     >
@@ -326,6 +330,8 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
                     patients={waitingPatients}
                     currentPatient={currentPatient}
                     onMarkAbsent={handleMarkAbsent}
+                    onMarkPresent={handleMarkPresent}
+                    onMarkNotPresent={handleMarkNotPresent}
                     loading={actionLoading}
                   />
                 )}
