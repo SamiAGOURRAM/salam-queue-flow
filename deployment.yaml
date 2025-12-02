@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: salam-queue
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: salam-queue
+  template:
+    metadata:
+      labels:
+        app: salam-queue
+    spec:
+      containers:
+      - name: salam-queue
+        image: intidar:v2           # <--- The image you just built
+        imagePullPolicy: Never       # <--- CRITICAL: Use local Minikube image
+        ports:
+        - containerPort: 3000        # <--- The port we exposed in Dockerfile
+
