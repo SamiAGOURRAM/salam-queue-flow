@@ -15,27 +15,19 @@ export class CugaChatService implements IChatService {
   private history: ChatMessage[] = [];
 
   constructor() {
-    this.apiUrl = import.meta.env.VITE_CUGA_API_URL || "";
+    this.apiUrl = import.meta.env.VITE_CUGA_API_URL || "http://localhost:3000/api";
+    // API Key might not be needed for local server if it handles auth or is open
     this.apiKey = import.meta.env.VITE_CUGA_API_KEY || "";
     this.agentId = import.meta.env.VITE_CUGA_AGENT_ID;
-
-    if (!this.apiUrl || !this.apiKey) {
-      console.warn(
-        "CUGA API credentials not configured. Please set VITE_CUGA_API_URL and VITE_CUGA_API_KEY"
-      );
-    }
   }
 
   async sendMessage(message: string, context?: ChatContext): Promise<ChatResponse> {
-    // TODO: Implement CUGA API call
-    // Example structure (will need to be updated based on actual CUGA API):
-    /*
     try {
       const response = await fetch(`${this.apiUrl}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${this.apiKey}`,
+          ...(this.apiKey ? { "Authorization": `Bearer ${this.apiKey}` } : {}),
         },
         body: JSON.stringify({
           message,
@@ -45,7 +37,7 @@ export class CugaChatService implements IChatService {
       });
 
       if (!response.ok) {
-        throw new Error(`CUGA API error: ${response.statusText}`);
+        throw new Error(`BeeAI Agent API error: ${response.statusText}`);
       }
 
       const data = await response.json();
@@ -57,6 +49,7 @@ export class CugaChatService implements IChatService {
         timestamp: new Date(),
       };
 
+      // Note: History management might be better handled by the caller or synchronized
       this.history.push({
         id: (Date.now() - 1).toString(),
         text: message,
@@ -67,17 +60,13 @@ export class CugaChatService implements IChatService {
       this.history.push(assistantMessage);
 
       return {
-        message: data.response || data.message,
-        timestamp: new Date(),
+        message: assistantMessage.text,
+        timestamp: assistantMessage.timestamp,
       };
     } catch (error) {
-      console.error("CUGA API error:", error);
+      console.error("BeeAI Agent API error:", error);
       throw error;
     }
-    */
-
-    // Placeholder until CUGA is integrated
-    throw new Error("CUGA integration not yet implemented. Please check the CUGA repository and update this service.");
   }
 
   async getHistory(): Promise<ChatMessage[]> {

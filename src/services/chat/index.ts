@@ -19,16 +19,19 @@ import type { IChatService } from "./ChatService";
  */
 export function createChatService(): IChatService {
   const useCuga = import.meta.env.VITE_CUGA_ENABLED === "true";
-  const hasCugaConfig = 
-    import.meta.env.VITE_CUGA_API_URL && 
-    import.meta.env.VITE_CUGA_API_KEY;
+  // We only strictly require API URL. Key might be optional for local dev.
+  const hasCugaConfig = !!import.meta.env.VITE_CUGA_API_URL;
 
-  if (useCuga && hasCugaConfig) {
-    try {
-      return new CugaChatService();
-    } catch (error) {
-      console.warn("Failed to initialize CUGA service, falling back to mock:", error);
-      return new MockChatService();
+  if (useCuga) {
+    if (hasCugaConfig) {
+      try {
+        return new CugaChatService();
+      } catch (error) {
+        console.warn("Failed to initialize CUGA service, falling back to mock:", error);
+        return new MockChatService();
+      }
+    } else {
+      console.warn("CUGA enabled but VITE_CUGA_API_URL is missing. Falling back to mock.");
     }
   }
 

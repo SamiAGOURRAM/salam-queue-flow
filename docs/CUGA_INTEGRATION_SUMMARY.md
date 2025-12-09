@@ -129,9 +129,30 @@ src/
 
 **UI**: ✅ Complete and functional
 **Service Layer**: ✅ Architecture ready
-**CUGA Integration**: ⏳ Pending repository access
+**CUGA Integration**: ✅ Server setup with BeeAI Framework (Node.js)
 
-The chatbot is **fully functional** with the mock service and ready for CUGA integration once the repository/API is available.
+The chatbot is **fully functional** with the mock service. The BeeAI backend is set up in `server/` and ready to be connected.
+
+## 🐝 BeeAI Framework Integration
+
+We have identified that "CUGA" is now the **BeeAI Framework** (formerly Bee Agent Framework).
+
+We have set up a Node.js server in `server/` to run the agent.
+
+### Setup
+1. Navigate to `server/` directory.
+2. Run `npm install`.
+3. Create `.env` with `GROQ_API_KEY`.
+4. Run `npm run dev`.
+
+### Architecture
+We use the **OpenAI Adapter** (`OpenAIChatModel`) configured with Groq's base URL (`https://api.groq.com/openai/v1`). This ensures:
+- **Standardization**: The code uses the standard OpenAI interface.
+- **Flexibility**: Easy to switch to OpenAI, Azure OpenAI, or other compatible providers later.
+- **Performance**: Uses Groq's Llama 3 model for fast inference.
+
+### Integration
+The `CugaChatService.ts` has been updated to communicate with this local server at `http://localhost:3000/api/chat`.
 
 ## 📝 Notes
 
@@ -139,14 +160,4 @@ The chatbot is **fully functional** with the mock service and ready for CUGA int
 - Context is automatically passed (user role, current route)
 - Error handling is in place
 - The UI matches the app's design system (Tailwind CSS, shadcn/ui)
-
-## 🔍 Finding CUGA
-
-To locate the CUGA repository:
-1. Check IBM Research website
-2. Search GitHub for "cuga" or "configurable generalist agent"
-3. Check IBM Cloud documentation
-4. Contact IBM support if needed
-
-Once found, update `CugaChatService.ts` with the actual API implementation.
 
