@@ -1,0 +1,9 @@
+# QueueMed Monorepo Workspace Configuration
+# This defines which directories contain packages in the monorepo
+
+packages:
+  # Shared packages (business logic, database, utils)
+  - "packages/*"
+  # Applications (web, mcp-server, api)
+  - "apps/*"
+

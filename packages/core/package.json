@@ -1,0 +1,47 @@
+{
+  "name": "@queuemed/core",
+  "version": "0.1.0",
+  "description": "QueueMed core business logic - services and repositories",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./services/*": {
+      "types": "./dist/services/*/index.d.ts",
+      "import": "./dist/services/*/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.74.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "rimraf": "^5.0.5"
+  },
+  "peerDependencies": {
+    "@supabase/supabase-js": "^2.74.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "queuemed",
+    "healthcare",
+    "queue-management",
+    "morocco"
+  ]
+}
+

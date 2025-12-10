@@ -13,6 +13,12 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Enable importing from @queuemed/core
+      "@queuemed/core": path.resolve(__dirname, "../../packages/core/src"),
     },
+  },
+  // Optimize deps for workspace packages
+  optimizeDeps: {
+    include: ["@queuemed/core"],
   },
 }));

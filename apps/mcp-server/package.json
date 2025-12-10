@@ -1,0 +1,48 @@
+{
+  "name": "@queuemed/mcp-server",
+  "version": "0.1.0",
+  "description": "MCP Server for QueueMed Healthcare Platform - Revolutionizing Moroccan Healthcare",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "inspector": "npx @modelcontextprotocol/inspector tsx src/index.ts",
+    "test:local": "tsx scripts/test-local.ts",
+    "test:auth": "tsx scripts/test-with-auth.ts",
+    "test:comprehensive": "tsx scripts/test-comprehensive.ts",
+    "test:real": "tsx scripts/test-real-data.ts",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "healthcare",
+    "morocco",
+    "queue-management",
+    "ai-assistant"
+  ],
+  "author": "QueueMed Team",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@queuemed/core": "workspace:*",
+    "@supabase/supabase-js": "^2.74.0",
+    "dotenv": "^16.4.7",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.8.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
+

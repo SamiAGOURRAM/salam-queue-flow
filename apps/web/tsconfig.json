@@ -4,7 +4,9 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@queuemed/core": ["../../packages/core/src/index.ts"],
+      "@queuemed/core/*": ["../../packages/core/src/*"]
     },
     "noImplicitAny": false,
     "noUnusedParameters": false,
