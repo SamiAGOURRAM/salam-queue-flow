@@ -114,6 +114,14 @@ export function formatErrorResponse(error: unknown): {
   } else if (error instanceof Error) {
     message = error.message;
     code = "INTERNAL_ERROR";
+  } else if (typeof error === 'object' && error !== null) {
+    // Handle Supabase and other error objects that aren't Error instances
+    const errorObj = error as Record<string, unknown>;
+    message = (errorObj.message as string) || 
+              (errorObj.error as string) || 
+              (errorObj.details as string) ||
+              JSON.stringify(error);
+    code = (errorObj.code as string) || "UNKNOWN_ERROR";
   } else {
     message = String(error);
     code = "UNKNOWN_ERROR";

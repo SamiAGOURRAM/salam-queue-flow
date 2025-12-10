@@ -14,6 +14,11 @@ import type { ChatMessage } from "@/services/chat";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "react-router-dom";
 
+interface ChatWindowProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
 export function ChatWindow({ isOpen, onClose }: ChatWindowProps) {
   const { user, isClinicOwner, isStaff } = useAuth();
   const location = useLocation();

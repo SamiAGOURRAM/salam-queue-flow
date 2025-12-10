@@ -37,7 +37,7 @@ export class ClinicRepository extends BaseRepository {
         return null;
       }
       this.logError('Failed to get clinic', new Error(error.message), { clinicId });
-      throw error;
+      throw new Error(error.message || 'Failed to get clinic');
     }
 
     return this.mapToClinic(data);
@@ -76,7 +76,7 @@ export class ClinicRepository extends BaseRepository {
 
     if (error) {
       this.logError('Failed to search clinics', new Error(error.message), params as Record<string, unknown>);
-      throw error;
+      throw new Error(error.message || 'Failed to search clinics');
     }
 
     return (data || []).map(row => this.mapToClinic(row));
