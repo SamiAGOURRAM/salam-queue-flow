@@ -1,24 +1,41 @@
-/**
- * ClinicQueue Page (DEBUGGING VERSION WITH ENHANCED STYLING)
- * This version adds console logs to trace the fetching of clinicId and staffId.
- */
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { clinicService } from "@/services/clinic";
 import { staffService } from "@/services/staff";
 import { Button } from "@/components/ui/button";
-import { UserPlus, Calendar, XCircle, Users, AlertCircle } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { 
+  UserPlus, 
+  Calendar, 
+  XCircle, 
+  Users, 
+  AlertCircle,
+  Clock,
+  CheckCircle2,
+  Play,
+  MoreVertical,
+  ArrowRight,
+  Phone,
+  Mail
+} from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { BookAppointmentDialog } from "@/components/clinic/BookAppointmentDialog";
 import { EnhancedQueueManager } from "@/components/clinic/EnhancedQueueManager";
 import { EndDayConfirmationDialog } from "@/components/clinic/EndDayConfirmationDialog";
-// Removed duplicate useQueueService - EnhancedQueueManager already uses it
 import { AppointmentStatus, SkipReason } from "@/services/queue";
 import { logger } from "@/services/shared/logging/Logger";
+import { format } from "date-fns";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface StaffProfile {
-  id: string; // This is the staff_id
+  id: string;
 }
 
 interface ClinicInfo {
@@ -35,29 +52,21 @@ export default function ClinicQueue() {
   const [queueRefreshKey, setQueueRefreshKey] = useState(0);
   const [queueSummary, setQueueSummary] = useState({ waiting: 0, inProgress: 0, absent: 0, completed: 0 });
 
-  // Don't duplicate useQueueService here - EnhancedQueueManager already has it
-  // Just get the summary from EnhancedQueueManager via callback
-
   const fetchClinicAndStaffData = useCallback(async () => {
     if (!user || (!isClinicOwner && !isStaff)) return;
 
     try {
       let clinicId: string | null = null;
       
-      // Try clinic owner path first
       if (isClinicOwner) {
         logger.debug("Attempting to fetch clinic by owner", { userId: user.id });
         const ownerClinic = await clinicService.getClinicByOwner(user.id);
         if (ownerClinic) {
           clinicId = ownerClinic.id;
           logger.debug("Found clinic by owner", { clinicId, userId: user.id });
-        } else {
-          logger.warn("User is clinic owner but no clinic found with this owner_id", { userId: user.id });
         }
       }
       
-      // If clinic owner path didn't work, try staff path as fallback
-      // (Some users might be both owner and staff, or owner role might be misconfigured)
       if (!clinicId && isStaff) {
         logger.debug("Attempting to fetch clinic via staff path", { userId: user.id });
         const staffData = await staffService.getStaffByUser(user.id);
@@ -68,32 +77,22 @@ export default function ClinicQueue() {
       }
 
       if (!clinicId) {
-        const errorMsg = "Could not determine the clinic for your account. " +
-          (isClinicOwner && isStaff 
-            ? "Please ensure you have a clinic assigned as owner or a staff profile." 
-            : isClinicOwner 
-            ? "Please ensure you have a clinic assigned as owner in the clinics table." 
-            : "Please ensure you have a staff profile assigned to a clinic.");
+        const errorMsg = "Could not determine the clinic for your account.";
         logger.error("Could not determine clinic", { userId: user.id, isClinicOwner, isStaff });
         throw new Error(errorMsg);
       }
       
       setClinic({ id: clinicId });
 
-      // Use StaffService to get staff by clinic and user
-      // For clinic owners, they might also need a staff profile to use the queue
       const staffData = await staffService.getStaffByClinicAndUser(clinicId, user.id);
       
-        if (!staffData) {
-        // This is a warning, not a hard error - clinic owners might not have staff profiles
+      if (!staffData) {
         logger.warn("Could not find a staff profile for user in clinic", { 
           userId: user.id, 
           clinicId,
           isClinicOwner,
           isStaff 
         });
-        // Don't set staffProfile - leave it null so UI can show appropriate message
-        // The queue manager requires a staffId, so we can't proceed without it
       } else {
         setStaffProfile({ id: staffData.id });
       }
@@ -120,14 +119,14 @@ export default function ClinicQueue() {
 
   return (
     <div className="space-y-6">
-      {/* Clean Header Section */}
+      {/* Header Section */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Today's Queue</h1>
-          <div className="flex items-center gap-2 text-base text-gray-600">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground-primary">Live Queue</h1>
+          <div className="flex items-center gap-2 text-sm text-foreground-muted">
             <Calendar className="w-4 h-4" />
             <span>
-              {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+              {format(new Date(), "EEEE, MMMM d, yyyy")}
             </span>
           </div>
         </div>
@@ -140,7 +139,7 @@ export default function ClinicQueue() {
               setShowBookAppointment(true);
             }} 
             size="lg" 
-            className="flex-1 sm:flex-none bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg hover:shadow-xl transition-all rounded-xl"
+            className="flex-1 sm:flex-none bg-primary hover:bg-primary-600 shadow-md hover:shadow-lg transition-all rounded-xl"
           >
             <Calendar className="w-5 h-5 mr-2" />
             Book Appointment
@@ -153,7 +152,7 @@ export default function ClinicQueue() {
             }} 
             variant="outline"
             size="lg" 
-            className="flex-1 sm:flex-none border-2 hover:border-blue-400 hover:bg-blue-50 shadow-sm rounded-xl transition-all"
+            className="flex-1 sm:flex-none border-2 border-border/80 hover:border-primary/40 hover:bg-primary-50/30 hover:shadow-sm rounded-xl transition-all"
           >
             <UserPlus className="w-5 h-5 mr-2" />
             Add Walk-in
@@ -163,7 +162,7 @@ export default function ClinicQueue() {
             onClick={() => setShowEndDay(true)} 
             variant="outline"
             size="lg" 
-            className="flex-1 sm:flex-none border-2 border-red-300 text-red-700 hover:bg-red-50 hover:border-red-400 shadow-sm rounded-xl transition-all"
+            className="flex-1 sm:flex-none border-2 border-destructive/40 text-destructive hover:bg-destructive/10 hover:border-destructive/60 hover:shadow-sm rounded-xl transition-all"
           >
             <XCircle className="w-5 h-5 mr-2" />
             End Day
@@ -174,35 +173,37 @@ export default function ClinicQueue() {
       {/* Enhanced Queue Manager */}
       <div className="relative">
         {clinic?.id && user?.id && staffProfile?.id ? (
-          <div className="relative overflow-hidden rounded-2xl bg-white shadow-lg border border-gray-100">
-            <EnhancedQueueManager 
-              key={queueRefreshKey}
-              clinicId={clinic.id} 
-              userId={user.id}
-              staffId={staffProfile.id}
-              onSummaryChange={setQueueSummary}
-            />
-          </div>
+          <EnhancedQueueManager 
+            key={queueRefreshKey}
+            clinicId={clinic.id} 
+            userId={user.id}
+            staffId={staffProfile.id}
+            onSummaryChange={setQueueSummary}
+          />
         ) : clinic?.id && user?.id ? (
-          <div className="relative overflow-hidden rounded-2xl bg-white shadow-lg border border-gray-100 p-16 text-center">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-100 to-amber-100 flex items-center justify-center mx-auto mb-6">
-              <AlertCircle className="w-10 h-10 text-orange-600" />
-            </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Staff Profile Required</h3>
-            <p className="text-gray-500 mb-4">
-              {isClinicOwner 
-                ? "As a clinic owner, you need a staff profile to manage the queue. Please contact support to set up your staff profile."
-                : "A staff profile is required to manage the queue. Please contact your clinic administrator."}
-            </p>
-          </div>
+          <Card className="border-2 border-border/80 shadow-md">
+            <CardContent className="p-16 text-center">
+              <div className="w-20 h-20 rounded-2xl bg-warning/10 flex items-center justify-center mx-auto mb-6">
+                <AlertCircle className="w-10 h-10 text-warning" />
+              </div>
+              <h3 className="text-xl font-bold text-foreground-primary mb-2">Staff Profile Required</h3>
+              <p className="text-foreground-muted mb-4">
+                {isClinicOwner 
+                  ? "As a clinic owner, you need a staff profile to manage the queue. Please contact support to set up your staff profile."
+                  : "A staff profile is required to manage the queue. Please contact your clinic administrator."}
+              </p>
+            </CardContent>
+          </Card>
         ) : (
-          <div className="relative overflow-hidden rounded-2xl bg-white shadow-lg border border-gray-100 p-16 text-center">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center mx-auto mb-6 animate-pulse">
-              <Users className="w-10 h-10 text-blue-600" />
-            </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Loading Queue Manager</h3>
-            <p className="text-gray-500">Waiting for Clinic and Staff IDs...</p>
-          </div>
+          <Card className="border-2 border-border/80 shadow-md">
+            <CardContent className="p-16 text-center">
+              <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6 animate-pulse">
+                <Users className="w-10 h-10 text-primary" />
+              </div>
+              <h3 className="text-xl font-bold text-foreground-primary mb-2">Loading Queue Manager</h3>
+              <p className="text-foreground-muted">Waiting for Clinic and Staff IDs...</p>
+            </CardContent>
+          </Card>
         )}
       </div>
 

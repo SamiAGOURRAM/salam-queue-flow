@@ -4,7 +4,24 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/services/shared/logging/Logger";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { 
   Activity, 
   Users, 
@@ -12,16 +29,24 @@ import {
   Settings, 
   UserPlus, 
   LayoutDashboard,
-  LogOut
+  LogOut,
+  Search,
+  Bell,
+  Mail,
+  Sun,
+  Moon,
+  ChevronDown,
+  User
 } from "lucide-react";
+import { useTheme } from "next-themes";
+import { cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
 
 type ClinicRow = Database["public"]["Tables"]["clinics"]["Row"];
 
-  
-
 export default function ClinicLayout() {
   const { user, loading, isClinicOwner, isStaff, rolesLoading, userRoles, signOut } = useAuth();
+  const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [clinic, setClinic] = useState<ClinicRow | null>(null);
@@ -29,36 +54,18 @@ export default function ClinicLayout() {
   const fetchClinic = useCallback(async () => {
     if (!user) return;
     
-    // Debug: Log current role state
-    logger.debug("Fetching clinic - checking roles", { 
-      userId: user?.id, 
-      isClinicOwner, 
-      isStaff,
-      rolesLoading,
-      userRolesCount: userRoles.length,
-      hasRoles: userRoles.length > 0
-    });
-    
-    // If roles are still loading, wait for them to finish
-    // This prevents the initial false negative when roles haven't loaded yet
     if (rolesLoading) {
       logger.debug("Roles still loading, will retry when roles are available", { userId: user?.id });
       return;
     }
     
-    // Even if rolesLoading is false, we need to ensure roles have actually been loaded
-    // When waiting for another instance's promise, rolesLoading might be false before userRoles is set
-    // Check if we have roles OR if isClinicOwner/isStaff are true (which means roles have been processed)
     const hasRolesLoaded = userRoles.length > 0 || isClinicOwner || isStaff;
     
     if (!hasRolesLoaded) {
-      // Roles haven't loaded yet, even though rolesLoading is false
-      // This can happen when waiting for another instance's promise
-      logger.debug("Roles not loaded yet (waiting for promise resolution), will retry", { userId: user?.id });
+      logger.debug("Roles not loaded yet, will retry", { userId: user?.id });
       return;
     }
     
-    // If roles have finished loading and user has no clinic owner or staff role, they shouldn't be here
     if (!isClinicOwner && !isStaff) {
       logger.warn("User is not clinic owner or staff", { userId: user?.id, roles: userRoles });
       return;
@@ -71,7 +78,6 @@ export default function ClinicLayout() {
         logger.debug("User is clinic owner, fetching clinic by owner_id", { userId: user?.id });
         query = query.eq("owner_id", user?.id);
       } else if (isStaff) {
-        // For staff, get clinic from clinic_staff table
         const { data: staffData, error: staffError } = await supabase
           .from("clinic_staff")
           .select("clinic_id")
@@ -79,7 +85,6 @@ export default function ClinicLayout() {
           .maybeSingle();
 
         if (staffError) {
-          // Check if it's a 406 error (RLS blocking or format mismatch)
           const is406Error = staffError.code === 'PGRST116' || 
                             staffError.message?.includes('406') || 
                             staffError.message?.includes('Not Acceptable') ||
@@ -96,17 +101,14 @@ export default function ClinicLayout() {
         if (staffData) {
           query = query.eq("id", staffData.clinic_id);
         } else {
-          // Staff user but no clinic_staff record found
           logger.warn("Staff user has no clinic_staff record", { userId: user?.id });
           return;
         }
       }
 
-      // Use .maybeSingle() instead of .single() to avoid 406 errors when RLS blocks
       const { data, error } = await query.maybeSingle();
       
       if (error) {
-        // Check if it's a 406 error (RLS blocking or format mismatch)
         const is406Error = error.code === 'PGRST116' || 
                           error.message?.includes('406') || 
                           error.message?.includes('Not Acceptable') ||
@@ -130,8 +132,6 @@ export default function ClinicLayout() {
     if (!loading && !user) {
       navigate("/auth/login");
     } else if (user && !loading && !rolesLoading) {
-      // Wait for user, loading, and rolesLoading to be complete before fetching clinic
-      // The fetchClinic callback will re-run when isClinicOwner/isStaff change
       fetchClinic();
     }
   }, [user, loading, rolesLoading, isClinicOwner, isStaff, navigate, fetchClinic]);
@@ -141,7 +141,7 @@ export default function ClinicLayout() {
       name: "Dashboard",
       path: "/clinic/dashboard",
       icon: LayoutDashboard,
-      showFor: ["owner"], // Only owners see dashboard
+      showFor: ["owner"],
     },
     {
       name: "Live Queue",
@@ -159,18 +159,17 @@ export default function ClinicLayout() {
       name: "Team",
       path: "/clinic/team",
       icon: UserPlus,
-      showFor: ["owner"], // Only owners manage team
+      showFor: ["owner"],
     },
     {
       name: "Settings",
       path: "/clinic/settings",
       icon: Settings,
-      showFor: ["owner"], // Only owners access settings
+      showFor: ["owner"],
     },
   ];
 
   const userRole = isClinicOwner ? "owner" : isStaff ? "staff" : null;
-
   const visibleNavItems = navigationItems.filter((item) =>
     item.showFor.includes(userRole || "")
   );
@@ -188,82 +187,146 @@ export default function ClinicLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
-      {/* Persistent Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            {/* Clinic Name/Logo */}
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full">
+        <Sidebar className="border-r border-border/50">
+          <SidebarHeader className="border-b border-border/50 p-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 to-cyan-600 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
                 <Activity className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold">{clinic?.name || "QueueMed"}</h1>
-                <p className="text-xs text-muted-foreground">{clinic?.specialty}</p>
+                <h1 className="text-lg font-bold text-foreground-primary">{clinic?.name || "QueueMed"}</h1>
+                <p className="text-xs text-foreground-muted">{clinic?.specialty || "Healthcare"}</p>
               </div>
             </div>
+          </SidebarHeader>
 
-            {/* Navigation Tabs */}
-            <nav className="hidden md:flex items-center gap-2">
-              {visibleNavItems.map((item) => {
-                const Icon = item.icon;
-                const active = isActive(item.path);
-                
-                return (
-                  <Button
-                    key={item.path}
-                    variant={active ? "default" : "ghost"}
-                    onClick={() => navigate(item.path)}
-                    className={cn(
-                      "gap-2 transition-all",
-                      active && "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
-                    )}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {item.name}
-                  </Button>
-                );
-              })}
-            </nav>
+          <SidebarContent>
+            <SidebarGroup>
+              <SidebarGroupLabel className="text-xs font-semibold text-foreground-muted uppercase tracking-wider px-3 py-2">
+                Main Menu
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {visibleNavItems.map((item) => {
+                    const Icon = item.icon;
+                    const active = isActive(item.path);
+                    
+                    return (
+                      <SidebarMenuItem key={item.path}>
+                        <SidebarMenuButton
+                          onClick={() => navigate(item.path)}
+                          isActive={active}
+                          className={cn(
+                            "w-full justify-start",
+                            active && "bg-sidebar-primary text-sidebar-primary-foreground"
+                          )}
+                        >
+                          <Icon className="w-4 h-4" />
+                          <span>{item.name}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </SidebarContent>
 
-            {/* Sign Out */}
-            <Button variant="outline" onClick={signOut} className="gap-2">
-              <LogOut className="w-4 h-4" />
-              Sign Out
-            </Button>
-          </div>
-
-          {/* Mobile Navigation */}
-          <nav className="md:hidden flex items-center gap-2 mt-4 overflow-x-auto pb-2">
-            {visibleNavItems.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.path);
-              
-              return (
-                <Button
-                  key={item.path}
-                  variant={active ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => navigate(item.path)}
-                  className={cn(
-                    "gap-2 flex-shrink-0",
-                    active && "bg-gradient-to-r from-blue-600 to-cyan-600"
-                  )}
+          <SidebarFooter className="border-t border-border/50 p-4">
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={signOut}
+                  className="w-full justify-start text-destructive hover:bg-destructive/10 hover:text-destructive"
                 >
-                  <Icon className="w-4 h-4" />
-                  {item.name}
-                </Button>
-              );
-            })}
-          </nav>
-        </div>
-      </header>
+                  <LogOut className="w-4 h-4" />
+                  <span>Log Out</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarFooter>
+        </Sidebar>
 
-      {/* Main Content Area - Pages render here */}
-      <main className="container mx-auto px-4 py-8">
-        <Outlet />
-      </main>
-    </div>
+        <SidebarInset className="flex flex-col">
+          {/* Header */}
+          <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
+            <div className="flex h-16 items-center gap-4 px-6">
+              <SidebarTrigger />
+              
+              {/* Search */}
+              <div className="flex-1 max-w-md">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground-muted" />
+                  <Input
+                    type="search"
+                    placeholder="Search..."
+                    className="pl-9 h-10 rounded-full border-border/50 bg-background-secondary"
+                  />
+                </div>
+              </div>
+
+              {/* Right side actions */}
+              <div className="flex items-center gap-3 ml-auto">
+                {/* Theme Toggle */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                  className="h-10 w-10 rounded-full"
+                >
+                  <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                  <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                  <span className="sr-only">Toggle theme</span>
+                </Button>
+
+                {/* Notifications */}
+                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full relative">
+                  <Bell className="h-5 w-5" />
+                  <Badge className="absolute top-1 right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-destructive text-destructive-foreground">
+                    1
+                  </Badge>
+                </Button>
+
+                {/* Mail */}
+                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full">
+                  <Mail className="h-5 w-5" />
+                </Button>
+
+                {/* Profile */}
+                <div className="flex items-center gap-3 pl-3 border-l border-border/50">
+                  <div className="flex items-center gap-2">
+                    <div className="text-right hidden sm:block">
+                      <p className="text-sm font-medium text-foreground-primary">
+                        {user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User"}
+                      </p>
+                      <p className="text-xs text-foreground-muted flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-success animate-pulse"></span>
+                        Online
+                      </p>
+                    </div>
+                    <Avatar className="h-9 w-9">
+                      <AvatarImage src={user?.user_metadata?.avatar_url} />
+                      <AvatarFallback>
+                        <User className="h-4 w-4" />
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          {/* Main Content */}
+          <main className="flex-1 overflow-y-auto p-6">
+            <Outlet />
+          </main>
+        </SidebarInset>
+      </div>
+    </SidebarProvider>
   );
 }
