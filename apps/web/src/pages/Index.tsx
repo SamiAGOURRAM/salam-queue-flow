@@ -1,7 +1,7 @@
-import ClinicDirectory from "@/components/booking/ClinicDirectory";
+import PremiumLanding from "@/components/landing/PremiumLanding";
 
 const Index = () => {
-  return <ClinicDirectory />;
+  return <PremiumLanding />;
 };
 
 export default Index;

@@ -2,42 +2,41 @@ import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { 
-  Activity, 
-  Search, 
-  Calendar, 
+import {
+  Search,
+  Calendar,
   User,
   LogOut,
   LogIn,
   Info
 } from "lucide-react";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher"; // 🌍 IMPORT LANGUAGE SWITCHER
-import { useTranslation } from "react-i18next"; // 🌍 IMPORT i18n HOOK
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { useTranslation } from "react-i18next";
 
 export default function PatientLayout() {
-  const { user, signOut } = useAuth(); 
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { t } = useTranslation(); // 🌍 USE TRANSLATION HOOK
+  const { t } = useTranslation();
 
   const navigationItems = [
     {
-      name: t('nav.clinics'), // Will translate later
-      path: "/",
+      name: t('nav.clinics'),
+      path: "/clinics",
       icon: Search,
     },
     {
-      name: t('nav.appointments'), // Will translate later
+      name: t('nav.appointments'),
       path: "/my-appointments",
       icon: Calendar,
     },
     {
-      name: t('nav.profile'), // Will translate later
+      name: t('nav.profile'),
       path: "/patient/profile",
       icon: User,
     },
     {
-      name: t('nav.about'), // Keep as is for now
+      name: t('nav.about'),
       path: "/welcome",
       icon: Info,
     },
@@ -46,71 +45,67 @@ export default function PatientLayout() {
   const isActive = (path: string) => {
     return location.pathname === path;
   };
-  
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
-      {/* Persistent Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md shadow-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            {/* Logo/Brand */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 shadow-lg shadow-blue-500/30 cursor-pointer hover:shadow-xl transition-shadow"
-                onClick={() => navigate("/")}
-              >
-                <Activity className="w-6 h-6 text-white" />
-                <span className="text-xl font-bold text-white">INTIDAR</span>
+    <div className="min-h-screen bg-[#fafafa]">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center justify-between h-14">
+            {/* Logo */}
+            <button
+              onClick={() => navigate("/")}
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            >
+              <div className="w-7 h-7 rounded-md bg-gray-900 flex items-center justify-center">
+                <span className="text-white text-sm font-bold">Q</span>
               </div>
-            </div>
+              <span className="text-base font-semibold text-gray-900">QueueMed</span>
+            </button>
 
-            {/* Navigation Tabs (Only show if logged in, typically) */}
-            <nav className="hidden md:flex items-center gap-2">
+            {/* Desktop Navigation */}
+            <nav className="hidden md:flex items-center gap-1">
               {navigationItems.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.path);
-                
+
                 return (
-                  <Button
+                  <button
                     key={item.path}
-                    variant={active ? "default" : "ghost"}
                     onClick={() => navigate(item.path)}
                     className={cn(
-                      "gap-2 transition-all",
-                      active && "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+                      "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                      active
+                        ? "text-gray-900 bg-gray-100"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                     )}
                   >
                     <Icon className="w-4 h-4" />
                     {item.name}
-                  </Button>
+                  </button>
                 );
               })}
             </nav>
 
-            {/* 🌍 RIGHT SIDE: Language Switcher + Auth Button */}
-            <div className="flex items-center gap-3">
-              {/* Language Switcher */}
+            {/* Right Side */}
+            <div className="flex items-center gap-2">
               <LanguageSwitcher />
-              
-              {/* CONDITIONAL BUTTON: Sign Out vs Log In */}
+
               {user ? (
-                // If user is logged in, show Sign Out
-                <Button 
-                  variant="ghost" 
-                  onClick={signOut} 
-                  className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                <Button
+                  variant="ghost"
+                  onClick={signOut}
+                  className="h-9 px-3 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="w-4 h-4 mr-1.5" />
                   <span className="hidden sm:inline">{t('nav.logout')}</span>
                 </Button>
               ) : (
-                // If user is NOT logged in (or just signed out), show Log In
-                <Button 
-                  variant="default" 
-                  onClick={() => navigate('/auth/login')} 
-                  className="gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+                <Button
+                  onClick={() => navigate('/auth/login')}
+                  className="h-9 px-4 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-md"
                 >
-                  <LogIn className="w-4 h-4" />
+                  <LogIn className="w-4 h-4 mr-1.5" />
                   <span className="hidden sm:inline">{t('nav.login')}</span>
                 </Button>
               )}
@@ -118,33 +113,33 @@ export default function PatientLayout() {
           </div>
 
           {/* Mobile Navigation */}
-          <nav className="md:hidden flex items-center gap-2 mt-4 overflow-x-auto pb-2">
+          <nav className="md:hidden flex items-center gap-1 pb-3 overflow-x-auto">
             {navigationItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.path);
-              
+
               return (
-                <Button
+                <button
                   key={item.path}
-                  variant={active ? "default" : "outline"}
-                  size="sm"
                   onClick={() => navigate(item.path)}
                   className={cn(
-                    "gap-2 flex-shrink-0",
-                    active && "bg-gradient-to-r from-blue-600 to-cyan-600"
+                    "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap transition-colors",
+                    active
+                      ? "text-gray-900 bg-gray-100"
+                      : "text-gray-600 hover:text-gray-900"
                   )}
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon className="w-3.5 h-3.5" />
                   {item.name}
-                </Button>
+                </button>
               );
             })}
           </nav>
         </div>
       </header>
 
-      {/* Main Content Area - Pages render here */}
-      <main className="container mx-auto px-4 py-8">
+      {/* Main Content */}
+      <main>
         <Outlet />
       </main>
     </div>

@@ -3,13 +3,11 @@ import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card } from "@/components/ui/card";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher"; // 🌍 ADD THIS
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
-import { useTranslation } from "react-i18next"; // 🌍 ADD THIS
-import { Activity, User, Building2, Mail, Lock, Phone, UserCircle, ArrowRight, Shield, Zap, Heart, Check } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { User, Building2 } from "lucide-react";
 
 type UserType = "patient" | "clinic_owner";
 
@@ -23,13 +21,13 @@ export default function Signup() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { t } = useTranslation(); // 🌍 ADD THIS
+  const { t } = useTranslation();
 
   // Pre-fill form from URL parameters (for staff invitations)
   useEffect(() => {
     const emailParam = searchParams.get('email');
     const nameParam = searchParams.get('name');
-    
+
     if (emailParam) {
       setEmail(emailParam);
     }
@@ -54,7 +52,7 @@ export default function Signup() {
           });
           return;
         }
-        
+
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -96,10 +94,10 @@ export default function Signup() {
           fullName,
           userType,
         };
-        
+
         // Store in sessionStorage (temporary)
         sessionStorage.setItem('clinicOwnerSignup', JSON.stringify(signupData));
-        
+
         toast({
           title: t('auth.signup.nextStepTitle'),
           description: t('auth.signup.nextStepDesc'),
@@ -123,254 +121,240 @@ export default function Signup() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-blue-50 via-white to-sky-50 relative overflow-hidden">
-      <div className="fixed top-6 right-6 z-50">
-        <LanguageSwitcher />
-      </div>
-      {/* Animated Background Elements */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-sky-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse" style={{animationDelay: '2s'}}></div>
-        <div className="absolute top-1/2 right-1/4 w-80 h-80 bg-cyan-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" style={{animationDelay: '4s'}}></div>
-      </div>
-
-      <div className="min-h-screen flex items-center justify-center p-4 relative z-10">
-        <div className="w-full max-w-6xl grid lg:grid-cols-2 gap-8 items-center">
-          {/* Left Side - Branding */}
-          <div className="hidden lg:block space-y-8">
-            <div 
-              className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity group"
-              onClick={() => navigate("/")}
-            >
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-sky-600 flex items-center justify-center shadow-xl group-hover:shadow-2xl transition-all group-hover:scale-105">
-                <Activity className="w-8 h-8 text-white" />
-              </div>
-              <span className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-sky-600 bg-clip-text text-transparent">
-                INTIDAR
-              </span>
+    <div className="min-h-screen flex">
+      {/* Left Side - Dark with Form */}
+      <div className="flex-1 bg-[#1a1a1a] flex flex-col">
+        {/* Top Bar */}
+        <div className="flex items-center justify-between p-6">
+          <button
+            onClick={() => navigate("/")}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          >
+            <div className="w-7 h-7 rounded-md bg-white flex items-center justify-center">
+              <span className="text-[#1a1a1a] text-sm font-bold">Q</span>
             </div>
+            <span className="text-base font-semibold text-white">QueueMed</span>
+          </button>
+          <LanguageSwitcher />
+        </div>
 
-            <div className="space-y-4">
-              <h1 className="text-5xl font-bold text-gray-900 leading-tight">
-                {t('auth.signup.joinTitle')}
-                <span className="block bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-600 bg-clip-text text-transparent">
-                  {t('auth.signup.joinSubtitle')}
-                </span>
+        {/* Content */}
+        <div className="flex-1 flex items-center justify-center px-6 pb-12">
+          <div className="w-full max-w-md">
+            {/* Headline */}
+            <div className="mb-8">
+              <h1 className="text-4xl sm:text-5xl font-serif text-white leading-tight mb-3">
+                Join us,<br />
+                <span className="text-gray-400">today.</span>
               </h1>
-              <p className="text-xl text-gray-600 leading-relaxed">
-                {t('auth.signup.joinDescription')}
+              <p className="text-gray-500 text-base">
+                Create your account to get started
               </p>
             </div>
 
-            {/* Benefits */}
-            <div className="space-y-4">
-              <div className="flex items-start gap-4 group">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-sky-500 flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all group-hover:scale-110 flex-shrink-0">
-                  <Check className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">{t('auth.signup.benefit1Title')}</p>
-                  <p className="text-sm text-gray-600">{t('auth.signup.benefit1Desc')}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4 group">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-500 flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all group-hover:scale-110 flex-shrink-0">
-                  <Check className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">{t('auth.signup.benefit2Title')}</p>
-                  <p className="text-sm text-gray-600">{t('auth.signup.benefit2Desc')}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4 group">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all group-hover:scale-110 flex-shrink-0">
-                  <Check className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">{t('auth.signup.benefit3Title')}</p>
-                  <p className="text-sm text-gray-600">{t('auth.signup.benefit3Desc')}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Side - Signup Form */}
-          <div className="relative">
-            {/* Glow Effect */}
-            <div className="absolute -inset-1 bg-gradient-to-r from-blue-400 to-sky-400 rounded-3xl blur-2xl opacity-20"></div>
-            
-            <Card className="relative backdrop-blur-md bg-white/80 border border-white/60 rounded-3xl shadow-2xl p-8">
-              {/* Mobile Logo */}
-              <div 
-                className="lg:hidden flex items-center justify-center gap-3 mb-8 cursor-pointer hover:opacity-80 transition-opacity group"
-                onClick={() => navigate("/")}
-              >
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-sky-600 flex items-center justify-center shadow-xl">
-                  <Activity className="w-7 h-7 text-white" />
-                </div>
-                <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-sky-600 bg-clip-text text-transparent">
-                  INTIDAR
-                </span>
-              </div>
-
-              <div className="space-y-2 text-center mb-8">
-                <h2 className="text-3xl font-bold text-gray-900">{t('auth.signup.title')}</h2>
-                <p className="text-gray-600">{t('auth.signup.subtitle')}</p>
-              </div>
-
-              <form onSubmit={handleSignup} className="space-y-6">
+            {/* Form Card */}
+            <div className="bg-white rounded-xl p-6 shadow-2xl">
+              <form onSubmit={handleSignup} className="space-y-5">
                 {/* User Type Selection */}
-                <div className="space-y-3">
-                  <Label className="text-gray-900 font-medium">{t('auth.signup.iAmA')}</Label>
-                  <RadioGroup value={userType} onValueChange={(val) => setUserType(val as UserType)}>
-                    <div 
-                      className={`flex items-center space-x-3 p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                        userType === "patient" 
-                          ? "border-blue-500 bg-blue-50/50 shadow-md" 
-                          : "border-gray-200 hover:border-blue-300 hover:bg-blue-50/30"
+                <div>
+                  <p className="block text-sm font-medium text-gray-700 mb-2">
+                    {t('auth.signup.iAmA', "I'm signing up as")}
+                  </p>
+                  <RadioGroup
+                    value={userType}
+                    onValueChange={(val) => setUserType(val as UserType)}
+                    className="grid grid-cols-2 gap-3"
+                  >
+                    <label
+                      htmlFor="patient"
+                      className={`relative flex flex-col items-center justify-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                        userType === "patient"
+                          ? "border-gray-900 bg-gray-50"
+                          : "border-gray-200 hover:border-gray-300"
                       }`}
-                      onClick={() => setUserType("patient")}
                     >
-                      <RadioGroupItem value="patient" id="patient" />
-                      <Label htmlFor="patient" className="flex items-center gap-3 cursor-pointer flex-1">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                          userType === "patient" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
-                        }`}>
-                          <User className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-900">{t('auth.signup.patient')}</p>
-                          <p className="text-xs text-gray-500">{t('auth.signup.patientDesc')}</p>
-                        </div>
-                      </Label>
-                    </div>
-                    <div 
-                      className={`flex items-center space-x-3 p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                        userType === "clinic_owner" 
-                          ? "border-blue-500 bg-blue-50/50 shadow-md" 
-                          : "border-gray-200 hover:border-blue-300 hover:bg-blue-50/30"
+                      <RadioGroupItem value="patient" id="patient" className="sr-only" />
+                      <User className={`w-5 h-5 ${userType === "patient" ? "text-gray-900" : "text-gray-400"}`} />
+                      <span className={`text-sm font-medium mt-2 ${userType === "patient" ? "text-gray-900" : "text-gray-600"}`}>
+                        {t('auth.signup.patient', 'Patient')}
+                      </span>
+                    </label>
+                    <label
+                      htmlFor="clinic_owner"
+                      className={`relative flex flex-col items-center justify-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                        userType === "clinic_owner"
+                          ? "border-gray-900 bg-gray-50"
+                          : "border-gray-200 hover:border-gray-300"
                       }`}
-                      onClick={() => setUserType("clinic_owner")}
                     >
-                      <RadioGroupItem value="clinic_owner" id="clinic_owner" />
-                      <Label htmlFor="clinic_owner" className="flex items-center gap-3 cursor-pointer flex-1">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                          userType === "clinic_owner" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
-                        }`}>
-                          <Building2 className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-900">{t('auth.signup.healthcareProvider')}</p>
-                          <p className="text-xs text-gray-500">{t('auth.signup.healthcareProviderDesc')}</p>
-                        </div>
-                      </Label>
-                    </div>
+                      <RadioGroupItem value="clinic_owner" id="clinic_owner" className="sr-only" />
+                      <Building2 className={`w-5 h-5 ${userType === "clinic_owner" ? "text-gray-900" : "text-gray-400"}`} />
+                      <span className={`text-sm font-medium mt-2 ${userType === "clinic_owner" ? "text-gray-900" : "text-gray-600"}`}>
+                        {t('auth.signup.healthcareProvider', 'Clinic')}
+                      </span>
+                    </label>
                   </RadioGroup>
                 </div>
 
                 {/* Form Fields */}
                 <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName" className="text-gray-900 font-medium">{t('auth.signup.fullName')}</Label>
-                    <div className="relative group">
-                      <UserCircle className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
-                      <Input
-                        id="fullName"
-                        placeholder={t('auth.signup.fullNamePlaceholder')}
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        className="pl-12 h-12 bg-white border-2 border-blue-100 text-gray-900 rounded-xl focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100 transition-all"
-                        required
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      {t('auth.signup.fullName', 'Full name')}
+                    </label>
+                    <Input
+                      placeholder={t('auth.signup.fullNamePlaceholder', 'Enter your name')}
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="h-11 border-gray-200 rounded-lg text-sm"
+                      required
+                    />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="email" className="text-gray-900 font-medium">{t('auth.signup.email')}</Label>
-                    <div className="relative group">
-                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder={t('auth.signup.emailPlaceholder')}
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="pl-12 h-12 bg-white border-2 border-blue-100 text-gray-900 rounded-xl focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100 transition-all"
-                        required
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      {t('auth.signup.email', 'Email')}
+                    </label>
+                    <Input
+                      type="email"
+                      placeholder={t('auth.signup.emailPlaceholder', 'Enter your email')}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="h-11 border-gray-200 rounded-lg text-sm"
+                      required
+                    />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="phone" className="text-gray-900 font-medium">{t('auth.signup.phone')}</Label>
-                    <div className="relative group">
-                      <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
-                      <Input
-                        id="phone"
-                        type="tel"
-                        placeholder={t('auth.signup.phonePlaceholder')}
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        className="pl-12 h-12 bg-white border-2 border-blue-100 text-gray-900 rounded-xl focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100 transition-all"
-                        required
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      {t('auth.signup.phone', 'Phone')}
+                    </label>
+                    <Input
+                      type="tel"
+                      placeholder={t('auth.signup.phonePlaceholder', '+212 6XX XXX XXX')}
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="h-11 border-gray-200 rounded-lg text-sm"
+                      required
+                    />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="password" className="text-gray-900 font-medium">{t('auth.signup.password')}</Label>
-                    <div className="relative group">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
-                      <Input
-                        id="password"
-                        type="password"
-                        placeholder={t('auth.signup.passwordPlaceholder')}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="pl-12 h-12 bg-white border-2 border-blue-100 text-gray-900 rounded-xl focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100 transition-all"
-                        required
-                        minLength={6}
-                      />
-                    </div>
-                    <p className="text-xs text-gray-500">{t('auth.signup.passwordHint')}</p>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      {t('auth.signup.password', 'Password')}
+                    </label>
+                    <Input
+                      type="password"
+                      placeholder={t('auth.signup.passwordPlaceholder', 'Create a password')}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="h-11 border-gray-200 rounded-lg text-sm"
+                      required
+                      minLength={6}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      {t('auth.signup.passwordHint', 'Minimum 6 characters')}
+                    </p>
                   </div>
                 </div>
 
-                <Button 
-                  type="submit" 
-                  className="w-full h-14 bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all text-lg group" 
+                <Button
+                  type="submit"
                   disabled={loading}
+                  className="w-full h-11 bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white text-sm font-medium rounded-lg"
                 >
                   {loading ? (
                     <span className="flex items-center gap-2">
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      {t('auth.signup.creatingAccount')}
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      {t('auth.signup.creatingAccount', 'Creating account...')}
                     </span>
                   ) : (
-                    <>
-                      <span>{t('auth.signup.createAccount')}</span>
-                      <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-                    </>
+                    t('auth.signup.createAccount', 'Create account')
                   )}
                 </Button>
 
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-200"></div>
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-4 bg-white text-gray-500"></span>
-                  </div>
-                </div>
-
-                <p className="text-center text-gray-600">
-                  {t('auth.signup.haveAccount')}{" "}
-                  <Link to="/auth/login" className="text-blue-600 hover:text-blue-700 font-semibold hover:underline">
-                    {t('auth.signup.signInLink')}
-                  </Link>
+                {/* Terms */}
+                <p className="text-xs text-gray-500 text-center">
+                  By signing up, you agree to QueueMed's{" "}
+                  <Link to="/terms" className="underline hover:text-gray-700">Terms</Link> and{" "}
+                  <Link to="/privacy" className="underline hover:text-gray-700">Privacy Policy</Link>.
                 </p>
               </form>
-            </Card>
+
+              {/* Sign in link */}
+              <div className="mt-6 pt-6 border-t border-gray-100">
+                <p className="text-sm text-gray-600 text-center">
+                  {t('auth.signup.haveAccount', 'Already have an account?')}{" "}
+                  <Link to="/auth/login" className="font-medium text-gray-900 hover:underline">
+                    {t('auth.signup.signInLink', 'Sign in')}
+                  </Link>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Side - Image/Illustration */}
+      <div className="hidden lg:block lg:w-[45%] bg-[#e8f4f8] relative overflow-hidden">
+        {/* Abstract Healthcare Illustration */}
+        <div className="absolute inset-0 flex items-center justify-center p-12">
+          <div className="relative w-full h-full max-w-lg">
+            {/* Decorative elements */}
+            <div className="absolute top-10 left-10 w-40 h-40 rounded-full bg-[#d0e8ef] opacity-60"></div>
+            <div className="absolute bottom-16 right-10 w-56 h-56 rounded-full bg-[#c1dfe8] opacity-50"></div>
+            <div className="absolute top-1/2 right-1/4 w-28 h-28 rounded-full bg-[#a8d4e1] opacity-40"></div>
+
+            {/* Central card */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-xl p-8 w-80">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+                  <User className="w-6 h-6 text-gray-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Welcome to QueueMed</p>
+                  <p className="text-xs text-gray-500">Your healthcare, simplified</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-sm text-gray-700">Book appointments instantly</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <span className="text-sm text-gray-700">Real-time queue updates</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                  </div>
+                  <span className="text-sm text-gray-700">Secure health records</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Floating stats */}
+            <div className="absolute top-20 right-8 bg-white rounded-lg shadow-lg px-4 py-3">
+              <p className="text-2xl font-bold text-gray-900">50K+</p>
+              <p className="text-xs text-gray-500">Patients served</p>
+            </div>
+
+            <div className="absolute bottom-28 left-8 bg-white rounded-lg shadow-lg px-4 py-3">
+              <p className="text-2xl font-bold text-gray-900">2K+</p>
+              <p className="text-xs text-gray-500">Clinics registered</p>
+            </div>
           </div>
         </div>
       </div>

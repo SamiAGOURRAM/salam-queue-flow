@@ -1,12 +1,9 @@
 /**
- * OrdinalQueueList - Premium "Next Appointments" Style
- * Clean list view matching the inspiration design
+ * OrdinalQueueList - Premium Queue Design
  */
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { QueueEntry, AppointmentStatus } from "@/services/queue";
-import { Clock, UserCheck, UserX, AlertCircle, Play, CheckCircle2, MoreVertical, RotateCcw, Stethoscope, FlaskConical } from "lucide-react";
+import { Clock, UserCheck, UserX, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import {
@@ -27,165 +24,150 @@ interface OrdinalQueueListProps {
 
 const getInitials = (name?: string) => !name ? "?" : name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
-// Get icon based on appointment type
-const getAppointmentIcon = (type?: string) => {
-  if (!type) return Clock;
-  const lowerType = type.toLowerCase();
-  if (lowerType.includes('follow') || lowerType.includes('follow-up')) return RotateCcw;
-  if (lowerType.includes('consultation') || lowerType.includes('general')) return Stethoscope;
-  if (lowerType.includes('lab') || lowerType.includes('test') || lowerType.includes('diagnostic')) return FlaskConical;
-  return Clock;
-};
-
-export function OrdinalQueueList({ 
-  patients, 
-  currentPatient, 
-  onMarkAbsent, 
+export function OrdinalQueueList({
+  patients,
+  currentPatient,
+  onMarkAbsent,
   onMarkPresent,
   onMarkNotPresent,
-  loading 
+  loading
 }: OrdinalQueueListProps) {
-  const nextPresentPatient = patients.find(
-    p => !currentPatient && 
-    (p.status === AppointmentStatus.WAITING || p.status === AppointmentStatus.SCHEDULED) &&
-    p.isPresent
-  );
 
   if (patients.length === 0) {
     return (
       <div className="text-center py-12">
-        <div className="h-16 w-16 rounded-full bg-background-tertiary flex items-center justify-center mx-auto mb-4">
-          <Clock className="h-8 w-8 text-foreground-muted" />
+        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+          <Clock className="w-5 h-5 text-muted-foreground" />
         </div>
-        <p className="text-foreground-muted font-medium">No patients waiting</p>
-        <p className="text-sm text-foreground-muted/70 mt-1">The queue is empty</p>
+        <p className="text-sm text-muted-foreground">No patients waiting</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
-      {patients.map((patient) => {
-        const isNext = nextPresentPatient?.id === patient.id;
-        const canBeCalled = patient.isPresent && (patient.status === AppointmentStatus.WAITING || patient.status === AppointmentStatus.SCHEDULED);
-        const AppointmentIcon = getAppointmentIcon(patient.appointmentType);
-        
-        // Format time range
-        const timeRange = patient.startTime && patient.endTime
-          ? `${format(new Date(patient.startTime), "h:mm a")} - ${format(new Date(patient.endTime), "h:mm a")}`
-          : patient.startTime
-          ? format(new Date(patient.startTime), "h:mm a")
-          : "No time set";
-        
-        // Get doctor name (if available)
-        const doctorName = "Dr. Staff"; // Staff name would come from staffId if needed
-        
+    <div className="space-y-1">
+      {patients.map((patient, index) => {
+        const isNext = index === 0 && !currentPatient && patient.isPresent;
+        const canMarkPresent = !patient.isPresent &&
+          (patient.status === AppointmentStatus.WAITING || patient.status === AppointmentStatus.SCHEDULED);
+        const canMarkAbsent = patient.status === AppointmentStatus.WAITING ||
+          patient.status === AppointmentStatus.SCHEDULED;
+
+        // Determine status styling
+        const getStatusStyle = () => {
+          if (isNext) {
+            return {
+              bg: 'bg-blue-50 dark:bg-blue-950/30',
+              border: 'border-blue-200 dark:border-blue-800',
+              dot: 'bg-blue-500'
+            };
+          }
+          if (!patient.isPresent) {
+            return {
+              bg: 'bg-amber-50 dark:bg-amber-950/30',
+              border: 'border-amber-200 dark:border-amber-800',
+              dot: 'bg-amber-500'
+            };
+          }
+          return {
+            bg: 'bg-card hover:bg-muted/50',
+            border: 'border-border',
+            dot: 'bg-gray-400'
+          };
+        };
+
+        const statusStyle = getStatusStyle();
+
         return (
           <div
             key={patient.id}
             className={cn(
-              "group relative flex items-center gap-4 p-4 rounded-xl border-2 transition-all duration-200 hover:shadow-sm bg-card",
-              isNext
-                ? "border-primary/60 bg-primary/5"
-                : !patient.isPresent
-                ? "border-warning/40 bg-warning/5"
-                : "border-border/80 hover:border-primary/30"
+              "flex items-center gap-3 p-3 rounded-lg border transition-all",
+              statusStyle.bg,
+              statusStyle.border
             )}
           >
-            {/* Icon */}
-            <div className={cn(
-              "h-12 w-12 rounded-xl flex items-center justify-center flex-shrink-0 border-2",
-              isNext 
-                ? "bg-primary/10 border-primary/30 text-primary" 
-                : "bg-background-tertiary border-border/50 text-foreground-muted"
-            )}>
-              <AppointmentIcon className="h-6 w-6" />
+            {/* Queue Position */}
+            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+              <span className="text-xs font-semibold text-muted-foreground">
+                {index + 1}
+              </span>
             </div>
-            
+
+            {/* Status Dot */}
+            <div className={cn("w-2 h-2 rounded-full flex-shrink-0", statusStyle.dot)} />
+
             {/* Patient Info */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <p className="font-bold text-base text-foreground-primary">
-                  {patient.patient?.fullName || 'Patient'} - {patient.appointmentType || 'Appointment'}
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-foreground truncate">
+                  {patient.patient?.fullName || 'Patient'}
                 </p>
                 {isNext && (
-                  <Badge className="bg-primary text-white text-xs border-0">
-                    Next
-                  </Badge>
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500 text-white">
+                    NEXT
+                  </span>
                 )}
                 {!patient.isPresent && (
-                  <Badge variant="outline" className="text-warning border-warning/30 bg-warning/10 text-xs">
-                    <AlertCircle className="mr-1 h-3 w-3" />
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400">
                     Not Present
-                  </Badge>
+                  </span>
                 )}
               </div>
-              
-              <p className="text-sm text-foreground-secondary">
-                {timeRange} • {doctorName}
+              <p className="text-xs text-muted-foreground truncate">
+                {patient.appointmentType || 'Appointment'}
+                {patient.startTime && ` • ${format(new Date(patient.startTime), "h:mm a")}`}
               </p>
             </div>
 
-            {/* Action Button */}
-            <div className="flex items-center gap-2">
-              {canBeCalled && !currentPatient ? (
-                <Button 
-                  disabled={loading} 
-                  size="sm" 
-                  className="bg-primary hover:bg-primary-600 text-white shadow-sm"
+            {/* Actions */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {canMarkPresent && onMarkPresent && (
+                <Button
+                  onClick={() => onMarkPresent(patient.id)}
+                  disabled={loading}
+                  size="sm"
+                  className="h-7 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
-                  <Play className="mr-1 h-3.5 w-3.5" />
-                  Start Appointment
-                </Button>
-              ) : !patient.isPresent && onMarkPresent && (patient.status === AppointmentStatus.WAITING || patient.status === AppointmentStatus.SCHEDULED) ? (
-                <Button 
-                  onClick={() => onMarkPresent(patient.id)} 
-                  disabled={loading} 
-                  size="sm" 
-                  className="bg-success hover:bg-success-600 text-white shadow-sm"
-                >
-                  <UserCheck className="mr-1 h-3.5 w-3.5" />
-                  Mark Present
-                </Button>
-              ) : (
-                <Button 
-                  disabled={loading} 
-                  size="sm" 
-                  variant="outline"
-                  className="border-border/80 text-foreground-secondary hover:bg-background-secondary"
-                >
-                  View Details
+                  <UserCheck className="h-3 w-3 mr-1" />
+                  Present
                 </Button>
               )}
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {patient.isPresent && onMarkNotPresent && patient.status !== AppointmentStatus.IN_PROGRESS && (
-                    <DropdownMenuItem onClick={() => onMarkNotPresent(patient.id)}>
-                      <AlertCircle className="mr-2 h-4 w-4" />
-                      Mark Not Present
-                    </DropdownMenuItem>
-                  )}
-                  {(patient.status === AppointmentStatus.WAITING || patient.status === AppointmentStatus.SCHEDULED) && (
-                    <DropdownMenuItem 
-                      onClick={() => onMarkAbsent(patient.id)}
-                      className="text-destructive"
+              {canMarkAbsent && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0"
                     >
-                      <UserX className="mr-2 h-4 w-4" />
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {patient.isPresent && onMarkNotPresent && (
+                      <DropdownMenuItem onClick={() => onMarkNotPresent(patient.id)}>
+                        <Clock className="h-4 w-4 mr-2" />
+                        Mark Not Present
+                      </DropdownMenuItem>
+                    )}
+                    {!patient.isPresent && onMarkPresent && (
+                      <DropdownMenuItem onClick={() => onMarkPresent(patient.id)}>
+                        <UserCheck className="h-4 w-4 mr-2" />
+                        Mark Present
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem
+                      onClick={() => onMarkAbsent(patient.id)}
+                      className="text-red-600"
+                    >
+                      <UserX className="h-4 w-4 mr-2" />
                       Mark Absent
                     </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem>
-                    <Clock className="mr-2 h-4 w-4" />
-                    View Details
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </div>
         );

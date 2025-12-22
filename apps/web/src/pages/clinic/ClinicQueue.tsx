@@ -3,36 +3,21 @@ import { useAuth } from "@/hooks/useAuth";
 import { clinicService } from "@/services/clinic";
 import { staffService } from "@/services/staff";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { 
-  UserPlus, 
-  Calendar, 
-  XCircle, 
-  Users, 
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  UserPlus,
+  Calendar,
+  XCircle,
+  Users,
   AlertCircle,
-  Clock,
-  CheckCircle2,
-  Play,
-  MoreVertical,
-  ArrowRight,
-  Phone,
-  Mail
+  RefreshCw
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { BookAppointmentDialog } from "@/components/clinic/BookAppointmentDialog";
 import { EnhancedQueueManager } from "@/components/clinic/EnhancedQueueManager";
 import { EndDayConfirmationDialog } from "@/components/clinic/EndDayConfirmationDialog";
-import { AppointmentStatus, SkipReason } from "@/services/queue";
 import { logger } from "@/services/shared/logging/Logger";
 import { format } from "date-fns";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 interface StaffProfile {
   id: string;
@@ -118,94 +103,88 @@ export default function ClinicQueue() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header Section */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground-primary">Live Queue</h1>
-          <div className="flex items-center gap-2 text-sm text-foreground-muted">
-            <Calendar className="w-4 h-4" />
-            <span>
-              {format(new Date(), "EEEE, MMMM d, yyyy")}
-            </span>
-          </div>
+    <div className="space-y-5">
+      {/* Header - Compact & Premium */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Live Queue</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {format(new Date(), "EEEE, MMMM d")}
+          </p>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-3 w-full sm:w-auto flex-wrap sm:flex-nowrap">
-          <Button 
+        {/* Compact Action Buttons */}
+        <div className="flex items-center gap-2">
+          <Button
             onClick={() => {
               setBookingMode('scheduled');
               setShowBookAppointment(true);
-            }} 
-            size="lg" 
-            className="flex-1 sm:flex-none bg-primary hover:bg-primary-600 shadow-md hover:shadow-lg transition-all rounded-xl"
+            }}
+            size="sm"
+            className="bg-foreground text-background hover:bg-foreground/90 h-8 px-3 text-xs font-medium"
           >
-            <Calendar className="w-5 h-5 mr-2" />
-            Book Appointment
+            <Calendar className="w-3.5 h-3.5 mr-1.5" />
+            Book
           </Button>
 
-          <Button 
+          <Button
             onClick={() => {
               setBookingMode('walkin');
               setShowBookAppointment(true);
-            }} 
+            }}
             variant="outline"
-            size="lg" 
-            className="flex-1 sm:flex-none border-2 border-border/80 hover:border-primary/40 hover:bg-primary-50/30 hover:shadow-sm rounded-xl transition-all"
+            size="sm"
+            className="border-border hover:bg-muted h-8 px-3 text-xs font-medium"
           >
-            <UserPlus className="w-5 h-5 mr-2" />
-            Add Walk-in
+            <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+            Walk-in
           </Button>
 
-          <Button 
-            onClick={() => setShowEndDay(true)} 
-            variant="outline"
-            size="lg" 
-            className="flex-1 sm:flex-none border-2 border-destructive/40 text-destructive hover:bg-destructive/10 hover:border-destructive/60 hover:shadow-sm rounded-xl transition-all"
+          <div className="w-px h-5 bg-border mx-1" />
+
+          <Button
+            onClick={() => setShowEndDay(true)}
+            variant="ghost"
+            size="sm"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 px-3 text-xs font-medium"
           >
-            <XCircle className="w-5 h-5 mr-2" />
+            <XCircle className="w-3.5 h-3.5 mr-1.5" />
             End Day
           </Button>
         </div>
       </div>
 
-      {/* Enhanced Queue Manager */}
-      <div className="relative">
-        {clinic?.id && user?.id && staffProfile?.id ? (
-          <EnhancedQueueManager 
-            key={queueRefreshKey}
-            clinicId={clinic.id} 
-            userId={user.id}
-            staffId={staffProfile.id}
-            onSummaryChange={setQueueSummary}
-          />
-        ) : clinic?.id && user?.id ? (
-          <Card className="border-2 border-border/80 shadow-md">
-            <CardContent className="p-16 text-center">
-              <div className="w-20 h-20 rounded-2xl bg-warning/10 flex items-center justify-center mx-auto mb-6">
-                <AlertCircle className="w-10 h-10 text-warning" />
-              </div>
-              <h3 className="text-xl font-bold text-foreground-primary mb-2">Staff Profile Required</h3>
-              <p className="text-foreground-muted mb-4">
-                {isClinicOwner 
-                  ? "As a clinic owner, you need a staff profile to manage the queue. Please contact support to set up your staff profile."
-                  : "A staff profile is required to manage the queue. Please contact your clinic administrator."}
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="border-2 border-border/80 shadow-md">
-            <CardContent className="p-16 text-center">
-              <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6 animate-pulse">
-                <Users className="w-10 h-10 text-primary" />
-              </div>
-              <h3 className="text-xl font-bold text-foreground-primary mb-2">Loading Queue Manager</h3>
-              <p className="text-foreground-muted">Waiting for Clinic and Staff IDs...</p>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      {/* Queue Manager */}
+      {clinic?.id && user?.id && staffProfile?.id ? (
+        <EnhancedQueueManager
+          key={queueRefreshKey}
+          clinicId={clinic.id}
+          userId={user.id}
+          staffId={staffProfile.id}
+          onSummaryChange={setQueueSummary}
+        />
+      ) : clinic?.id && user?.id ? (
+        <Card className="border border-border bg-card">
+          <CardContent className="py-16 text-center">
+            <div className="w-12 h-12 rounded-lg bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+            </div>
+            <p className="font-medium text-foreground mb-1">Staff Profile Required</p>
+            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+              {isClinicOwner
+                ? "As a clinic owner, you need a staff profile to manage the queue."
+                : "A staff profile is required. Contact your clinic administrator."}
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border border-border bg-card">
+          <CardContent className="py-16 text-center">
+            <RefreshCw className="w-6 h-6 text-muted-foreground animate-spin mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">Loading queue...</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Dialogs */}
       {clinic?.id && (

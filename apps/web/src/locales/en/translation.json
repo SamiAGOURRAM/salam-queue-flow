@@ -1,4 +1,78 @@
 {
+  "landing": {
+    "hero": {
+      "title1": "Healthcare,",
+      "title2": "on your",
+      "title3": "schedule",
+      "subtitle": "Find the best clinics, book appointments instantly, and skip the wait."
+    },
+    "search": {
+      "specialtyPlaceholder": "Specialty or clinic name",
+      "locationPlaceholder": "City or neighborhood",
+      "searchButton": "Search clinics",
+      "browseAll": "Browse all clinics with filters",
+      "myAppointments": "My appointments",
+      "signIn": "Sign in"
+    },
+    "location": {
+      "morocco": "Morocco",
+      "changeLocation": "Change location"
+    },
+    "stats": {
+      "verifiedClinics": "Verified Clinics",
+      "avgRating": "Avg. Rating",
+      "patientsServed": "Patients Served"
+    },
+    "suggestions": {
+      "title": "Suggestions",
+      "generalCare": "General Care",
+      "generalCareDesc": "Routine checkups, consultations, and preventive care",
+      "dental": "Dental",
+      "dentalDesc": "Teeth cleaning, whitening, fillings, and oral health",
+      "specialists": "Specialists",
+      "specialistsDesc": "Cardiology, neurology, orthopedics, and more",
+      "details": "Details"
+    },
+    "account": {
+      "title": "Sign in to manage your appointments",
+      "description": "View your upcoming appointments, past visits, favorite clinics, and get personalized healthcare recommendations.",
+      "signIn": "Sign in",
+      "createAccount": "Create account"
+    },
+    "forClinics": {
+      "title": "Manage your clinic with ease",
+      "description": "Reduce wait times, manage your queue in real-time, and provide a better experience for your patients with our AI-powered platform.",
+      "register": "Register your clinic",
+      "learnMore": "Learn more"
+    },
+    "footer": {
+      "company": "Company",
+      "aboutUs": "About us",
+      "careers": "Careers",
+      "blog": "Blog",
+      "products": "Products",
+      "findClinics": "Find clinics",
+      "forClinics": "For clinics",
+      "api": "API",
+      "support": "Support",
+      "helpCenter": "Help center",
+      "contactUs": "Contact us",
+      "safety": "Safety",
+      "legal": "Legal",
+      "terms": "Terms",
+      "privacy": "Privacy",
+      "cookies": "Cookies",
+      "copyright": "© 2025 QueueMed. All rights reserved."
+    },
+    "nav": {
+      "findClinics": "Find Clinics",
+      "about": "About",
+      "help": "Help",
+      "logIn": "Log in",
+      "signUp": "Sign up",
+      "signOut": "Sign out"
+    }
+  },
   "common": {
     "search": "Search",
     "filter": "Filter",

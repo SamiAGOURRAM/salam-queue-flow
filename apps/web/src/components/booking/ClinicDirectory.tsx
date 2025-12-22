@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card } from "@/components/ui/card";
@@ -8,13 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Search, MapPin, Phone, Clock, Calendar, CreditCard, Wallet, 
-  Building2, Globe, Check, Sparkles, TrendingUp, Filter, 
-  Star, Heart, Shield, Award, Users, Activity, ChevronRight,
-  ArrowRight, Zap, Timer, DollarSign, Stethoscope, X, Plus,
-  Layers, HeartHandshake, ClipboardCheck, BellRing, Pill,
-  Sunrise, Sun, Moon, CalendarDays, Eye
+import {
+  Search, MapPin, Clock, Calendar, CreditCard, Wallet,
+  Building2, Globe, Filter, Star, Heart, X,
+  Sunrise, Sun, Moon, CalendarDays, ArrowRight, ChevronDown
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -27,31 +24,21 @@ import { format } from "date-fns";
 
 const ClinicDirectory = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { t } = useTranslation();
-  
-  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
-  // --- Filter State ---
-  const [searchTerm, setSearchTerm] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+
+  // --- Filter State (initialized from URL params) ---
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || "");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<'any' | 'morning' | 'afternoon' | 'evening'>('any');
-  const [selectedCity, setSelectedCity] = useState<string>("all");
-  const [selectedSpecialty, setSelectedSpecialty] = useState<string>("all");
+  const [selectedCity, setSelectedCity] = useState<string>(searchParams.get('city') || "all");
+  const [selectedSpecialty, setSelectedSpecialty] = useState<string>(searchParams.get('specialty') || "all");
   const [minRating, setMinRating] = useState<string>("all");
-  // --------------------
-
-  // Mouse tracking for parallax effect
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      setMousePosition({ x: e.clientX, y: e.clientY });
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
 
   // Use the smart search hook (server-side filtering + debouncing)
   const { data: clinics = [], isLoading: loading } = useClinicSearch({
@@ -59,11 +46,11 @@ const ClinicDirectory = () => {
     city: selectedCity !== 'all' ? selectedCity : undefined,
     specialty: selectedSpecialty !== 'all' ? selectedSpecialty : undefined,
     minRating: minRating !== 'all' ? Number(minRating) : undefined,
-    sortBy: 'rating', // Always sort by rating (best first)
+    sortBy: 'rating',
     limit: 100,
   });
 
-  // Fetch metadata for filter dropdowns (cities, specialties)
+  // Fetch metadata for filter dropdowns
   const { data: allClinicsMetadata = [] } = useQuery({
     queryKey: ['clinics-metadata'],
     queryFn: async () => {
@@ -71,11 +58,11 @@ const ClinicDirectory = () => {
         .from('clinics')
         .select('id, city, specialty')
         .eq('is_active', true);
-      
+
       if (error) throw error;
       return data || [];
     },
-    staleTime: 10 * 60 * 1000, // Cache for 10 minutes
+    staleTime: 10 * 60 * 1000,
   });
 
   // Fetch user's favorites
@@ -104,13 +91,13 @@ const ClinicDirectory = () => {
     onMutate: async (clinicId) => {
       await queryClient.cancelQueries({ queryKey: ['user-favorites', user?.id] });
       const previousFavorites = queryClient.getQueryData(['user-favorites', user?.id]);
-      
+
       queryClient.setQueryData(['user-favorites', user?.id], (old: string[] = []) => {
         return old.includes(clinicId)
           ? old.filter(id => id !== clinicId)
           : [...old, clinicId];
       });
-      
+
       return { previousFavorites };
     },
     onError: (err, clinicId, context) => {
@@ -133,65 +120,49 @@ const ClinicDirectory = () => {
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const today = days[new Date().getDay()];
     const schedule = clinic.settings?.working_hours?.[today];
-    
+
     if (!schedule || schedule.closed) {
       return { isOpen: false, hours: t('common.closed') };
     }
-    
-    return { 
-      isOpen: true, 
-      hours: `${schedule.open} - ${schedule.close}` 
+
+    return {
+      isOpen: true,
+      hours: `${schedule.open} - ${schedule.close}`
     };
   };
 
-  const getPaymentMethods = (clinic: typeof clinics[0]) => {
-    const methods = clinic.settings?.payment_methods || {};
-    return [
-      { name: t('payment.cash'), icon: Wallet, enabled: methods.cash },
-      { name: t('payment.card'), icon: CreditCard, enabled: methods.card },
-      { name: t('payment.insurance'), icon: Building2, enabled: methods.insurance },
-      { name: t('payment.online'), icon: Globe, enabled: methods.online },
-    ].filter(m => m.enabled);
-  };
-
-  // Check if clinic is open on selected date/time
   const isClinicAvailableOnDateTime = (clinic: typeof clinics[0]) => {
-    if (!selectedDate) return true; // No date filter, show all
+    if (!selectedDate) return true;
 
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const dayName = days[selectedDate.getDay()];
     const schedule = clinic.settings?.working_hours?.[dayName];
 
     if (!schedule || schedule.closed) return false;
-
-    // If no time slot selected, just check if open that day
     if (selectedTimeSlot === 'any') return true;
 
-    // Check time slot INTERSECTION (any overlap)
     const openTime = schedule.open || '09:00';
     const closeTime = schedule.close || '18:00';
-    
+
     const [openHour, openMin] = openTime.split(':').map(Number);
     const [closeHour, closeMin] = closeTime.split(':').map(Number);
-    
-    // Convert to minutes for easier comparison
+
     const clinicOpenMinutes = openHour * 60 + openMin;
     const clinicCloseMinutes = closeHour * 60 + closeMin;
 
-    // Define time slot ranges in minutes
     let slotStartMinutes: number;
     let slotEndMinutes: number;
 
     switch (selectedTimeSlot) {
-      case 'morning': // 8:00-12:00
+      case 'morning':
         slotStartMinutes = 8 * 60;
         slotEndMinutes = 12 * 60;
         break;
-      case 'afternoon': // 12:00-17:00
+      case 'afternoon':
         slotStartMinutes = 12 * 60;
         slotEndMinutes = 17 * 60;
         break;
-      case 'evening': // 17:00-20:00
+      case 'evening':
         slotStartMinutes = 17 * 60;
         slotEndMinutes = 20 * 60;
         break;
@@ -199,12 +170,9 @@ const ClinicDirectory = () => {
         return true;
     }
 
-    // Check if ranges intersect: clinic is open during ANY part of the time slot
-    // Two ranges [A, B] and [C, D] intersect if: A < D AND C < B
     return clinicOpenMinutes < slotEndMinutes && slotStartMinutes < clinicCloseMinutes;
   };
 
-  // Get formatted schedule for selected date
   const getScheduleForDate = (clinic: typeof clinics[0]) => {
     if (!selectedDate) return clinic.today_hours;
 
@@ -216,38 +184,39 @@ const ClinicDirectory = () => {
     return `${schedule.open} - ${schedule.close}`;
   };
 
-  // Apply client-side date/time filtering
   const dateTimeFilteredClinics = clinics.filter(isClinicAvailableOnDateTime);
-
-  // Results are already filtered server-side, we just add date/time filter client-side
   const filteredClinics = dateTimeFilteredClinics;
 
   const cities = Array.from(new Set(allClinicsMetadata.map((c) => c.city)));
   const specialties = Array.from(new Set(allClinicsMetadata.map((c) => c.specialty)));
-  
- 
-  // ---------------------------------------------------
 
   const toggleFavorite = (e: React.MouseEvent, clinicId: string) => {
     e.stopPropagation();
     toggleFavoriteMutation.mutate(clinicId);
   };
 
-  const parallaxStyle = {
-    transform: `translate(${mousePosition.x * 0.01}px, ${mousePosition.y * 0.01}px)`,
+  const clearFilters = () => {
+    setSearchTerm("");
+    setSelectedDate(undefined);
+    setSelectedTimeSlot('any');
+    setSelectedCity("all");
+    setSelectedSpecialty("all");
+    setMinRating("all");
   };
+
+  const hasActiveFilters = searchTerm || selectedCity !== "all" || selectedSpecialty !== "all" || minRating !== "all" || selectedDate;
+  const activeFilterCount = [searchTerm, selectedCity !== 'all', selectedSpecialty !== 'all', minRating !== 'all', selectedDate].filter(Boolean).length;
 
   if (loading) {
     return (
-      <div className="min-h-screen w-full bg-transparent">
-        <div className="container mx-auto px-6 py-8">
-          <div className="space-y-6">
-            <Skeleton className="h-[380px] w-full rounded-[3rem] bg-transparent" />
-            <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <Skeleton key={i} className="h-[180px] rounded-2xl bg-transparent" />
-              ))}
-            </div>
+      <div className="min-h-screen bg-[#fafafa]">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+          <Skeleton className="h-12 w-64 mb-6" />
+          <Skeleton className="h-14 w-full mb-6 rounded-lg" />
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Skeleton key={i} className="h-[200px] rounded-lg" />
+            ))}
           </div>
         </div>
       </div>
@@ -255,648 +224,336 @@ const ClinicDirectory = () => {
   }
 
   return (
-    <div className="min-h-screen w-full bg-transparent relative overflow-x-hidden">
-      {/* Animated Background */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-sky-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse" style={{animationDelay: '2s'}}></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" style={{animationDelay: '4s'}}></div>
-      </div>
+    <div className="min-h-screen bg-[#fafafa]">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
 
-      <div className="relative z-10 container mx-auto px-6 py-8">
-        {/* Hero Section and Search Filter Side by Side */}
-        <div className="grid lg:grid-cols-[1fr,2fr] gap-6 mb-12">
-          
-          {/* Filter Card - Left Side */}
-          <div 
-            className="relative rounded-[2rem] h-full  bg-white border shadow-xl p-6 order-2 lg:order-1 flex flex-col"
-          >
-            {/* Main Filters Section */}
-            <div className="space-y-5">
-              
-              {/* Card Title */}
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-sky-500 flex items-center justify-center shadow-lg flex-shrink-0">
-                  <Search className="w-6 h-6 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-xl font-bold text-gray-900">{t('clinic.searchClinics')}</h2>
-                  <p className="text-xs text-gray-600 truncate">{t('clinic.findPerfectProvider')}</p>
-                </div>
-              </div>
+        {/* Header */}
+        <header className="mb-6">
+          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
+            {t('clinic.findPerfectClinic')}
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {filteredClinics.length} {t('clinic.clinics')} {t('clinic.available')}
+          </p>
+        </header>
 
-              {/* PRIMARY: Search Input (Prominent) */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-1">
-                  {t('clinic.whatDoYouNeed', 'What do you need?')}
-                </label>
-                <div className="relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <Input
-                    placeholder={t('clinic.searchPlaceholder')}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-12 pr-4 h-14 bg-white/90 backdrop-blur border-2 border-blue-100 text-gray-900 placeholder:text-gray-400 rounded-xl text-base font-medium focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100/50 transition-all"
-                  />
-                </div>
-              </div>
+        {/* Search & Filters */}
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm mb-6">
+          {/* Search Bar */}
+          <div className="p-3 flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                placeholder={t('clinic.searchPlaceholder')}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-10 pl-9 pr-3 border-gray-200 rounded-md text-sm focus-visible:ring-1 focus-visible:ring-gray-900"
+              />
+            </div>
 
-              {/* SECONDARY: When? (Date & Time) */}
-              <div className="space-y-3 pt-2 border-t border-gray-100">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-1">
-                  {t('clinic.whenDoYouNeed', 'When do you need care?')}
-                </label>
-                
-                {/* Date Picker */}
+            <div className="flex gap-2">
+              <Select value={selectedCity} onValueChange={setSelectedCity}>
+                <SelectTrigger className="h-10 w-[130px] border-gray-200 rounded-md text-sm">
+                  <MapPin className="w-3.5 h-3.5 mr-1.5 text-gray-400" />
+                  <SelectValue placeholder={t('clinic.allCities')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('clinic.allCities')}</SelectItem>
+                  {cities.map((city) => (
+                    <SelectItem key={city} value={city}>{city}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={selectedSpecialty} onValueChange={setSelectedSpecialty}>
+                <SelectTrigger className="h-10 w-[140px] border-gray-200 rounded-md text-sm">
+                  <SelectValue placeholder={t('clinic.allSpecialties')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('clinic.allSpecialties')}</SelectItem>
+                  {specialties.map((specialty) => (
+                    <SelectItem key={specialty} value={specialty}>{specialty}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button
+                variant="outline"
+                onClick={() => setShowFilters(!showFilters)}
+                className={`h-10 px-3 rounded-md border text-sm font-medium transition-colors ${
+                  showFilters || hasActiveFilters
+                    ? 'bg-gray-900 text-white border-gray-900 hover:bg-gray-800'
+                    : 'border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                <Filter className="w-3.5 h-3.5 mr-1.5" />
+                {t('common.filter')}
+                {activeFilterCount > 0 && (
+                  <span className="ml-1.5 text-xs bg-white text-gray-900 w-4 h-4 rounded-full flex items-center justify-center font-semibold">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {/* Expanded Filters */}
+          {showFilters && (
+            <div className="px-3 pb-3 pt-0 border-t border-gray-100">
+              <div className="pt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
-                      className={`w-full h-12 justify-start text-left font-medium bg-white/90 backdrop-blur border-2 border-blue-100 rounded-xl hover:border-blue-300 transition-all ${
-                        selectedDate ? 'text-gray-900' : 'text-gray-400'
+                      className={`h-9 justify-start text-left text-sm font-normal border-gray-200 rounded-md ${
+                        selectedDate ? 'text-gray-900' : 'text-gray-500'
                       }`}
                     >
-                      <CalendarDays className="mr-3 h-5 w-5 text-blue-600" />
-                      {selectedDate ? format(selectedDate, 'PPP') : t('clinic.selectDate', 'Select date (optional)')}
+                      <CalendarDays className="mr-2 h-3.5 w-3.5" />
+                      {selectedDate ? format(selectedDate, 'MMM d') : t('clinic.selectDate', 'Date')}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 bg-white border-blue-100 rounded-xl shadow-xl" align="start">
+                  <PopoverContent className="w-auto p-0 rounded-lg shadow-lg" align="start">
                     <CalendarComponent
                       mode="single"
                       selected={selectedDate}
                       onSelect={setSelectedDate}
                       disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                       initialFocus
-                      className="rounded-xl"
                     />
-                    {selectedDate && (
-                      <div className="p-3 border-t border-gray-100">
-                        <Button
-                          variant="ghost"
-                          className="w-full text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50"
-                          onClick={() => setSelectedDate(undefined)}
-                        >
-                          <X className="w-4 h-4 mr-2" />
-                          {t('common.clearDate', 'Clear date')}
-                        </Button>
-                      </div>
-                    )}
                   </PopoverContent>
                 </Popover>
 
-                {/* Time Slot Buttons */}
                 {selectedDate && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      variant={selectedTimeSlot === 'any' ? 'default' : 'outline'}
-                      className={`h-auto py-3 px-3 flex-col items-start border-2 rounded-xl transition-all ${
-                        selectedTimeSlot === 'any'
-                          ? 'bg-gradient-to-br from-blue-500 to-sky-500 border-blue-400 text-white shadow-lg'
-                          : 'bg-white/90 border-blue-100 text-gray-700 hover:border-blue-300'
-                      }`}
-                      onClick={() => setSelectedTimeSlot('any')}
-                    >
-                      <Clock className="w-4 h-4 mb-1" />
-                      <span className="text-xs font-semibold">{t('clinic.anyTime', 'Any Time')}</span>
-                    </Button>
-                    <Button
-                      variant={selectedTimeSlot === 'morning' ? 'default' : 'outline'}
-                      className={`h-auto py-3 px-3 flex-col items-start border-2 rounded-xl transition-all ${
-                        selectedTimeSlot === 'morning'
-                          ? 'bg-gradient-to-br from-blue-500 to-sky-500 border-blue-400 text-white shadow-lg'
-                          : 'bg-white/90 border-blue-100 text-gray-700 hover:border-blue-300'
-                      }`}
-                      onClick={() => setSelectedTimeSlot('morning')}
-                    >
-                      <Sunrise className="w-4 h-4 mb-1" />
-                      <span className="text-xs font-semibold">{t('clinic.morning', 'Morning')}</span>
-                      <span className="text-[10px] opacity-70">8-12h</span>
-                    </Button>
-                    <Button
-                      variant={selectedTimeSlot === 'afternoon' ? 'default' : 'outline'}
-                      className={`h-auto py-3 px-3 flex-col items-start border-2 rounded-xl transition-all ${
-                        selectedTimeSlot === 'afternoon'
-                          ? 'bg-gradient-to-br from-blue-500 to-sky-500 border-blue-400 text-white shadow-lg'
-                          : 'bg-white/90 border-blue-100 text-gray-700 hover:border-blue-300'
-                      }`}
-                      onClick={() => setSelectedTimeSlot('afternoon')}
-                    >
-                      <Sun className="w-4 h-4 mb-1" />
-                      <span className="text-xs font-semibold">{t('clinic.afternoon', 'Afternoon')}</span>
-                      <span className="text-[10px] opacity-70">12-17h</span>
-                    </Button>
-                    <Button
-                      variant={selectedTimeSlot === 'evening' ? 'default' : 'outline'}
-                      className={`h-auto py-3 px-3 flex-col items-start border-2 rounded-xl transition-all ${
-                        selectedTimeSlot === 'evening'
-                          ? 'bg-gradient-to-br from-blue-500 to-sky-500 border-blue-400 text-white shadow-lg'
-                          : 'bg-white/90 border-blue-100 text-gray-700 hover:border-blue-300'
-                      }`}
-                      onClick={() => setSelectedTimeSlot('evening')}
-                    >
-                      <Moon className="w-4 h-4 mb-1" />
-                      <span className="text-xs font-semibold">{t('clinic.evening', 'Evening')}</span>
-                      <span className="text-[10px] opacity-70">17-20h</span>
-                    </Button>
+                  <div className="flex gap-1 col-span-2 sm:col-span-1">
+                    {[
+                      { value: 'any', label: 'Any' },
+                      { value: 'morning', label: 'AM' },
+                      { value: 'afternoon', label: 'PM' },
+                      { value: 'evening', label: 'Eve' },
+                    ].map(({ value, label }) => (
+                      <Button
+                        key={value}
+                        variant={selectedTimeSlot === value ? 'default' : 'outline'}
+                        onClick={() => setSelectedTimeSlot(value as typeof selectedTimeSlot)}
+                        className={`flex-1 h-9 text-xs font-medium rounded-md ${
+                          selectedTimeSlot === value
+                            ? 'bg-gray-900 text-white hover:bg-gray-800'
+                            : 'border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        {label}
+                      </Button>
+                    ))}
                   </div>
                 )}
-              </div>
 
-              {/* TERTIARY: Refinement Filters (Smaller, Less Prominent) */}
-              <div className="space-y-3 pt-2 border-t border-gray-100">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-1">
-                  {t('clinic.refineSearch', 'Refine your search')}
-                </label>
-                
-                {/* 2-Column Grid */}
-                <div className="grid grid-cols-2 gap-2">
-                  {/* City */}
-                  <Select value={selectedCity} onValueChange={setSelectedCity}>
-                    <SelectTrigger className="h-10 bg-white/90 backdrop-blur border border-gray-200 text-gray-900 rounded-lg hover:border-blue-300 transition-all text-sm">
-                      <SelectValue placeholder={t('clinic.allCities')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">
-                        {t('clinic.allCities')}
-                      </SelectItem>
-                      {cities.map((city) => (
-                        <SelectItem key={city} value={city}>
-                          {city}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {/* Specialty */}
-                  <Select value={selectedSpecialty} onValueChange={setSelectedSpecialty}>
-                    <SelectTrigger className="h-10 bg-white/90 backdrop-blur border border-gray-200 text-gray-900 rounded-lg hover:border-blue-300 transition-all text-sm">
-                      <SelectValue placeholder={t('clinic.allSpecialties')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">
-                        {t('clinic.allSpecialties')}
-                      </SelectItem>
-                      {specialties.map((specialty) => (
-                        <SelectItem key={specialty} value={specialty}>
-                          {specialty}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Rating Filter (Full-width, smaller) */}
                 <Select value={minRating} onValueChange={setMinRating}>
-                  <SelectTrigger className="h-10 bg-white/90 backdrop-blur border border-gray-200 text-gray-900 rounded-lg hover:border-blue-300 transition-all text-sm">
-                    <SelectValue placeholder={t('clinic.minRating', 'Minimum Rating')} />
+                  <SelectTrigger className="h-9 border-gray-200 rounded-md text-sm">
+                    <Star className="w-3.5 h-3.5 mr-1.5 text-gray-400" />
+                    <SelectValue placeholder={t('clinic.rating')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">
-                      {t('clinic.allRatings', 'All Ratings')}
-                    </SelectItem>
-                    {[4, 3, 2, 1].map((rating) => (
-                      <SelectItem key={rating} value={String(rating)}>
-                        {rating}+ {t('common.stars', 'stars')}
-                      </SelectItem>
+                    <SelectItem value="all">{t('clinic.allRatings', 'Rating')}</SelectItem>
+                    {[4, 3, 2].map((rating) => (
+                      <SelectItem key={rating} value={String(rating)}>{rating}+</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    onClick={clearFilters}
+                    className="h-9 text-sm text-gray-500 hover:text-gray-900 rounded-md"
+                  >
+                    <X className="w-3.5 h-3.5 mr-1.5" />
+                    Clear
+                  </Button>
+                )}
               </div>
 
-              {/* Clear Filters Button */}
-              <Button 
-                variant="ghost"
-                className="w-full text-gray-600 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-all text-sm h-10"
-                onClick={() => {
-                  setSearchTerm("");
-                  setSelectedDate(undefined);
-                  setSelectedTimeSlot('any');
-                  setSelectedCity("all");
-                  setSelectedSpecialty("all");
-                  setMinRating("all");
-                }}
-              >
-                <Filter className="w-4 h-4 mr-2" />
-                {t('common.clearFilters')}
-              </Button>
-            </div>
-          </div>
-
-          {/* Hero Section - Right Side */}
-          <div className="relative order-1 lg:order-2">
-            <div 
-              className="relative rounded-[3rem] bg-gradient-to-br from-blue-600 via-sky-600 to-cyan-600 p-1 shadow-2xl"
-              style={{
-                transform: 'perspective(1000px) rotateX(2deg)',
-                transformStyle: 'preserve-3d'
-              }}
-            >
-              <div className="relative rounded-[2.9rem] bg-white p-8 lg:p-10 overflow-hidden">
-                {/* Floating 3D Elements */}
-                <div className="absolute top-8 right-8 w-24 h-24 opacity-20" style={parallaxStyle}>
-                  <div className="w-full h-full rounded-3xl bg-gradient-to-br from-blue-400 to-sky-400 transform rotate-12 animate-float"></div>
-                </div>
-                <div className="absolute bottom-8 left-16 w-20 h-20 opacity-20" style={{...parallaxStyle, animationDelay: '2s'}}>
-                  <div className="w-full h-full rounded-3xl bg-gradient-to-br from-cyan-400 to-blue-400 transform -rotate-12 animate-float"></div>
-                </div>
-
-                <div className="relative grid lg:grid-cols-2 gap-8 items-center">
-                  <div className="space-y-6">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-100 to-sky-100 border border-blue-200 shadow-lg">
-                      <Activity className="w-4 h-4 text-blue-600 animate-pulse" />
-                      <span className="text-xs font-semibold text-blue-900">{t('clinic.directory')}</span>
-                      <Badge className="bg-gradient-to-r from-green-400 to-emerald-400 text-white border-0 shadow-md text-xs px-2 py-0.5">
-                        {clinics.length} {t('common.active')}
-                      </Badge>
-                    </div>
-                    
-                    <h1 className="text-4xl lg:text-5xl font-bold text-gray-900 leading-tight">
-                      {t('clinic.findPerfectClinic').split(' ').slice(0, 2).join(' ')} 
-                      <span className="block bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-600 bg-clip-text text-transparent animate-gradient">
-                        {t('clinic.findPerfectClinic').split(' ').slice(2).join(' ')}
-                      </span>
-                    </h1>
-                    
-                    <p className="text-base text-gray-600 leading-relaxed">
-                      {t('clinic.browseProviders')}
-                    </p>
-
-                    {/* Stats Cards */}
-                    <div className="grid grid-cols-3 gap-3">
-                      <div 
-                        className="relative p-4 rounded-xl bg-white shadow-lg border border-blue-100 hover:shadow-xl transition-all group"
-                        style={{
-                          transform: hoveredCard === 'stat1' ? 'perspective(500px) rotateY(-5deg) scale(1.05)' : '',
-                          transformStyle: 'preserve-3d'
-                        }}
-                        onMouseEnter={() => setHoveredCard('stat1')}
-                        onMouseLeave={() => setHoveredCard(null)}
-                      >
-                        <Building2 className="w-6 h-6 text-blue-600 mb-2 group-hover:scale-110 transition-transform" />
-                        <p className="text-2xl font-bold text-gray-900">{clinics.length}</p>
-                        <p className="text-[10px] text-gray-500 mt-1">{t('clinic.verifiedClinics')}</p>
-                      </div>
-                      
-                      <div 
-                        className="relative p-4 rounded-xl bg-gradient-to-br from-blue-500 to-sky-500 text-white shadow-lg hover:shadow-xl transition-all group"
-                        style={{
-                          transform: hoveredCard === 'stat2' ? 'perspective(500px) rotateX(-5deg) scale(1.05)' : '',
-                          transformStyle: 'preserve-3d'
-                        }}
-                        onMouseEnter={() => setHoveredCard('stat2')}
-                        onMouseLeave={() => setHoveredCard(null)}
-                      >
-                        <Users className="w-6 h-6 mb-2 group-hover:scale-110 transition-transform" />
-                        <p className="text-2xl font-bold">10K+</p>
-                        <p className="text-[10px] text-blue-100 mt-1">{t('clinic.patientsServed')}</p>
-                      </div>
-
-                      <div 
-                        className="relative p-4 rounded-xl bg-white shadow-lg border border-blue-100 hover:shadow-xl transition-all group"
-                        style={{
-                          transform: hoveredCard === 'stat3' ? 'perspective(500px) rotateY(5deg) scale(1.05)' : '',
-                          transformStyle: 'preserve-3d'
-                        }}
-                        onMouseEnter={() => setHoveredCard('stat3')}
-                        onMouseLeave={() => setHoveredCard(null)}
-                      >
-                        <Star className="w-6 h-6 text-yellow-500 mb-2 group-hover:scale-110 transition-transform" />
-                        <p className="text-2xl font-bold text-gray-900">4.8</p>
-                        <p className="text-[10px] text-gray-500 mt-1">{t('clinic.avgRating')}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 3D Graphic Cards */}
-                  <div className="relative h-[320px] hidden lg:block">
-                    <div 
-                      className="absolute top-0 right-0 w-64 h-36 rounded-2xl bg-gradient-to-br from-blue-500 to-sky-500 shadow-2xl p-5 text-white"
-                      style={{
-                        transform: `perspective(1000px) rotateX(${hoveredCard === 'card1' ? '0' : '10'}deg) rotateY(${hoveredCard === 'card1' ? '0' : '-20'}deg) translateZ(50px)`,
-                        transformStyle: 'preserve-3d',
-                        transition: 'transform 0.3s ease'
-                      }}
-                      onMouseEnter={() => setHoveredCard('card1')}
-                      onMouseLeave={() => setHoveredCard(null)}
-                    >
-                      <Stethoscope className="w-8 h-8 mb-2" />
-                      <h3 className="text-lg font-bold mb-1">{t('clinic.allSpecialtiesText')}</h3>
-                      <p className="text-sm text-blue-100">{t('clinic.allSpecialtiesDesc')}</p>
-                    </div>
-
-                    <div 
-                      className="absolute bottom-0 left-0 w-56 h-32 rounded-2xl bg-white shadow-2xl border border-blue-100 p-4"
-                      style={{
-                        transform: `perspective(1000px) rotateX(${hoveredCard === 'card2' ? '0' : '-10'}deg) rotateY(${hoveredCard === 'card2' ? '0' : '15'}deg) translateZ(30px)`,
-                        transformStyle: 'preserve-3d',
-                        transition: 'transform 0.3s ease'
-                      }}
-                      onMouseEnter={() => setHoveredCard('card2')}
-                      onMouseLeave={() => setHoveredCard(null)}
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-400 to-emerald-400 flex items-center justify-center">
-                          <Clock className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                          <h3 className="text-sm font-bold text-gray-900">{t('clinic.instantBooking')}</h3>
-                          <p className="text-[10px] text-gray-500">{t('clinic.instantBookingDesc')}</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        {[1, 2, 3, 4].map((i) => (
-                          <div key={i} className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-50 to-sky-50 border border-blue-100"></div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Floating icons */}
-                    <div className="absolute top-1/2 right-1/3 w-14 h-14 animate-float">
-                      <div className="w-full h-full rounded-xl bg-gradient-to-br from-cyan-400 to-blue-400 shadow-xl flex items-center justify-center transform rotate-12">
-                        <Heart className="w-7 h-7 text-white" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Results Count Bar */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <div className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-blue-100 to-sky-100 border border-blue-200 shadow-lg">
-              <p className="text-blue-900 font-bold text-base">
-                {t('clinic.clinics', { count: filteredClinics.length, defaultValue: 'Clinics' })} {t('clinic.available')}
-              </p>
-            </div>
-            {(searchTerm || selectedCity !== "all" || selectedSpecialty !== "all" || minRating !== "all" || selectedDate || selectedTimeSlot !== 'any') && (
-              <div className="flex items-center gap-2">
-                <Badge className="bg-white border-blue-200 text-blue-600 shadow-md px-3 py-1.5">
-                  {t('common.filtersActive')}
-                </Badge>
-                <div className="h-8 w-px bg-blue-200"></div>
-                <div className="flex gap-2 flex-wrap">
+              {/* Active Filter Tags */}
+              {hasActiveFilters && (
+                <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-gray-100">
                   {searchTerm && (
-                    <Badge className="bg-blue-50 text-blue-700 border-blue-200">
+                    <Badge variant="secondary" className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded font-normal">
                       "{searchTerm}"
+                      <button onClick={() => setSearchTerm("")} className="ml-1.5 hover:text-gray-900">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  {selectedCity !== 'all' && (
+                    <Badge variant="secondary" className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded font-normal">
+                      {selectedCity}
+                      <button onClick={() => setSelectedCity("all")} className="ml-1.5 hover:text-gray-900">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  {selectedSpecialty !== 'all' && (
+                    <Badge variant="secondary" className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded font-normal">
+                      {selectedSpecialty}
+                      <button onClick={() => setSelectedSpecialty("all")} className="ml-1.5 hover:text-gray-900">
+                        <X className="w-3 h-3" />
+                      </button>
                     </Badge>
                   )}
                   {selectedDate && (
-                    <Badge className="bg-purple-50 text-purple-700 border-purple-200">
-                      📅 {format(selectedDate, 'MMM d')}
-                      {selectedTimeSlot !== 'any' && ` • ${selectedTimeSlot}`}
+                    <Badge variant="secondary" className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded font-normal">
+                      {format(selectedDate, 'MMM d')}{selectedTimeSlot !== 'any' && ` · ${selectedTimeSlot}`}
+                      <button onClick={() => { setSelectedDate(undefined); setSelectedTimeSlot('any'); }} className="ml-1.5 hover:text-gray-900">
+                        <X className="w-3 h-3" />
+                      </button>
                     </Badge>
                   )}
-                  {selectedCity !== "all" && (
-                    <Badge className="bg-sky-50 text-sky-700 border-sky-200">
-                      {selectedCity}
-                    </Badge>
-                  )}
-                  {selectedSpecialty !== "all" && (
-                    <Badge className="bg-cyan-50 text-cyan-700 border-cyan-200">
-                      {selectedSpecialty}
-                    </Badge>
-                  )}
-                  {minRating !== "all" && (
-                    <Badge className="bg-yellow-50 text-yellow-700 border-yellow-200">
-                      {minRating}+ {t('common.stars', 'Stars')}
+                  {minRating !== 'all' && (
+                    <Badge variant="secondary" className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded font-normal">
+                      {minRating}+ stars
+                      <button onClick={() => setMinRating("all")} className="ml-1.5 hover:text-gray-900">
+                        <X className="w-3 h-3" />
+                      </button>
                     </Badge>
                   )}
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Modern Compact Clinic Cards - Grid Layout */}
+        {/* Results */}
         {filteredClinics.length === 0 ? (
-          <div className="rounded-3xl bg-white/80 backdrop-blur border border-gray-200 shadow-xl p-12 text-center">
-            <div className="max-w-md mx-auto">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-100 to-sky-100 flex items-center justify-center mx-auto mb-5">
-                <Search className="w-10 h-10 text-blue-400" />
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">{t('clinic.noClinicsFound')}</h3>
-              <p className="text-base text-gray-600 mb-6">{t('clinic.tryAdjustingFilters')}</p>
-
-              <Button
-                onClick={() => {
-                  setSearchTerm("");
-                  setSelectedDate(undefined);
-                  setSelectedTimeSlot('any');
-                  setSelectedCity("all");
-                  setSelectedSpecialty("all");
-                  setMinRating("all");
-                }}
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white font-bold shadow-lg"
-              >
-                <Filter className="w-5 h-5 mr-2" />
-                {t('common.resetFilters')}
-              </Button>
+          <div className="text-center py-16">
+            <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+              <Search className="w-6 h-6 text-gray-400" />
             </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-1">{t('clinic.noClinicsFound')}</h3>
+            <p className="text-sm text-gray-500 mb-4">{t('clinic.tryAdjustingFilters')}</p>
+            <Button
+              onClick={clearFilters}
+              className="h-9 px-4 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-md"
+            >
+              {t('common.resetFilters')}
+            </Button>
           </div>
         ) : (
-          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 pb-12">
-            {filteredClinics.map((clinic, index) => {
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredClinics.map((clinic) => {
               const todaySchedule = getTodaySchedule(clinic);
-              const displaySchedule = selectedDate 
+              const displaySchedule = selectedDate
                 ? { isOpen: isClinicAvailableOnDateTime(clinic), hours: getScheduleForDate(clinic) }
                 : todaySchedule;
-              const paymentMethods = getPaymentMethods(clinic);
-              const allowWalkIns = clinic.settings?.allow_walk_ins;
-              const avgDuration = clinic.settings?.average_appointment_duration;
-              
+
               const averageRating = clinic.average_rating || 0;
               const totalRatings = clinic.total_ratings || 0;
-              
               const isFavorite = userFavorites?.includes(clinic.id) || false;
 
               return (
-                <div
+                <article
                   key={clinic.id}
-                  className="group"
-                  onMouseEnter={() => setHoveredCard(clinic.id)}
-                  onMouseLeave={() => setHoveredCard(null)}
+                  onClick={() => navigate(`/clinic/${clinic.id}`)}
+                  className="group cursor-pointer"
                 >
-                  <div 
-                    className="relative transition-all duration-300"
-                    style={{
-                      transform: hoveredCard === clinic.id 
-                        ? 'translateY(-2px)' 
-                        : 'translateY(0)'
-                    }}
-                  >
-                    {/* Glow effect */}
-                    <div className={`absolute -inset-0.5 bg-gradient-to-r from-blue-400 via-sky-400 to-cyan-400 rounded-3xl blur opacity-0 group-hover:opacity-20 transition-opacity duration-300`}></div>
-                    
-                    <Card 
-                      className="relative bg-white/90 backdrop-blur border border-gray-200 rounded-2xl overflow-hidden cursor-pointer hover:shadow-2xl transition-all duration-300"
-                      onClick={() => navigate(`/clinic/${clinic.id}`)}
-                    >
-                      <div className="flex flex-row h-[180px]">
-                        {/* LEFT: Clinic Image/Logo Section - Very Compact */}
-                        <div className="relative w-28 flex-shrink-0 bg-gradient-to-br from-blue-500 via-sky-500 to-cyan-500 overflow-hidden">
-                          {/* Decorative patterns */}
-                          <div className="absolute inset-0 opacity-10">
-                            <Plus className="absolute top-2 left-2 w-4 h-4 text-white" />
-                            <Stethoscope className="absolute bottom-2 right-2 w-5 h-5 text-white" />
-                          </div>
-                          
-                          {/* Clinic Logo/Image */}
-                          <div className="absolute inset-0 flex items-center justify-center p-3">
+                  <Card className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md hover:border-gray-300 transition-all duration-200">
+                    {/* Card Header */}
+                    <div className="relative p-4 pb-3 border-b border-gray-100">
+                      <div className="flex items-start justify-between gap-3">
+                        {/* Logo & Info */}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-11 h-11 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden flex-shrink-0">
                             {clinic.logo_url ? (
-                              <div className="w-full h-full rounded-xl bg-white/95 backdrop-blur shadow-xl p-2 flex items-center justify-center">
-                                <img 
-                                  src={clinic.logo_url} 
-                                  alt={clinic.name} 
-                                  className="w-full h-full object-contain" 
-                                />
-                              </div>
+                              <img src={clinic.logo_url} alt={clinic.name} className="w-full h-full object-cover" />
                             ) : (
-                              <div className="w-16 h-16 rounded-xl bg-white/95 backdrop-blur shadow-xl flex items-center justify-center">
-                                <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-sky-600 bg-clip-text text-transparent">
-                                  {clinic.name.charAt(0)}
-                                </span>
-                              </div>
+                              <span className="text-base font-semibold text-gray-400">
+                                {clinic.name.charAt(0)}
+                              </span>
                             )}
                           </div>
-
-                          {/* Favorite Button */}
-                          <button
-                            onClick={(e) => toggleFavorite(e, clinic.id)}
-                            disabled={toggleFavoriteMutation.isPending}
-                            className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/95 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white hover:scale-110 transition-all disabled:opacity-50 z-10"
-                          >
-                            <Heart 
-                              className={`w-3.5 h-3.5 transition-all ${
-                                isFavorite 
-                                  ? 'fill-red-500 text-red-500' 
-                                  : 'text-gray-400'
-                              }`} 
-                            />
-                          </button>
-
-                          {/* Status Badge */}
-                          <div className="absolute bottom-2 left-2 z-10">
-                            <Badge className={`${displaySchedule.isOpen ? 'bg-green-500' : 'bg-gray-500'} text-white border-0 px-2 py-0.5 text-[10px] font-semibold shadow-lg`}>
-                              {displaySchedule.isOpen ? t('common.open') : t('common.closed')}
-                            </Badge>
-                          </div>
-                        </div>
-
-                        {/* RIGHT: Clinic Information Section - Ultra Compact */}
-                        <div className="flex-1 p-3 flex flex-col min-w-0">
-                          {/* Header: Name & Specialty - Single Line */}
-                          <div className="mb-2">
-                            <h3 className="text-base font-bold text-gray-900 line-clamp-1 group-hover:text-blue-600 transition-colors">
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-semibold text-gray-900 truncate group-hover:text-gray-700 transition-colors">
                               {clinic.name}
                             </h3>
-                            <p className="text-[11px] text-gray-500 uppercase tracking-wide font-medium">{clinic.specialty}</p>
-                          </div>
-
-                          {/* Ultra Compact Stats - Single Line */}
-                          <div className="flex items-center gap-3 text-[11px] mb-2 pb-2 border-b border-gray-100">
-                            <div className="flex items-center gap-1">
-                              <span className="font-bold text-gray-900">{totalRatings}</span>
-                              <span className="text-gray-500">Reviews</span>
-                            </div>
-                            <div className="flex items-center gap-0.5">
-                              <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
-                              <span className="font-bold text-gray-900">{averageRating.toFixed(1)}</span>
-                            </div>
-                            {avgDuration && (
-                              <div className="flex items-center gap-0.5">
-                                <Timer className="w-3 h-3 text-cyan-600" />
-                                <span className="font-bold text-gray-900">{avgDuration}m</span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Compact Location & Time - 2 Lines Only */}
-                          <div className="space-y-1.5 mb-2 flex-1">
-                            <div className="flex items-center gap-2 text-gray-700">
-                              <MapPin className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
-                              <span className="text-xs font-semibold text-gray-900 truncate">{clinic.city}</span>
-                            </div>
-
-                            <div className="flex items-center gap-2 text-gray-700">
-                              <Clock className="w-3.5 h-3.5 text-sky-600 flex-shrink-0" />
-                              <span className="text-xs font-semibold text-gray-900">{displaySchedule.hours}</span>
-                            </div>
-                          </div>
-
-
-
-                          {/* Compact Action Buttons */}
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex-1 rounded-lg border border-gray-300 hover:border-blue-600 hover:bg-blue-50 hover:text-blue-600 font-semibold transition-all h-8 text-[11px] px-2"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/clinic/${clinic.id}`);
-                              }}
-                            >
-                              <Eye className="w-3 h-3 mr-1" />
-                              Details
-                            </Button>
-                            <Button
-                              size="sm"
-                              className="flex-1 rounded-lg bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all h-8 text-[11px] px-2"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/booking/${clinic.id}`);
-                              }}
-                            >
-                              Book Now
-                              <ArrowRight className="w-3 h-3 ml-1" />
-                            </Button>
+                            <p className="text-xs text-gray-500 truncate">{clinic.specialty}</p>
                           </div>
                         </div>
+
+                        {/* Favorite */}
+                        <button
+                          onClick={(e) => toggleFavorite(e, clinic.id)}
+                          disabled={toggleFavoriteMutation.isPending}
+                          className="w-8 h-8 rounded-md flex items-center justify-center hover:bg-gray-100 transition-colors flex-shrink-0"
+                        >
+                          <Heart
+                            className={`w-4 h-4 ${
+                              isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-300'
+                            }`}
+                          />
+                        </button>
                       </div>
-                    </Card>
-                  </div>
-                </div>
+                    </div>
+
+                    {/* Card Body */}
+                    <div className="p-4 pt-3">
+                      {/* Rating & Status Row */}
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-1.5">
+                          <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                          <span className="text-sm font-medium text-gray-900">{averageRating.toFixed(1)}</span>
+                          <span className="text-xs text-gray-400">({totalRatings})</span>
+                        </div>
+                        <Badge className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                          displaySchedule.isOpen
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-gray-50 text-gray-500 border-gray-200'
+                        } border`}>
+                          {displaySchedule.isOpen ? t('common.open') : t('common.closed')}
+                        </Badge>
+                      </div>
+
+                      {/* Details */}
+                      <div className="space-y-1.5 mb-4">
+                        <div className="flex items-center gap-2 text-xs text-gray-600">
+                          <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                          <span className="truncate">{clinic.city}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-600">
+                          <Clock className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                          <span>{displaySchedule.hours}</span>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/clinic/${clinic.id}`);
+                          }}
+                          className="flex-1 h-8 text-xs font-medium border-gray-200 rounded-md hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                        >
+                          Details
+                        </Button>
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/booking/${clinic.id}`);
+                          }}
+                          className="flex-1 h-8 text-xs font-medium bg-gray-900 hover:bg-gray-800 text-white rounded-md transition-colors"
+                        >
+                          {t('clinic.bookNow')}
+                          <ArrowRight className="w-3 h-3 ml-1" />
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                </article>
               );
             })}
           </div>
         )}
       </div>
-      
-      {/* Styles for animation */}
-      <style>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px) rotate(12deg); }
-          50% { transform: translateY(-20px) rotate(12deg); }
-        }
-        
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(30px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes gradient {
-          0%, 100% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-        }
-        
-        .animate-float {
-          animation: float 6s ease-in-out infinite;
-        }
-
-        .animate-gradient {
-          background-size: 200% 200%;
-          animation: gradient 3s ease infinite;
-        }
-      `}</style>
     </div>
   );
 };

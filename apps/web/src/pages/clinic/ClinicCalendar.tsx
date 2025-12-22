@@ -1,20 +1,25 @@
 /**
- * Clinic Calendar (Consistent UI Version with Enhanced Styling)
- * This version correctly identifies and displays absent patients, making it
- * consistent with the Live Queue view and providing a clearer operational picture.
+ * Clinic Calendar - Premium Apple/Uber Design
  */
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
-import { Calendar as CalendarIcon, Plus, Clock, UserX, CheckCircle2, Activity, XCircle, AlertCircle } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import {
+  Calendar as CalendarIcon,
+  Plus,
+  Clock,
+  UserX,
+  CheckCircle2,
+  Play,
+  XCircle,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw
+} from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { Badge } from "@/components/ui/badge";
 import { BookAppointmentDialog } from "@/components/clinic/BookAppointmentDialog";
-import { format, isToday, isSameDay } from "date-fns";
+import { format, isToday, addDays, subDays } from "date-fns";
 import { logger } from "@/services/shared/logging/Logger";
 import { QueueEntry, SkipReason } from "@/services/queue";
 import { QueueService } from "@/services/queue/QueueService";
@@ -24,7 +29,6 @@ import { cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
 
 type ClinicRow = Database["public"]["Tables"]["clinics"]["Row"];
-type StatusConfig = Record<string, { variant: string; icon?: LucideIcon; className: string }>;
 
 export default function ClinicCalendar() {
   const { user } = useAuth();
@@ -132,295 +136,292 @@ export default function ClinicCalendar() {
     fetchAppointments();
   }, [fetchAppointments]);
 
-  // Smart status badge function
-  const getStatusBadge = (apt: QueueEntry) => {
-    // If patient is marked absent and has not returned, that is the most important status
+  // Get status styling for appointment
+  const getStatusStyle = (apt: QueueEntry) => {
     if (apt.skipReason === SkipReason.PATIENT_ABSENT && !apt.returnedAt) {
-      return (
-        <Badge className="bg-gradient-to-r from-red-500 to-red-600 text-white border-0 shadow-sm">
-          <UserX className="w-3 h-3 mr-1" />
-          Absent
-        </Badge>
-      );
+      return {
+        bg: 'bg-red-50 dark:bg-red-950/30',
+        border: 'border-red-200 dark:border-red-800',
+        dot: 'bg-red-500',
+        text: 'text-red-600 dark:text-red-400',
+        label: 'Absent'
+      };
     }
-    
-    // Status styling map
-    const statusConfig: StatusConfig = {
-      scheduled: { 
-        variant: "outline", 
-        icon: Clock,
-        className: "border-blue-300 text-blue-700 bg-blue-50" 
+
+    const statusMap: Record<string, { bg: string; border: string; dot: string; text: string; label: string }> = {
+      scheduled: {
+        bg: 'bg-blue-50 dark:bg-blue-950/30',
+        border: 'border-blue-200 dark:border-blue-800',
+        dot: 'bg-blue-500',
+        text: 'text-blue-600 dark:text-blue-400',
+        label: 'Scheduled'
       },
-      waiting: { 
-        variant: "outline", 
-        icon: Clock,
-        className: "border-orange-300 text-orange-700 bg-orange-50" 
+      waiting: {
+        bg: 'bg-amber-50 dark:bg-amber-950/30',
+        border: 'border-amber-200 dark:border-amber-800',
+        dot: 'bg-amber-500',
+        text: 'text-amber-600 dark:text-amber-400',
+        label: 'Waiting'
       },
-      in_progress: { 
-        variant: "default", 
-        icon: Activity,
-        className: "bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0 shadow-sm" 
+      in_progress: {
+        bg: 'bg-emerald-50 dark:bg-emerald-950/30',
+        border: 'border-emerald-200 dark:border-emerald-800',
+        dot: 'bg-emerald-500',
+        text: 'text-emerald-600 dark:text-emerald-400',
+        label: 'Active'
       },
-      completed: { 
-        variant: "default", 
-        icon: CheckCircle2,
-        className: "bg-gradient-to-r from-purple-500 to-purple-600 text-white border-0 shadow-sm" 
+      completed: {
+        bg: 'bg-gray-50 dark:bg-gray-900/50',
+        border: 'border-gray-200 dark:border-gray-800',
+        dot: 'bg-gray-400',
+        text: 'text-gray-500 dark:text-gray-400',
+        label: 'Done'
       },
-      cancelled: { 
-        variant: "destructive", 
-        icon: XCircle,
-        className: "bg-gradient-to-r from-gray-500 to-gray-600 text-white border-0 shadow-sm" 
-      },
-      no_show: { 
-        variant: "destructive", 
-        icon: UserX,
-        className: "bg-gradient-to-r from-red-500 to-red-600 text-white border-0 shadow-sm" 
+      cancelled: {
+        bg: 'bg-gray-50 dark:bg-gray-900/50',
+        border: 'border-gray-200 dark:border-gray-800',
+        dot: 'bg-gray-400',
+        text: 'text-gray-500 dark:text-gray-400',
+        label: 'Cancelled'
       },
     };
 
-    const config = statusConfig[apt.status] || statusConfig.scheduled;
-    const Icon = config.icon;
-
-    return (
-      <Badge className={config.className}>
-        {Icon && <Icon className="w-3 h-3 mr-1" />}
-        {apt.status.replace('_', ' ')}
-      </Badge>
-    );
+    return statusMap[apt.status] || statusMap.scheduled;
   };
-  
+
   const workingHours = useMemo(() => {
     if (!clinic?.settings?.working_hours) return null;
     const dayName = format(selectedDate, 'EEEE').toLowerCase();
     return clinic.settings.working_hours[dayName];
   }, [clinic, selectedDate]);
-  
+
   const isClosed = workingHours?.closed;
 
   // Calculate stats
   const stats = useMemo(() => {
-    const scheduled = appointments.filter(a => a.status === 'scheduled').length;
+    const scheduled = appointments.filter(a => a.status === 'scheduled' || a.status === 'waiting').length;
+    const inProgress = appointments.filter(a => a.status === 'in_progress').length;
     const completed = appointments.filter(a => a.status === 'completed').length;
     const absent = appointments.filter(a => a.skipReason === SkipReason.PATIENT_ABSENT && !a.returnedAt).length;
-    return { scheduled, completed, absent, total: appointments.length };
+    return { scheduled, inProgress, completed, absent, total: appointments.length };
   }, [appointments]);
 
   return (
-    <div className="space-y-6">
-      {/* Clean Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-3">
-            <CalendarIcon className="w-8 h-8 text-blue-600" />
-            Schedule Calendar
-          </h1>
-          <p className="text-base text-gray-600">View and manage appointments by date</p>
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Calendar</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            View and manage appointments
+          </p>
+        </div>
+        <Button
+          onClick={() => setShowBookAppointment(true)}
+          size="sm"
+          className="bg-foreground text-background hover:bg-foreground/90 h-8 px-3 text-xs font-medium"
+        >
+          <Plus className="w-3.5 h-3.5 mr-1.5" />
+          Book
+        </Button>
+      </div>
+
+      {/* Date Navigation + Inline Stats */}
+      <div className="flex items-center justify-between">
+        {/* Date Navigation */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedDate(subDays(selectedDate, 1))}
+            className="h-8 w-8 p-0"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-foreground">
+              {format(selectedDate, 'EEEE, MMM d')}
+            </span>
+            {isToday(selectedDate) && (
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500 text-white">
+                TODAY
+              </span>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedDate(addDays(selectedDate, 1))}
+            className="h-8 w-8 p-0"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+          {!isToday(selectedDate) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedDate(new Date())}
+              className="h-8 px-2 text-xs text-muted-foreground"
+            >
+              Today
+            </Button>
+          )}
+        </div>
+
+        {/* Inline Stats */}
+        <div className="flex items-center gap-5 text-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-blue-500" />
+            <span className="text-muted-foreground">Scheduled</span>
+            <span className="font-semibold text-foreground">{stats.scheduled}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="text-muted-foreground">Active</span>
+            <span className="font-semibold text-foreground">{stats.inProgress}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-gray-400" />
+            <span className="text-muted-foreground">Done</span>
+            <span className="font-semibold text-foreground">{stats.completed}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-red-500" />
+            <span className="text-muted-foreground">Absent</span>
+            <span className="font-semibold text-foreground">{stats.absent}</span>
+          </div>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="group relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-white to-blue-50/50 rounded-2xl p-5">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-500/10 to-transparent rounded-full blur-2xl"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-gray-600">Total</span>
-              <div className="p-2 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 group-hover:scale-110 transition-transform">
-                <CalendarIcon className="w-4 h-4 text-blue-600" />
-              </div>
-            </div>
-            <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-              {stats.total}
-            </div>
-          </div>
+      {/* Working Hours Info */}
+      {isClosed ? (
+        <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
+          <XCircle className="w-4 h-4" />
+          <span>Clinic closed on {format(selectedDate, 'EEEE')}</span>
+        </div>
+      ) : workingHours ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Clock className="w-4 h-4" />
+          <span>Working hours: {workingHours.open} - {workingHours.close}</span>
+        </div>
+      ) : null}
+
+      {/* Main Content Grid */}
+      <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
+        {/* Calendar Sidebar */}
+        <div className="border border-border rounded-lg bg-card p-4">
+          <Calendar
+            mode="single"
+            selected={selectedDate}
+            onSelect={(date) => date && setSelectedDate(date)}
+            className="w-full"
+          />
         </div>
 
-        <div className="group relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-white to-orange-50/50 rounded-2xl p-5">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-500/10 to-transparent rounded-full blur-2xl"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-gray-600">Scheduled</span>
-              <div className="p-2 rounded-lg bg-gradient-to-br from-orange-100 to-amber-200 group-hover:scale-110 transition-transform">
-                <Clock className="w-4 h-4 text-orange-600" />
-              </div>
-            </div>
-            <div className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
-              {stats.scheduled}
-            </div>
+        {/* Appointments List */}
+        <div className="border border-border rounded-lg bg-card">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <p className="text-sm font-medium text-foreground">
+              {format(selectedDate, 'MMMM d, yyyy')}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {stats.total} appointment{stats.total !== 1 ? 's' : ''}
+            </p>
           </div>
-        </div>
 
-        <div className="group relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-white to-purple-50/50 rounded-2xl p-5">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-purple-500/10 to-transparent rounded-full blur-2xl"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-gray-600">Completed</span>
-              <div className="p-2 rounded-lg bg-gradient-to-br from-purple-100 to-purple-200 group-hover:scale-110 transition-transform">
-                <CheckCircle2 className="w-4 h-4 text-purple-600" />
-              </div>
-            </div>
-            <div className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-              {stats.completed}
-            </div>
-          </div>
-        </div>
-
-        <div className="group relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-white to-red-50/50 rounded-2xl p-5">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-red-500/10 to-transparent rounded-full blur-2xl"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-gray-600">Absent</span>
-              <div className="p-2 rounded-lg bg-gradient-to-br from-red-100 to-red-200 group-hover:scale-110 transition-transform">
-                <UserX className="w-4 h-4 text-red-600" />
-              </div>
-            </div>
-            <div className="text-3xl font-bold bg-gradient-to-r from-red-600 to-red-700 bg-clip-text text-transparent">
-              {stats.absent}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Calendar Card */}
-        <Card className="lg:col-span-1 relative overflow-hidden border-0 shadow-xl hover:shadow-2xl transition-all bg-white rounded-2xl">
-          <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-blue-500/5 to-transparent rounded-full blur-3xl"></div>
-          <CardHeader className="relative z-10 border-b bg-gradient-to-r from-blue-50/50 via-sky-50/30 to-cyan-50/50">
-            <CardTitle className="text-xl font-bold">Select Date</CardTitle>
-            <CardDescription className="text-base">Choose a date to view appointments</CardDescription>
-          </CardHeader>
-          <CardContent className="flex justify-center pt-6 relative z-10">
-            <Calendar 
-              mode="single" 
-              selected={selectedDate} 
-              onSelect={(date) => date && setSelectedDate(date)} 
-              className="rounded-xl border-2 border-gray-200" 
-            />
-          </CardContent>
-        </Card>
-
-        {/* Appointments Card */}
-        <Card className="lg:col-span-2 relative overflow-hidden border-0 shadow-xl hover:shadow-2xl transition-all bg-white rounded-2xl">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-cyan-500/5 to-transparent rounded-full blur-3xl"></div>
-          <CardHeader className="relative z-10 border-b bg-gradient-to-r from-blue-50/50 via-sky-50/30 to-cyan-50/50">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <CardTitle className="text-xl font-bold mb-2">
-                  Appointments for {format(selectedDate, 'MMMM d, yyyy')}
-                </CardTitle>
-                <CardDescription className="text-base space-y-2">
-                  {!isToday(selectedDate) && (
-                    <div className="flex items-center gap-2 text-amber-600 font-medium bg-amber-50 px-3 py-1.5 rounded-md border border-amber-200">
-                      <AlertCircle className="w-4 h-4" />
-                      <span>
-                        Viewing {format(selectedDate, 'MMMM d')} - Live Queue only shows today's appointments
-                      </span>
-                    </div>
-                  )}
-                  {isClosed ? (
-                    <span className="flex items-center gap-2 text-red-600 font-semibold">
-                      <XCircle className="w-4 h-4" />
-                      Clinic closed on this day
-                    </span>
-                  ) : workingHours ? (
-                    <span className="flex items-center gap-2 text-green-600 font-semibold">
-                      <Clock className="w-4 h-4" />
-                      Working hours: {workingHours.open} - {workingHours.close}
-                    </span>
-                  ) : (
-                    <span className="text-gray-500">No working hours configured</span>
-                  )}
-                </CardDescription>
-              </div>
-              <Button 
-                onClick={() => setShowBookAppointment(true)} 
-                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg hover:shadow-xl transition-all rounded-xl"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Book
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6 relative z-10">
+          <div className="p-4">
             {loadingAppointments ? (
-              <div className="flex justify-center py-16">
-                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center animate-pulse">
-                  <CalendarIcon className="w-10 h-10 text-blue-600" />
-                </div>
+              <div className="flex items-center justify-center py-12">
+                <RefreshCw className="w-5 h-5 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-sm text-muted-foreground">Loading...</span>
               </div>
             ) : appointments.length === 0 ? (
-              <div className="text-center py-16">
-                <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center mx-auto mb-6">
-                  <Clock className="w-12 h-12 text-blue-600" />
+              <div className="text-center py-12">
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                  <CalendarIcon className="w-5 h-5 text-muted-foreground" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">No appointments scheduled</h3>
-                <p className="text-gray-500 mb-1">This day is free</p>
-                <p className="text-sm text-gray-400">Click "Book" to add an appointment</p>
+                <p className="text-sm text-muted-foreground">No appointments</p>
+                <p className="text-xs text-muted-foreground mt-1">This day is free</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {appointments.map((apt) => (
-                  <div 
-                    key={apt.id} 
-                    className={cn(
-                      "flex items-center justify-between p-5 border-2 rounded-2xl transition-all",
-                      apt.skipReason === SkipReason.PATIENT_ABSENT && !apt.returnedAt 
-                        ? "bg-red-50/50 border-red-200 opacity-70 hover:opacity-100" 
-                        : "border-gray-100 hover:border-blue-300 hover:bg-blue-50/50 hover:shadow-md"
-                    )}
-                  >
-                    <div className="flex items-center gap-4 flex-1">
-                    <div className={cn(
-                        "h-12 w-12 rounded-xl flex items-center justify-center font-bold text-sm shadow-md",
-                        apt.skipReason === SkipReason.PATIENT_ABSENT && !apt.returnedAt
-                          ? "bg-gradient-to-br from-red-400 to-red-500 text-white"
-                          : "bg-gradient-to-br from-blue-500 to-cyan-500 text-white"
-                      )}>
-                        {(() => {
-                          // ✅ NEW: Check both startTime and scheduledTime fields
-                          if (apt.startTime) {
-                            // startTime is a Date object
-                            return format(apt.startTime, 'HH:mm');
-                          } else if (apt.scheduledTime) {
-                            // scheduledTime is a string like "14:30:00" or "14:30"
-                            return typeof apt.scheduledTime === 'string' 
-                              ? apt.scheduledTime.slice(0, 5) 
-                              : '--:--';
-                          }
-                          return '--:--';
-                        })()}
+              <div className="space-y-1">
+                {appointments.map((apt) => {
+                  const statusStyle = getStatusStyle(apt);
+                  const timeDisplay = (() => {
+                    if (apt.startTime) {
+                      return format(new Date(apt.startTime), 'h:mm a');
+                    } else if (apt.scheduledTime) {
+                      const [h, m] = apt.scheduledTime.split(':');
+                      const hour = parseInt(h);
+                      const ampm = hour >= 12 ? 'PM' : 'AM';
+                      const hour12 = hour % 12 || 12;
+                      return `${hour12}:${m} ${ampm}`;
+                    }
+                    return '--:--';
+                  })();
+
+                  return (
+                    <div
+                      key={apt.id}
+                      className={cn(
+                        "flex items-center gap-3 p-3 rounded-lg border transition-all",
+                        statusStyle.bg,
+                        statusStyle.border,
+                        apt.status === 'completed' && "opacity-60"
+                      )}
+                    >
+                      {/* Time */}
+                      <div className="w-16 flex-shrink-0">
+                        <p className="text-xs font-medium text-foreground">{timeDisplay}</p>
                       </div>
+
+                      {/* Status Dot */}
+                      <div className={cn("w-2 h-2 rounded-full flex-shrink-0", statusStyle.dot)} />
+
+                      {/* Patient Info */}
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-base text-gray-900 truncate">
+                        <p className="text-sm font-medium text-foreground truncate">
                           {apt.patient?.fullName || 'Unknown Patient'}
-                        </h3>
-                        <p className="text-sm text-gray-500 capitalize truncate">
-                          {apt.appointmentType?.replace('_', ' ') || 'No Type'}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {apt.appointmentType?.replace('_', ' ') || 'Appointment'}
                         </p>
                       </div>
+
+                      {/* Status Badge */}
+                      <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded", statusStyle.text, statusStyle.bg)}>
+                        {statusStyle.label}
+                      </span>
+
+                      {/* Status Icons */}
+                      {apt.status === 'completed' && (
+                        <CheckCircle2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      )}
+                      {apt.status === 'in_progress' && (
+                        <Play className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                      )}
+                      {apt.skipReason === SkipReason.PATIENT_ABSENT && !apt.returnedAt && (
+                        <UserX className="w-4 h-4 text-red-500 flex-shrink-0" />
+                      )}
                     </div>
-                    <div>
-                      {getStatusBadge(apt)}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* Book Appointment Dialog */}
-      <BookAppointmentDialog 
-        open={showBookAppointment} 
-        onOpenChange={setShowBookAppointment} 
-        clinicId={clinic?.id || ""} 
-        staffId={staffId || ""} 
-        onSuccess={() => { 
-          fetchAppointments(); 
-          setShowBookAppointment(false); 
-        }} 
+      <BookAppointmentDialog
+        open={showBookAppointment}
+        onOpenChange={setShowBookAppointment}
+        clinicId={clinic?.id || ""}
+        staffId={staffId || ""}
+        onSuccess={() => {
+          fetchAppointments();
+          setShowBookAppointment(false);
+        }}
         preselectedDate={selectedDate}
       />
     </div>

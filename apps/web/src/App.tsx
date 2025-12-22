@@ -9,6 +9,7 @@ import { ThemeProvider } from "next-themes";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Welcome from "./pages/Welcome.tsx";
+import Clinics from "./pages/Clinics.tsx";
 
 // Auth Pages
 import Login from "./pages/auth/Login.tsx";
@@ -56,6 +57,11 @@ const App = () => (
           <Sonner />
         <Routes>
           {/* ======================================================= */}
+          {/* Premium Landing Page - Full width, edge-to-edge */}
+          {/* ======================================================= */}
+          <Route path="/" element={<Index />} />
+
+          {/* ======================================================= */}
           {/* Public Routes (Auth, Onboarding, Invitations) */}
           {/* ======================================================= */}
           <Route path="/auth/login" element={<Login />} />
@@ -68,12 +74,13 @@ const App = () => (
           {/* ======================================================= */}
           {/* PUBLIC Patient Routes with PatientLayout */}
           {/* ======================================================= */}
-          <Route path="/" element={<PatientLayout />}>
-            {/* Browse Clinics - Default landing page */}
-            <Route index element={<Index />} />
+          <Route element={<PatientLayout />}>
 
             {/* About/Welcome page - Accessible via nav button */}
             <Route path="welcome" element={<Welcome />} />
+
+            {/* Clinic Directory - Search and Browse */}
+            <Route path="clinics" element={<Clinics />} />
 
             {/* Public clinic browsing */}
             <Route path="clinic/:clinicId" element={<ClinicDetailView />} />

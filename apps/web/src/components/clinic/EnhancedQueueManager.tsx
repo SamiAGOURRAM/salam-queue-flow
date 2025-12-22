@@ -1,25 +1,23 @@
 /**
- * Enhanced Queue Manager - Redesigned with Tabs for Schedule/Absents
+ * Enhanced Queue Manager - Premium Apple/Uber Design
  */
 import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  UserX, 
-  Clock, 
-  AlertCircle, 
-  ChevronRight, 
-  Users, 
-  CheckCircle, 
-  RefreshCw, 
-  Play, 
-  UserCheck, 
-  AlertTriangle, 
-  Calendar, 
-  List
+import {
+  UserX,
+  Clock,
+  AlertCircle,
+  ChevronRight,
+  Users,
+  CheckCircle,
+  RefreshCw,
+  Play,
+  UserCheck,
+  Calendar,
+  List,
+  Check
 } from "lucide-react";
 import { useQueueService } from "@/hooks/useQueueService";
 import { AppointmentStatus, QueueEntry, SkipReason } from "@/services/queue";
@@ -230,172 +228,140 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
   const formatWaitTime = (entry: QueueEntry) => !entry.checkedInAt ? "Not checked in" : formatDistanceToNow(new Date(entry.checkedInAt), { addSuffix: true });
   const getInitials = (name?: string) => !name ? "?" : name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
-  if (isLoading && schedule.length === 0) return <div className="flex items-center justify-center p-16"><RefreshCw className="h-10 w-10 animate-spin text-primary" /><p className="ml-4">Loading Schedule...</p></div>;
-  if (error) return <Card className="border-2 border-destructive/50 bg-destructive/5"><CardHeader><CardTitle className="text-destructive flex items-center gap-2"><AlertCircle/>Error</CardTitle><CardDescription>{error.message}</CardDescription></CardHeader><CardContent><Button onClick={refreshQueue}>Retry</Button></CardContent></Card>;
+  if (isLoading && schedule.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-sm text-muted-foreground">Loading...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="border border-destructive/30 bg-destructive/5 rounded-lg p-6 text-center">
+        <AlertCircle className="h-5 w-5 text-destructive mx-auto mb-2" />
+        <p className="text-sm text-destructive font-medium mb-3">{error.message}</p>
+        <Button onClick={refreshQueue} size="sm" variant="outline">Retry</Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-2 border-border/80 shadow-md hover:shadow-lg transition-all">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-foreground-secondary mb-1">Waiting</p>
-                <p className="text-3xl font-bold text-foreground-primary">{summary.waiting}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-primary/10">
-                <Users className="h-6 w-6 text-primary" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-2 border-border/80 shadow-md hover:shadow-lg transition-all">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-foreground-secondary mb-1">In Progress</p>
-                <p className="text-3xl font-bold text-foreground-primary">{summary.inProgress}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-teal/10">
-                <Play className="h-6 w-6 text-teal" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-2 border-border/80 shadow-md hover:shadow-lg transition-all">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-foreground-secondary mb-1">Absent</p>
-                <p className="text-3xl font-bold text-foreground-primary">{summary.absent}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-destructive/10">
-                <UserX className="h-6 w-6 text-destructive" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-2 border-border/80 shadow-md hover:shadow-lg transition-all">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-foreground-secondary mb-1">Completed</p>
-                <p className="text-3xl font-bold text-foreground-primary">{summary.completed}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-success/10">
-                <CheckCircle className="h-6 w-6 text-success" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+    <div className="space-y-4">
+      {/* Inline Stats Bar */}
+      <div className="flex items-center gap-6 text-sm">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-blue-500" />
+          <span className="text-muted-foreground">Waiting</span>
+          <span className="font-semibold text-foreground">{summary.waiting}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-emerald-500" />
+          <span className="text-muted-foreground">Active</span>
+          <span className="font-semibold text-foreground">{summary.inProgress}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-red-500" />
+          <span className="text-muted-foreground">Absent</span>
+          <span className="font-semibold text-foreground">{summary.absent}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-gray-400" />
+          <span className="text-muted-foreground">Done</span>
+          <span className="font-semibold text-foreground">{summary.completed}</span>
+        </div>
       </div>
 
-      {/* Current Patient - Thin Row */}
+      {/* Current Patient - Narrow Strip */}
       {currentPatient ? (
-        <Card className="border-2 border-teal/40 bg-teal/5 shadow-md">
-          <CardContent className="py-4">
-            <div className="flex items-center gap-4">
-              <div className="w-1 h-12 rounded-full bg-teal"></div>
-              <Avatar className="h-12 w-12 border-2 border-teal/30">
-                <AvatarFallback className="bg-teal text-white text-sm font-bold">
-                  {getInitials(currentPatient.patient?.fullName)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-lg font-bold text-foreground-primary">
-                    {currentPatient.patient?.fullName || 'Patient'}
-                  </h3>
-                  <Badge className="bg-teal text-white border-0">
-                    <Play className="h-3 w-3 mr-1" />
-                    In Progress
-                  </Badge>
-                </div>
-                <p className="text-sm text-foreground-secondary mt-0.5">
-                  {currentPatient.appointmentType || 'Appointment'} • {currentPatient.patient?.phoneNumber || 'No phone'}
-                </p>
-              </div>
-              <Button 
-                onClick={handleCompleteAppointment} 
-                disabled={actionLoading} 
-                className="bg-teal hover:bg-teal-600 shadow-sm"
-              >
-                <CheckCircle className="mr-2 h-4 w-4" />
-                Complete
-              </Button>
+        <div className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg px-4 py-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0">
+              <Play className="w-3.5 h-3.5 text-white" />
             </div>
-          </CardContent>
-        </Card>
+            <div className="min-w-0">
+              <p className="font-medium text-foreground truncate">
+                {currentPatient.patient?.fullName || 'Patient'}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {currentPatient.appointmentType || 'Appointment'}
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={handleCompleteAppointment}
+            disabled={actionLoading}
+            size="sm"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-4 font-medium flex-shrink-0"
+          >
+            <Check className="w-4 h-4 mr-1.5" />
+            Complete
+          </Button>
+        </div>
       ) : (
-        <Card className="border-2 border-border/80 shadow-md">
-          <CardContent className="py-12 text-center">
-            <div className="h-16 w-16 rounded-full bg-background-tertiary flex items-center justify-center mx-auto mb-4">
-              <Users className="h-8 w-8 text-foreground-muted" />
+        <div className="flex items-center justify-between bg-muted/50 border border-border rounded-lg px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+              <Users className="w-4 h-4 text-muted-foreground" />
             </div>
-            <p className="text-foreground-primary font-medium mb-1">No patient being served</p>
-            <p className="text-sm text-foreground-muted">Call next patient to start</p>
-          </CardContent>
-        </Card>
+            <p className="text-sm text-muted-foreground">No patient being served</p>
+          </div>
+          {waitingPatients.length > 0 && (
+            <Button
+              onClick={handleNextPatient}
+              disabled={
+                actionLoading ||
+                (isSlottedMode
+                  ? waitingPatients.filter(p => p.isPresent || (p.startTime && new Date(p.startTime) <= new Date())).length === 0
+                  : waitingPatients.filter(p => p.isPresent).length === 0)
+              }
+              size="sm"
+              className="bg-foreground text-background hover:bg-foreground/90 h-9 px-4 font-medium"
+            >
+              <ChevronRight className="w-4 h-4 mr-1" />
+              Call Next
+            </Button>
+          )}
+        </div>
       )}
 
       {/* Main Content with Tabs */}
-      <Card className="border-2 border-border/80 shadow-md">
-        <CardHeader className="border-b-2 border-border/80">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg font-semibold text-foreground-primary flex items-center gap-2">
-                {isSlottedMode ? <Calendar className="h-5 w-5 text-primary" /> : <List className="h-5 w-5 text-primary" />}
-                {isSlottedMode ? 'Scheduled Appointments' : 'Next Appointments'}
-              </CardTitle>
-              <CardDescription className="text-sm text-foreground-secondary mt-1">
-                {activeTab === 'schedule' 
-                  ? (isSlottedMode 
-                      ? `${summary.waiting} scheduled appointment${summary.waiting !== 1 ? 's' : ''}`
-                      : `${summary.waiting} patient${summary.waiting !== 1 ? 's' : ''} waiting`)
-                  : `${summary.absent} absent patient${summary.absent !== 1 ? 's' : ''}`
-                }
-              </CardDescription>
-            </div>
-            {activeTab === 'schedule' && waitingPatients.length > 0 && !currentPatient && (
-              <Button 
-                onClick={handleNextPatient} 
-                disabled={
-                  actionLoading || 
-                  (isSlottedMode 
-                    ? waitingPatients.filter(p => p.isPresent || (p.startTime && new Date(p.startTime) <= new Date())).length === 0
-                    : waitingPatients.filter(p => p.isPresent).length === 0)
-                } 
-                size="lg"
-                className="bg-primary hover:bg-primary-600 shadow-md"
+      <div className="border border-border rounded-lg bg-card">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'schedule' | 'absents')} className="w-full">
+          {/* Tab Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <TabsList className="bg-muted/50 h-8 p-0.5">
+              <TabsTrigger
+                value="schedule"
+                className="h-7 px-3 text-xs font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm"
               >
-                <ChevronRight className="mr-2 h-5 w-5" />
-                Call Next
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'schedule' | 'absents')} className="w-full">
-            <TabsList className="mb-6 bg-background-tertiary">
-              <TabsTrigger value="schedule" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                <Calendar className="h-4 w-4 mr-2" />
-                Schedule
+                {isSlottedMode ? <Calendar className="h-3.5 w-3.5 mr-1.5" /> : <List className="h-3.5 w-3.5 mr-1.5" />}
+                {isSlottedMode ? 'Schedule' : 'Queue'}
               </TabsTrigger>
-              <TabsTrigger value="absents" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                <UserX className="h-4 w-4 mr-2" />
-                Absents
+              <TabsTrigger
+                value="absents"
+                className="h-7 px-3 text-xs font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm"
+              >
+                <UserX className="h-3.5 w-3.5 mr-1.5" />
+                Absent
                 {absentPatients.length > 0 && (
-                  <Badge className="ml-2 bg-destructive text-destructive-foreground border-0">
+                  <span className="ml-1.5 bg-red-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
                     {absentPatients.length}
-                  </Badge>
+                  </span>
                 )}
               </TabsTrigger>
             </TabsList>
 
+            <p className="text-xs text-muted-foreground">
+              {activeTab === 'schedule'
+                ? `${summary.waiting} waiting`
+                : `${summary.absent} absent`}
+            </p>
+          </div>
+
+          {/* Tab Content */}
+          <div className="p-4">
             <TabsContent value="schedule" className="mt-0">
               {isSlottedMode ? (
                 <SlottedQueueView
@@ -425,103 +391,107 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
             <TabsContent value="absents" className="mt-0">
               {absentPatients.length === 0 ? (
                 <div className="text-center py-12">
-                  <div className="h-16 w-16 rounded-full bg-background-tertiary flex items-center justify-center mx-auto mb-3">
-                    <UserCheck className="h-8 w-8 text-foreground-muted" />
+                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                    <UserCheck className="w-5 h-5 text-muted-foreground" />
                   </div>
-                  <p className="text-sm text-foreground-muted font-medium">All patients present</p>
-                  <p className="text-xs text-foreground-muted/70 mt-1">No absences recorded</p>
+                  <p className="text-sm text-muted-foreground">All patients present</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {absentPatients.map((patient) => (
-                    <div key={patient.id} className="group relative p-4 rounded-xl border-2 border-destructive/30 bg-destructive/5 hover:shadow-sm transition-all">
-                      <div className="flex items-start gap-3">
-                        <Avatar className="h-10 w-10 border-2 border-destructive/30">
-                          <AvatarFallback className="bg-destructive/10 text-destructive text-sm font-bold">
+                    <div
+                      key={patient.id}
+                      className="flex items-center justify-between p-3 rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center flex-shrink-0">
+                          <span className="text-xs font-semibold text-red-600 dark:text-red-400">
                             {getInitials(patient.patient?.fullName)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-foreground-primary truncate">{patient.patient?.fullName || 'Patient'}</p>
-                          <p className="text-xs text-foreground-muted mt-1">{patient.patient?.phoneNumber || 'No phone'}</p>
-                          <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 rounded px-2 py-1 mt-2">
-                            <AlertCircle className="h-3 w-3 flex-shrink-0" />
-                            <span className="truncate">
-                              {patient.markedAbsentAt ? `Absent ${formatDistanceToNow(new Date(patient.markedAbsentAt), { addSuffix: true })}` : 'Recently marked absent'}
-                            </span>
-                          </div>
-                          <div className="flex flex-col gap-2 mt-3">
-                            <Button 
-                              onClick={() => handleOpenRebook(patient)} 
-                              disabled={actionLoading} 
-                              size="sm" 
-                              className="w-full bg-warning hover:bg-warning-600 text-white shadow-sm"
-                            >
-                              Rebook / Return
-                            </Button>
-                            {clinicConfig?.allowWaitlist && (
-                              <Button 
-                                onClick={() => handleAddToWaitlist(patient)} 
-                                disabled={actionLoading} 
-                                size="sm" 
-                                variant="outline" 
-                                className="w-full border-warning/40 text-warning hover:bg-warning/10"
-                              >
-                                Add to Waitlist
-                              </Button>
-                            )}
-                          </div>
+                          </span>
                         </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">
+                            {patient.patient?.fullName || 'Patient'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {patient.markedAbsentAt
+                              ? formatDistanceToNow(new Date(patient.markedAbsentAt), { addSuffix: true })
+                              : 'Recently marked'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Button
+                          onClick={() => handleOpenRebook(patient)}
+                          disabled={actionLoading}
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2.5 text-xs border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50"
+                        >
+                          Rebook
+                        </Button>
+                        {clinicConfig?.allowWaitlist && (
+                          <Button
+                            onClick={() => handleAddToWaitlist(patient)}
+                            disabled={actionLoading}
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+                          >
+                            Waitlist
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
               )}
             </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+          </div>
+        </Tabs>
+      </div>
 
       {/* Dialog for non-present patient */}
       <Dialog open={nonPresentDialog.open} onOpenChange={(open) => setNonPresentDialog({ open, patient: nonPresentDialog.patient })}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Patient Not Physically Present</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-lg">Patient Not Present</DialogTitle>
+            <DialogDescription className="text-sm">
               {nonPresentDialog.patient && (
                 <>
-                  <strong>{nonPresentDialog.patient.patient?.fullName || 'Patient'}</strong> is not marked as physically present.
-                  You cannot call them until they are marked as present.
+                  <span className="font-medium text-foreground">{nonPresentDialog.patient.patient?.fullName || 'Patient'}</span> is not marked as physically present.
                 </>
               )}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
             {nonPresentDialog.patient && (
               <>
                 <Button
                   onClick={() => handleMarkPresent(nonPresentDialog.patient!.id)}
-                  className="flex-1 bg-success hover:bg-success-600"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
                   <UserCheck className="mr-2 h-4 w-4" />
-                  Mark as Present
+                  Mark Present
                 </Button>
-                <Button
-                  onClick={() => setNonPresentDialog({ open: false, patient: null })}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  <Clock className="mr-2 h-4 w-4" />
-                  Wait (Grace Period)
-                </Button>
-                <Button
-                  onClick={() => handleMarkAbsent(nonPresentDialog.patient!.id)}
-                  variant="destructive"
-                  className="flex-1"
-                >
-                  <UserX className="mr-2 h-4 w-4" />
-                  Mark as Absent
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    onClick={() => setNonPresentDialog({ open: false, patient: null })}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    <Clock className="mr-2 h-4 w-4" />
+                    Wait
+                  </Button>
+                  <Button
+                    onClick={() => handleMarkAbsent(nonPresentDialog.patient!.id)}
+                    variant="outline"
+                    className="w-full text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950/50"
+                  >
+                    <UserX className="mr-2 h-4 w-4" />
+                    Absent
+                  </Button>
+                </div>
               </>
             )}
           </DialogFooter>

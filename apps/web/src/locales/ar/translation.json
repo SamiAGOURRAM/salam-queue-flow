@@ -1,4 +1,65 @@
 {
+  "landing": {
+    "nav": {
+      "clinics": "العيادات",
+      "about": "علاش",
+      "forClinics": "للعيادات",
+      "signIn": "دخول",
+      "signUp": "دير كونت"
+    },
+    "hero": {
+      "title": "الصحة ديالك،",
+      "titleHighlight": "بسهولة",
+      "subtitle": "لقى أحسن الطبيبة، حجز الرونديفو فدقائق، وتجنّب الصف مع أذكى پلاتفورم صحية فالمغرب.",
+      "searchPlaceholder": "قلّب على تخصص أو طبيب...",
+      "locationPlaceholder": "المدينة أو الحي",
+      "searchButton": "قلّب"
+    },
+    "stats": {
+      "verifiedClinics": "عيادات موثوقة",
+      "patientsServed": "المرضى لي خدمنا",
+      "avgRating": "المعدل"
+    },
+    "suggestions": {
+      "title": "شنو كتحتاج؟",
+      "generalMedicine": "طب عام",
+      "dentist": "طبيب السنان",
+      "cardiology": "القلب",
+      "pediatrics": "طب الأطفال",
+      "dermatology": "الجلد",
+      "ophthalmology": "العينين"
+    },
+    "account": {
+      "title": "دير الصحة ديالك بسهولة",
+      "description": "دخل للكونت ديالك باش تشوف الرونديفوات ديالك، الطبيبة لي كتبغي، والتاريخ الطبي ديالك.",
+      "signInButton": "دخول للكونت ديالك",
+      "signUpButton": "دير كونت جديد"
+    },
+    "forClinics": {
+      "title": "عندك عيادة؟",
+      "description": "انضم لشبكتنا، جذب مرضى جداد، ودير الرونديفوات بسهولة مع لوحة التحكم ديالنا.",
+      "registerButton": "سجّل العيادة ديالك",
+      "learnMore": "شوف أكثر"
+    },
+    "footer": {
+      "description": "أذكى پلاتفورم للرونديفوات الطبية فالمغرب.",
+      "product": "المنتوج",
+      "features": "الخصائص",
+      "pricing": "الأثمنة",
+      "clinicDashboard": "لوحة العيادة",
+      "mobileApp": "التطبيق",
+      "company": "الشركة",
+      "about": "علاش",
+      "careers": "التوظيف",
+      "blog": "المدونة",
+      "press": "الصحافة",
+      "legal": "القانوني",
+      "privacy": "الخصوصية",
+      "terms": "الشروط",
+      "cookies": "الكوكيز",
+      "copyright": "© 2025 QueueMed. كاع الحقوق محفوظة."
+    }
+  },
   "common": {
     "search": "قلّب",
     "filter": "فيلتر",

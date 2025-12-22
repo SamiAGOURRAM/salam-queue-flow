@@ -1,14 +1,18 @@
 /**
- * Slotted Queue View - Grid Layout for Today
- * Displays appointments in a grid format with time slots
+ * Slotted Queue View - Premium Timeline Design
  */
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { QueueEntry, AppointmentStatus, SkipReason } from "@/services/queue";
-import { Clock, UserCheck, UserX, CheckCircle2, XCircle, AlertCircle, Play } from "lucide-react";
+import { Clock, UserCheck, UserX, CheckCircle2, Play, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useMemo } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface SlottedQueueViewProps {
   schedule: QueueEntry[];
@@ -88,47 +92,47 @@ export function SlottedQueueView({
   // Get status config for appointment
   const getStatusConfig = (apt: QueueEntry) => {
     if (apt.status === AppointmentStatus.COMPLETED) {
-      return { 
-        color: 'bg-success', 
-        borderColor: 'border-success', 
-        icon: CheckCircle2, 
-        label: 'Completed',
-        textColor: 'text-success'
+      return {
+        bg: 'bg-gray-50 dark:bg-gray-900/50',
+        border: 'border-gray-200 dark:border-gray-800',
+        dot: 'bg-gray-400',
+        text: 'text-gray-500 dark:text-gray-400',
+        label: 'Done'
       };
     }
     if (apt.status === AppointmentStatus.IN_PROGRESS) {
-      return { 
-        color: 'bg-teal', 
-        borderColor: 'border-teal', 
-        icon: Play, 
-        label: 'In Progress',
-        textColor: 'text-teal'
+      return {
+        bg: 'bg-emerald-50 dark:bg-emerald-950/30',
+        border: 'border-emerald-200 dark:border-emerald-800',
+        dot: 'bg-emerald-500',
+        text: 'text-emerald-600 dark:text-emerald-400',
+        label: 'Active'
       };
     }
     if (apt.skipReason === SkipReason.PATIENT_ABSENT || apt.status === AppointmentStatus.CANCELLED) {
-      return { 
-        color: 'bg-destructive', 
-        borderColor: 'border-destructive', 
-        icon: XCircle, 
-        label: 'Canceled',
-        textColor: 'text-destructive'
+      return {
+        bg: 'bg-red-50 dark:bg-red-950/30',
+        border: 'border-red-200 dark:border-red-800',
+        dot: 'bg-red-500',
+        text: 'text-red-600 dark:text-red-400',
+        label: 'Cancelled'
       };
     }
     if (apt.status === AppointmentStatus.WAITING && apt.isPresent) {
-      return { 
-        color: 'bg-warning', 
-        borderColor: 'border-warning', 
-        icon: Clock, 
-        label: 'Patient is waiting',
-        textColor: 'text-warning'
+      return {
+        bg: 'bg-amber-50 dark:bg-amber-950/30',
+        border: 'border-amber-200 dark:border-amber-800',
+        dot: 'bg-amber-500',
+        text: 'text-amber-600 dark:text-amber-400',
+        label: 'Waiting'
       };
     }
-    return { 
-      color: 'bg-primary', 
-      borderColor: 'border-primary', 
-      icon: Clock, 
-      label: 'Scheduled',
-      textColor: 'text-primary'
+    return {
+      bg: 'bg-blue-50 dark:bg-blue-950/30',
+      border: 'border-blue-200 dark:border-blue-800',
+      dot: 'bg-blue-500',
+      text: 'text-blue-600 dark:text-blue-400',
+      label: 'Scheduled'
     };
   };
 
@@ -241,126 +245,149 @@ export function SlottedQueueView({
     return items;
   }, [todayAppointments, workingDayStart, workingDayEnd, today]);
 
-  return (
-    <div className="space-y-4">
-      {/* Grid Layout */}
-      <div className="border-2 border-border/80 rounded-xl overflow-hidden bg-card">
-        {/* Grid Items */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4">
-          {gridItems.map((item, index) => {
-            if (item.type === 'gap') {
-              const gapHours = item.durationSlots ? Math.floor((item.durationSlots * 30) / 60) : 0;
-              const gapMins = item.durationSlots ? (item.durationSlots * 30) % 60 : 0;
-              const isPast = item.endTime ? new Date(item.endTime) < now : false;
-              
-              return (
-                <div
-                  key={`gap-${index}`}
-                  className={cn(
-                    "rounded-xl border-2 border-dashed border-border/50 bg-background-tertiary/30 p-4 min-h-[120px] flex flex-col items-center justify-center",
-                    isPast && "opacity-50"
-                  )}
-                >
-                  <Clock className="h-6 w-6 text-foreground-muted mb-2" />
-                  {item.startTime && item.endTime && (
-                    <div className="text-xs font-semibold text-foreground-muted text-center mb-1">
-                      {formatTime(item.startTime)} - {formatTime(item.endTime)}
-                    </div>
-                  )}
-                  <Badge variant="outline" className="text-xs border-border/50 bg-background-secondary">
-                    {gapHours > 0 ? `${gapHours}h ` : ''}{gapMins}m available
-                  </Badge>
-                </div>
-              );
-            }
-
-            // Appointment item
-            const appointment = item.appointment!;
-            const statusConfig = getStatusConfig(appointment);
-            const StatusIcon = statusConfig.icon;
-            const startTime = item.startTime!;
-            const endTime = item.endTime!;
-            const isCurrent = appointment.id === currentPatient?.id;
-            const isPast = startTime < now;
-
-            return (
-              <div
-                key={appointment.id}
-                className={cn(
-                  "relative rounded-xl border-2 p-4 min-h-[120px] transition-all hover:shadow-md",
-                  statusConfig.color,
-                  statusConfig.borderColor,
-                  isCurrent && "ring-2 ring-teal/30 ring-offset-2",
-                  isPast && "opacity-70"
-                )}
-              >
-                {/* Status Bar */}
-                <div className={cn(
-                  "absolute left-0 top-0 bottom-0 w-1 rounded-l",
-                  statusConfig.color
-                )}></div>
-
-                <div className="pl-3 space-y-2">
-                  <div className="text-xs font-semibold text-foreground-primary">
-                    {formatTimeRange(startTime, endTime)}
-                  </div>
-                  
-                  <div className="font-bold text-sm text-foreground-primary">
-                    {appointment.patient?.fullName || 'Patient'}
-                  </div>
-                  
-                  <div className="text-xs text-foreground-secondary">
-                    {appointment.appointmentType || 'Appointment'}
-                  </div>
-                  
-                  <Badge 
-                    variant="outline" 
-                    className={cn(
-                      "text-xs border-0",
-                      statusConfig.color,
-                      statusConfig.textColor,
-                      "bg-opacity-10"
-                    )}
-                  >
-                    <StatusIcon className="h-3 w-3 mr-1" />
-                    {statusConfig.label}
-                  </Badge>
-
-                  {/* Actions */}
-                  {appointment.status !== AppointmentStatus.COMPLETED && 
-                   appointment.status !== AppointmentStatus.CANCELLED && (
-                    <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-border/30">
-                      {!appointment.isPresent && (appointment.status === AppointmentStatus.WAITING || appointment.status === AppointmentStatus.SCHEDULED) && onMarkPresent && (
-                        <Button
-                          onClick={() => onMarkPresent(appointment.id)}
-                          disabled={actionLoading}
-                          size="sm"
-                          className="bg-success hover:bg-success-600 text-white text-xs h-7"
-                        >
-                          <UserCheck className="h-3 w-3 mr-1" />
-                          Present
-                        </Button>
-                      )}
-                      {(appointment.status === AppointmentStatus.WAITING || appointment.status === AppointmentStatus.SCHEDULED) && onMarkAbsent && (
-                        <Button
-                          onClick={() => onMarkAbsent(appointment.id)}
-                          disabled={actionLoading}
-                          size="sm"
-                          variant="outline"
-                          className="border-destructive/40 text-destructive hover:bg-destructive/10 text-xs h-7"
-                        >
-                          <UserX className="h-3 w-3 mr-1" />
-                          Absent
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+  if (gridItems.length === 0 || (gridItems.length === 1 && gridItems[0].type === 'gap')) {
+    return (
+      <div className="text-center py-12">
+        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+          <Clock className="w-5 h-5 text-muted-foreground" />
         </div>
+        <p className="text-sm text-muted-foreground">No appointments scheduled</p>
       </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      {gridItems.map((item, index) => {
+        if (item.type === 'gap') {
+          const gapMins = item.durationSlots ? item.durationSlots * 30 : 0;
+          if (gapMins < 30) return null; // Don't show tiny gaps
+
+          return (
+            <div
+              key={`gap-${index}`}
+              className="flex items-center gap-3 py-2 px-3"
+            >
+              <div className="w-16 text-xs text-muted-foreground text-right">
+                {item.startTime && formatTime(item.startTime)}
+              </div>
+              <div className="flex-1 border-t border-dashed border-border" />
+              <span className="text-xs text-muted-foreground">
+                {Math.floor(gapMins / 60) > 0 ? `${Math.floor(gapMins / 60)}h ` : ''}{gapMins % 60}m free
+              </span>
+            </div>
+          );
+        }
+
+        // Appointment item
+        const appointment = item.appointment!;
+        const statusConfig = getStatusConfig(appointment);
+        const startTime = item.startTime!;
+        const endTime = item.endTime!;
+        const isCurrent = appointment.id === currentPatient?.id;
+        const isPast = endTime < now && appointment.status !== AppointmentStatus.IN_PROGRESS;
+        const canMarkPresent = !appointment.isPresent &&
+          (appointment.status === AppointmentStatus.WAITING || appointment.status === AppointmentStatus.SCHEDULED);
+        const canMarkAbsent = appointment.status === AppointmentStatus.WAITING ||
+          appointment.status === AppointmentStatus.SCHEDULED;
+
+        return (
+          <div
+            key={appointment.id}
+            className={cn(
+              "flex items-center gap-3 p-3 rounded-lg border transition-all",
+              statusConfig.bg,
+              statusConfig.border,
+              isCurrent && "ring-1 ring-emerald-500 ring-offset-1",
+              isPast && "opacity-60"
+            )}
+          >
+            {/* Time Column */}
+            <div className="w-16 flex-shrink-0">
+              <p className="text-xs font-medium text-foreground">
+                {formatTime(startTime)}
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                {formatTime(endTime)}
+              </p>
+            </div>
+
+            {/* Status Dot */}
+            <div className={cn("w-2 h-2 rounded-full flex-shrink-0", statusConfig.dot)} />
+
+            {/* Patient Info */}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground truncate">
+                {appointment.patient?.fullName || 'Patient'}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {appointment.appointmentType || 'Appointment'}
+              </p>
+            </div>
+
+            {/* Status Badge */}
+            <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded", statusConfig.text, statusConfig.bg)}>
+              {statusConfig.label}
+            </span>
+
+            {/* Actions */}
+            {appointment.status !== AppointmentStatus.COMPLETED &&
+             appointment.status !== AppointmentStatus.CANCELLED && (
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {canMarkPresent && onMarkPresent && (
+                  <Button
+                    onClick={() => onMarkPresent(appointment.id)}
+                    disabled={actionLoading}
+                    size="sm"
+                    className="h-7 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    <UserCheck className="h-3 w-3 mr-1" />
+                    Present
+                  </Button>
+                )}
+                {canMarkAbsent && onMarkAbsent && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {!appointment.isPresent && onMarkPresent && (
+                        <DropdownMenuItem onClick={() => onMarkPresent(appointment.id)}>
+                          <UserCheck className="h-4 w-4 mr-2" />
+                          Mark Present
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem
+                        onClick={() => onMarkAbsent(appointment.id)}
+                        className="text-red-600"
+                      >
+                        <UserX className="h-4 w-4 mr-2" />
+                        Mark Absent
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
+            )}
+
+            {/* Completed Icon */}
+            {appointment.status === AppointmentStatus.COMPLETED && (
+              <CheckCircle2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            )}
+
+            {/* Active Icon */}
+            {appointment.status === AppointmentStatus.IN_PROGRESS && (
+              <Play className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

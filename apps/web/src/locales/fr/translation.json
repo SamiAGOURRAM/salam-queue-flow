@@ -1,4 +1,78 @@
 {
+  "landing": {
+    "hero": {
+      "title1": "Santé,",
+      "title2": "selon votre",
+      "title3": "emploi du temps",
+      "subtitle": "Trouvez les meilleures cliniques, réservez instantanément et évitez l'attente."
+    },
+    "search": {
+      "specialtyPlaceholder": "Spécialité ou nom de clinique",
+      "locationPlaceholder": "Ville ou quartier",
+      "searchButton": "Rechercher",
+      "browseAll": "Parcourir toutes les cliniques",
+      "myAppointments": "Mes rendez-vous",
+      "signIn": "Se connecter"
+    },
+    "location": {
+      "morocco": "Maroc",
+      "changeLocation": "Changer de lieu"
+    },
+    "stats": {
+      "verifiedClinics": "Cliniques vérifiées",
+      "avgRating": "Note moyenne",
+      "patientsServed": "Patients servis"
+    },
+    "suggestions": {
+      "title": "Suggestions",
+      "generalCare": "Médecine générale",
+      "generalCareDesc": "Bilans de santé, consultations et soins préventifs",
+      "dental": "Dentaire",
+      "dentalDesc": "Nettoyage, blanchiment, soins dentaires",
+      "specialists": "Spécialistes",
+      "specialistsDesc": "Cardiologie, neurologie, orthopédie et plus",
+      "details": "Détails"
+    },
+    "account": {
+      "title": "Connectez-vous pour gérer vos rendez-vous",
+      "description": "Consultez vos rendez-vous à venir, vos visites passées, vos cliniques favorites et obtenez des recommandations personnalisées.",
+      "signIn": "Se connecter",
+      "createAccount": "Créer un compte"
+    },
+    "forClinics": {
+      "title": "Gérez votre clinique facilement",
+      "description": "Réduisez les temps d'attente, gérez votre file en temps réel et offrez une meilleure expérience à vos patients grâce à notre plateforme IA.",
+      "register": "Enregistrer votre clinique",
+      "learnMore": "En savoir plus"
+    },
+    "footer": {
+      "company": "Entreprise",
+      "aboutUs": "À propos",
+      "careers": "Carrières",
+      "blog": "Blog",
+      "products": "Produits",
+      "findClinics": "Trouver des cliniques",
+      "forClinics": "Pour les cliniques",
+      "api": "API",
+      "support": "Support",
+      "helpCenter": "Centre d'aide",
+      "contactUs": "Nous contacter",
+      "safety": "Sécurité",
+      "legal": "Mentions légales",
+      "terms": "Conditions",
+      "privacy": "Confidentialité",
+      "cookies": "Cookies",
+      "copyright": "© 2025 QueueMed. Tous droits réservés."
+    },
+    "nav": {
+      "findClinics": "Trouver des cliniques",
+      "about": "À propos",
+      "help": "Aide",
+      "logIn": "Connexion",
+      "signUp": "S'inscrire",
+      "signOut": "Déconnexion"
+    }
+  },
   "common": {
     "search": "Rechercher",
     "filter": "Filtrer",
