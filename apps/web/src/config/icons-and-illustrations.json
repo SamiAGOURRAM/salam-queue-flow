@@ -1,0 +1,573 @@
+{
+  "$schema": "Icons and Illustrations Inventory",
+  "description": "Complete inventory of all icons and illustrations used in QueueMed for future custom design replacement",
+  "lastUpdated": "2024-12-23",
+  
+  "icons": {
+    "navigation": [
+      {
+        "name": "Search",
+        "source": "lucide-react",
+        "locations": ["Header navigation", "Clinic directory", "Patient layout"],
+        "intent": "Search/browse clinics action",
+        "description": "Magnifying glass icon for search functionality"
+      },
+      {
+        "name": "Calendar",
+        "source": "lucide-react",
+        "locations": ["Header navigation", "Appointments section", "Booking flow"],
+        "intent": "Calendar/appointments navigation",
+        "description": "Calendar page icon for scheduling features"
+      },
+      {
+        "name": "User",
+        "source": "lucide-react",
+        "locations": ["Profile navigation", "Account section placeholder"],
+        "intent": "User profile access",
+        "description": "Person silhouette for user-related actions"
+      },
+      {
+        "name": "LogIn",
+        "source": "lucide-react",
+        "locations": ["Header login button"],
+        "intent": "Sign in action",
+        "description": "Arrow entering door icon for login"
+      },
+      {
+        "name": "LogOut",
+        "source": "lucide-react",
+        "locations": ["Header logout button", "Clinic sidebar"],
+        "intent": "Sign out action",
+        "description": "Arrow exiting door icon for logout"
+      },
+      {
+        "name": "Info",
+        "source": "lucide-react",
+        "locations": ["About/Welcome navigation"],
+        "intent": "Information/about page access",
+        "description": "Circled 'i' for informational content"
+      },
+      {
+        "name": "ArrowLeft",
+        "source": "lucide-react",
+        "locations": ["Back navigation buttons"],
+        "intent": "Go back action",
+        "description": "Left-pointing arrow for navigation"
+      },
+      {
+        "name": "ArrowRight",
+        "source": "lucide-react",
+        "locations": ["CTA buttons", "Quick links", "Card actions"],
+        "intent": "Proceed/continue action",
+        "description": "Right-pointing arrow for forward actions"
+      },
+      {
+        "name": "ChevronRight",
+        "source": "lucide-react",
+        "locations": ["Expandable items", "Call next button"],
+        "intent": "Expand or proceed",
+        "description": "Right chevron for expandable content"
+      },
+      {
+        "name": "ChevronDown",
+        "source": "lucide-react",
+        "locations": ["Dropdown triggers", "Collapsible sections"],
+        "intent": "Expand dropdown",
+        "description": "Down chevron for dropdown menus"
+      }
+    ],
+    
+    "clinic_sidebar": [
+      {
+        "name": "LayoutDashboard",
+        "source": "lucide-react",
+        "locations": ["Clinic sidebar - Dashboard"],
+        "intent": "Dashboard navigation",
+        "description": "Grid layout icon representing dashboard overview"
+      },
+      {
+        "name": "Activity",
+        "source": "lucide-react",
+        "locations": ["Clinic sidebar - Live Queue", "Queue stats"],
+        "intent": "Live activity/queue status",
+        "description": "Heartbeat/pulse line for live activity"
+      },
+      {
+        "name": "UserPlus",
+        "source": "lucide-react",
+        "locations": ["Clinic sidebar - Team", "Add patient buttons"],
+        "intent": "Add user/team member",
+        "description": "Person with plus sign for adding"
+      },
+      {
+        "name": "Settings",
+        "source": "lucide-react",
+        "locations": ["Clinic sidebar - Settings", "Quick actions"],
+        "intent": "Settings/configuration access",
+        "description": "Gear/cog icon for settings"
+      },
+      {
+        "name": "Bell",
+        "source": "lucide-react",
+        "locations": ["Clinic header notifications"],
+        "intent": "Notifications indicator",
+        "description": "Bell icon for alerts"
+      },
+      {
+        "name": "Mail",
+        "source": "lucide-react",
+        "locations": ["Clinic header", "Contact info"],
+        "intent": "Email/messages",
+        "description": "Envelope icon for email"
+      },
+      {
+        "name": "Sun",
+        "source": "lucide-react",
+        "locations": ["Theme toggle"],
+        "intent": "Light mode",
+        "description": "Sun icon for light theme"
+      },
+      {
+        "name": "Moon",
+        "source": "lucide-react",
+        "locations": ["Theme toggle"],
+        "intent": "Dark mode",
+        "description": "Moon icon for dark theme"
+      }
+    ],
+    
+    "queue_management": [
+      {
+        "name": "Users",
+        "source": "lucide-react",
+        "locations": ["Queue stats - waiting count", "Patient count displays"],
+        "intent": "Multiple patients/people count",
+        "description": "Multiple people icon for group/count"
+      },
+      {
+        "name": "Clock",
+        "source": "lucide-react",
+        "locations": ["Wait time displays", "Time slots", "Duration indicators"],
+        "intent": "Time/duration indicator",
+        "description": "Clock face for time-related info"
+      },
+      {
+        "name": "CheckCircle2",
+        "source": "lucide-react",
+        "locations": ["Completed appointments", "Success states"],
+        "intent": "Completion/success indicator",
+        "description": "Checkmark in circle for completed items"
+      },
+      {
+        "name": "Play",
+        "source": "lucide-react",
+        "locations": ["In-progress appointments", "Start actions"],
+        "intent": "Active/in-progress state",
+        "description": "Play button triangle for active state"
+      },
+      {
+        "name": "UserCheck",
+        "source": "lucide-react",
+        "locations": ["Mark patient present button"],
+        "intent": "Confirm patient presence",
+        "description": "Person with checkmark for confirmed"
+      },
+      {
+        "name": "UserX",
+        "source": "lucide-react",
+        "locations": ["Mark patient absent button", "Absent patients tab"],
+        "intent": "Mark patient absent",
+        "description": "Person with X for absent"
+      },
+      {
+        "name": "XCircle",
+        "source": "lucide-react",
+        "locations": ["End day button", "Cancel actions"],
+        "intent": "Cancel/end action",
+        "description": "X in circle for cancellation"
+      },
+      {
+        "name": "RefreshCw",
+        "source": "lucide-react",
+        "locations": ["Loading states", "Refresh buttons"],
+        "intent": "Refresh/loading indicator",
+        "description": "Circular arrows for refresh"
+      },
+      {
+        "name": "AlertCircle",
+        "source": "lucide-react",
+        "locations": ["Warning states", "Alert messages"],
+        "intent": "Warning/attention required",
+        "description": "Exclamation in circle for alerts"
+      },
+      {
+        "name": "Check",
+        "source": "lucide-react",
+        "locations": ["Complete appointment button"],
+        "intent": "Confirm/complete action",
+        "description": "Simple checkmark"
+      },
+      {
+        "name": "List",
+        "source": "lucide-react",
+        "locations": ["Queue list view tab"],
+        "intent": "List view mode",
+        "description": "Horizontal lines for list view"
+      },
+      {
+        "name": "MoreHorizontal",
+        "source": "lucide-react",
+        "locations": ["Action menus", "More options dropdown"],
+        "intent": "Additional options",
+        "description": "Three horizontal dots for menu"
+      },
+      {
+        "name": "Timer",
+        "source": "lucide-react",
+        "locations": ["Wait time predictions", "Duration settings"],
+        "intent": "Timer/countdown",
+        "description": "Stopwatch icon for timed items"
+      }
+    ],
+    
+    "clinic_info": [
+      {
+        "name": "Building2",
+        "source": "lucide-react",
+        "locations": ["Clinic cards", "For clinics section", "Clinic profile"],
+        "intent": "Clinic/business representation",
+        "description": "Building icon for clinics"
+      },
+      {
+        "name": "MapPin",
+        "source": "lucide-react",
+        "locations": ["Location displays", "Address fields", "Clinic cards"],
+        "intent": "Location/address indicator",
+        "description": "Map pin marker for location"
+      },
+      {
+        "name": "Phone",
+        "source": "lucide-react",
+        "locations": ["Contact info displays"],
+        "intent": "Phone contact",
+        "description": "Phone handset icon"
+      },
+      {
+        "name": "Globe",
+        "source": "lucide-react",
+        "locations": ["Website links", "Online presence"],
+        "intent": "Website/online",
+        "description": "Globe icon for web"
+      },
+      {
+        "name": "CreditCard",
+        "source": "lucide-react",
+        "locations": ["Payment methods - card", "Billing info"],
+        "intent": "Card payment accepted",
+        "description": "Credit card icon"
+      },
+      {
+        "name": "Wallet",
+        "source": "lucide-react",
+        "locations": ["Payment methods - cash"],
+        "intent": "Cash payment accepted",
+        "description": "Wallet icon for cash"
+      },
+      {
+        "name": "Star",
+        "source": "lucide-react",
+        "locations": ["Ratings display", "Reviews"],
+        "intent": "Rating/quality indicator",
+        "description": "Star for ratings"
+      },
+      {
+        "name": "Heart",
+        "source": "lucide-react",
+        "locations": ["Favorites button", "Dental specialty card"],
+        "intent": "Favorite/like action",
+        "description": "Heart for favorites"
+      },
+      {
+        "name": "Shield",
+        "source": "lucide-react",
+        "locations": ["Verified clinics badge", "Security features"],
+        "intent": "Verified/secure indicator",
+        "description": "Shield for trust/security"
+      }
+    ],
+    
+    "medical_specialty": [
+      {
+        "name": "Stethoscope",
+        "source": "lucide-react",
+        "locations": ["General practice card", "Hero illustration", "Medical placeholder"],
+        "intent": "General medicine/doctor representation",
+        "description": "Stethoscope for medical services"
+      },
+      {
+        "name": "Heart",
+        "source": "lucide-react",
+        "locations": ["Dental/cardiology specialty cards"],
+        "intent": "Cardiology or healthcare specialty",
+        "description": "Heart icon for heart-related or dental"
+      },
+      {
+        "name": "Activity",
+        "source": "lucide-react",
+        "locations": ["Specialist card", "Health metrics"],
+        "intent": "Medical activity/vitals",
+        "description": "Pulse line for health activity"
+      }
+    ],
+    
+    "time_filtering": [
+      {
+        "name": "Sunrise",
+        "source": "lucide-react",
+        "locations": ["Morning time filter"],
+        "intent": "Morning availability filter",
+        "description": "Sun rising for morning slots"
+      },
+      {
+        "name": "Sun",
+        "source": "lucide-react",
+        "locations": ["Afternoon time filter"],
+        "intent": "Afternoon availability filter",
+        "description": "Full sun for afternoon slots"
+      },
+      {
+        "name": "Moon",
+        "source": "lucide-react",
+        "locations": ["Evening time filter"],
+        "intent": "Evening availability filter",
+        "description": "Moon for evening slots"
+      },
+      {
+        "name": "CalendarDays",
+        "source": "lucide-react",
+        "locations": ["Date picker trigger"],
+        "intent": "Calendar selection",
+        "description": "Calendar with days for date picking"
+      },
+      {
+        "name": "CalendarClock",
+        "source": "lucide-react",
+        "locations": ["Schedule management"],
+        "intent": "Time-based scheduling",
+        "description": "Calendar with clock for scheduling"
+      },
+      {
+        "name": "ListOrdered",
+        "source": "lucide-react",
+        "locations": ["Queue mode toggle"],
+        "intent": "Ordinal queue mode",
+        "description": "Numbered list for order-based queue"
+      }
+    ],
+    
+    "actions": [
+      {
+        "name": "Plus",
+        "source": "lucide-react",
+        "locations": ["Add buttons", "Create new items"],
+        "intent": "Add/create action",
+        "description": "Plus sign for adding"
+      },
+      {
+        "name": "Trash2",
+        "source": "lucide-react",
+        "locations": ["Delete buttons", "Remove items"],
+        "intent": "Delete/remove action",
+        "description": "Trash can for deletion"
+      },
+      {
+        "name": "Save",
+        "source": "lucide-react",
+        "locations": ["Save settings buttons"],
+        "intent": "Save/persist action",
+        "description": "Floppy disk for saving"
+      },
+      {
+        "name": "X",
+        "source": "lucide-react",
+        "locations": ["Close buttons", "Dismiss actions", "Cancel filters"],
+        "intent": "Close/dismiss action",
+        "description": "X mark for closing"
+      },
+      {
+        "name": "Filter",
+        "source": "lucide-react",
+        "locations": ["Filter controls"],
+        "intent": "Filter options",
+        "description": "Funnel icon for filtering"
+      },
+      {
+        "name": "Share2",
+        "source": "lucide-react",
+        "locations": ["Share clinic/appointment"],
+        "intent": "Share action",
+        "description": "Share nodes icon"
+      },
+      {
+        "name": "ExternalLink",
+        "source": "lucide-react",
+        "locations": ["External links", "Open in new tab"],
+        "intent": "External navigation",
+        "description": "Arrow out of box for external"
+      },
+      {
+        "name": "Navigation",
+        "source": "lucide-react",
+        "locations": ["Get directions button"],
+        "intent": "Navigation/directions",
+        "description": "Navigation arrow for directions"
+      }
+    ],
+    
+    "status_indicators": [
+      {
+        "name": "Sparkles",
+        "source": "lucide-react",
+        "locations": ["Premium features", "Next patient highlight"],
+        "intent": "Special/premium indicator",
+        "description": "Sparkles for highlighting"
+      },
+      {
+        "name": "BellRing",
+        "source": "lucide-react",
+        "locations": ["Notifications feature description"],
+        "intent": "Active notifications",
+        "description": "Ringing bell for alerts"
+      },
+      {
+        "name": "LineChart",
+        "source": "lucide-react",
+        "locations": ["Analytics feature description"],
+        "intent": "Analytics/statistics",
+        "description": "Line graph for data"
+      },
+      {
+        "name": "MessageSquare",
+        "source": "lucide-react",
+        "locations": ["Reviews button", "Chat feature"],
+        "intent": "Messages/reviews",
+        "description": "Speech bubble for communication"
+      },
+      {
+        "name": "Lock",
+        "source": "lucide-react",
+        "locations": ["Password field", "Security"],
+        "intent": "Security/password",
+        "description": "Padlock for secure items"
+      }
+    ]
+  },
+  
+  "illustrations": [
+    {
+      "name": "Hero Medical Illustration",
+      "location": "Landing page hero (right side)",
+      "currentImplementation": "CSS gradient background with centered Stethoscope icon + floating cards",
+      "intent": "Communicate healthcare/medical service visually",
+      "description": "Abstract representation of a clinic/healthcare with floating UI elements showing availability, wait time, and clinic count",
+      "suggestedCustomDesign": "Custom illustration of a patient walking into a modern clinic with no queue, or a doctor greeting a patient immediately"
+    },
+    {
+      "name": "Zero Wait Time Display",
+      "location": "Landing page dark section",
+      "currentImplementation": "Large animated countdown number (15→0) with CountUp component",
+      "intent": "Dramatically show the core value proposition - zero waiting",
+      "description": "Bold typography countdown animation from 15 to 0",
+      "suggestedCustomDesign": "Could incorporate custom animation or illustration showing time disappearing"
+    },
+    {
+      "name": "Account Section Placeholder",
+      "location": "Landing page - Sign in section (left)",
+      "currentImplementation": "Gray rounded rectangle with User icon in white circle",
+      "intent": "Represent user dashboard/account area",
+      "description": "Placeholder for patient dashboard preview",
+      "suggestedCustomDesign": "Screenshot of actual dashboard or custom illustration of health records"
+    },
+    {
+      "name": "Clinic Section Placeholder",
+      "location": "Landing page - For clinics section (right)",
+      "currentImplementation": "Black rounded rectangle with Building2 icon in white circle",
+      "intent": "Represent clinic management dashboard",
+      "description": "Placeholder for clinic dashboard preview",
+      "suggestedCustomDesign": "Screenshot of clinic queue management or custom illustration of clinic operations"
+    },
+    {
+      "name": "Specialty Category Cards",
+      "location": "Landing page - Suggestions section",
+      "currentImplementation": "Gradient rounded boxes with specialty icons (Stethoscope, Heart, Activity)",
+      "intent": "Visual differentiation of medical specialties",
+      "description": "Icon-based representation of General Care, Dental, Cardiology",
+      "suggestedCustomDesign": "Custom icons or small illustrations specific to each medical specialty"
+    },
+    {
+      "name": "Empty Queue State",
+      "location": "Clinic Queue page",
+      "currentImplementation": "Users icon in muted circle with text",
+      "intent": "Show no patients are waiting",
+      "description": "Empty state illustration for when queue is clear",
+      "suggestedCustomDesign": "Custom illustration of empty, clean waiting room or happy doctor"
+    },
+    {
+      "name": "Loading State",
+      "location": "Throughout app",
+      "currentImplementation": "RefreshCw icon with spin animation",
+      "intent": "Indicate loading/processing",
+      "description": "Rotating circular arrows",
+      "suggestedCustomDesign": "Custom loading animation (skeleton, pulse, or themed spinner)"
+    },
+    {
+      "name": "Not Found Page",
+      "location": "404 page",
+      "currentImplementation": "Generic 404 text display",
+      "intent": "Handle missing pages gracefully",
+      "description": "Error state for missing content",
+      "suggestedCustomDesign": "Custom 404 illustration themed around healthcare"
+    }
+  ],
+  
+  "customDesignPriority": [
+    {
+      "priority": 1,
+      "item": "Hero Medical Illustration",
+      "reason": "First thing users see - highest impact on first impression"
+    },
+    {
+      "priority": 2,
+      "item": "Specialty Category Cards",
+      "reason": "Visible on landing page, differentiates services"
+    },
+    {
+      "priority": 3,
+      "item": "Account/Clinic Section Placeholders",
+      "reason": "Currently placeholder-looking, real screenshots or custom art needed"
+    },
+    {
+      "priority": 4,
+      "item": "Medical specialty icons (Stethoscope, Heart, Activity)",
+      "reason": "Core branding elements, custom icons would feel more premium"
+    },
+    {
+      "priority": 5,
+      "item": "Queue status icons (UserCheck, UserX, Play, CheckCircle2)",
+      "reason": "Frequently seen in clinic dashboard, custom icons add polish"
+    },
+    {
+      "priority": 6,
+      "item": "Empty states and loading animations",
+      "reason": "Opportunity for brand personality"
+    }
+  ],
+  
+  "iconLibraryUsed": {
+    "name": "Lucide React",
+    "version": "0.462.0",
+    "totalIconsUsed": 58,
+    "website": "https://lucide.dev"
+  }
+}
+

@@ -5,14 +5,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
-  MapPin, ArrowRight, Stethoscope, Heart, Activity,
-  User, Shield, Star, Building2, Users, Search, Info, Calendar, LogOut, LogIn
+  MapPin, ArrowRight,
+  User, Building2, Search, Info, Calendar, LogOut, LogIn, Clock
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useForceLightMode } from "@/hooks/useForceLightMode";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import CountUp from "@/components/ui/CountUp";
+import heroImage from "@/assets/hero_image.png";
+import stethoscopeImage from "@/assets/stetoscope.png";
+import dentistryImage from "@/assets/dentistry.png";
+import heartImage from "@/assets/heart.png";
 
 const PremiumLanding = () => {
   const navigate = useNavigate();
@@ -105,7 +110,7 @@ const PremiumLanding = () => {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Consistent Header - Same as PatientLayout */}
+      {/* Header */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-14">
@@ -115,7 +120,7 @@ const PremiumLanding = () => {
                 onClick={() => navigate("/")}
                 className="flex items-center gap-2 hover:opacity-80 transition-opacity"
               >
-                <div className="w-7 h-7 rounded-md bg-gray-900 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-md bg-black flex items-center justify-center">
                   <span className="text-white text-sm font-bold">Q</span>
                 </div>
                 <span className="text-base font-semibold text-gray-900">QueueMed</span>
@@ -162,7 +167,7 @@ const PremiumLanding = () => {
               ) : (
                 <Button
                   onClick={() => navigate('/auth/login')}
-                  className="h-9 px-4 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-md"
+                  className="h-9 px-4 bg-black hover:bg-black/90 text-white text-sm font-medium rounded-md"
                 >
                   <LogIn className="w-4 h-4 mr-1.5" />
                   <span className="hidden sm:inline">{t('nav.login')}</span>
@@ -197,12 +202,12 @@ const PremiumLanding = () => {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative">
+      {/* Hero Section - Search Focus + Illustration */}
+      <section className="relative overflow-hidden">
         <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
-          <div className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center min-h-[calc(100vh-80px)] py-12">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center min-h-[calc(100vh-120px)] py-12">
 
-            {/* Left Side - Search Panel */}
+            {/* Left Side - Search Panel (Primary Focus) */}
             <div className="space-y-8">
               {/* Location Badge */}
               <div className="flex items-center gap-2 text-sm">
@@ -225,9 +230,8 @@ const PremiumLanding = () => {
                 </p>
               </div>
 
-              {/* Search Card - Uber Style */}
+              {/* Search Card */}
               <form onSubmit={handleSearch} className="bg-white rounded-2xl border border-gray-200 shadow-xl p-2 max-w-xl">
-                {/* Search Inputs */}
                 <div className="space-y-1">
                   {/* Specialty/Clinic Search */}
                   <div className="relative flex items-center">
@@ -265,7 +269,7 @@ const PremiumLanding = () => {
                 {/* Search Button */}
                 <Button
                   type="submit"
-                  className="w-full h-14 mt-3 bg-black hover:bg-gray-900 text-white font-semibold text-base rounded-xl transition-all"
+                  className="w-full h-14 mt-3 bg-black hover:bg-black/90 text-white font-semibold text-base rounded-xl transition-all"
                 >
                   {t('landing.search.searchButton')}
                 </Button>
@@ -290,70 +294,124 @@ const PremiumLanding = () => {
               </div>
             </div>
 
-            {/* Right Side - Hero Image/Illustration */}
-            <div className="relative hidden lg:block">
-              <div className="relative w-full aspect-square max-w-[600px] mx-auto">
-                {/* Background Shape */}
-                <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-50 rounded-[3rem] overflow-hidden">
-                  {/* Decorative Elements */}
-                  <div className="absolute top-8 right-8 w-20 h-20 bg-black/5 rounded-3xl transform rotate-12"></div>
-                  <div className="absolute bottom-12 left-8 w-16 h-16 bg-black/5 rounded-2xl transform -rotate-6"></div>
-
-                  {/* Main Illustration Area */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="relative">
-                      {/* Doctor/Medical Illustration Placeholder */}
-                      <div className="w-72 h-72 bg-gradient-to-br from-blue-100 to-cyan-50 rounded-full flex items-center justify-center">
-                        <div className="w-48 h-48 bg-white rounded-full shadow-xl flex items-center justify-center">
-                          <Stethoscope className="w-24 h-24 text-gray-300" />
-                        </div>
-                      </div>
-
-                      {/* Floating Stats Cards */}
-                      <div className="absolute -top-4 -right-4 bg-white rounded-2xl shadow-lg p-4 border border-gray-100">
-                        <div className="flex items-center gap-2">
-                          <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-                            <Shield className="w-5 h-5 text-green-600" />
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-500">{t('landing.stats.verifiedClinics')}</p>
-                            <p className="text-lg font-bold">{clinicStats?.totalClinics || '50'}+</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="absolute -bottom-4 -left-8 bg-white rounded-2xl shadow-lg p-4 border border-gray-100">
-                        <div className="flex items-center gap-2">
-                          <div className="w-10 h-10 bg-yellow-100 rounded-xl flex items-center justify-center">
-                            <Star className="w-5 h-5 text-yellow-600" />
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-500">{t('landing.stats.avgRating')}</p>
-                            <p className="text-lg font-bold">{clinicStats?.avgRating || '4.8'}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="absolute top-1/2 -right-16 transform -translate-y-1/2 bg-black text-white rounded-2xl shadow-lg p-4">
-                        <div className="flex items-center gap-2">
-                          <Users className="w-5 h-5" />
-                          <div>
-                            <p className="text-xs text-gray-400">{t('landing.stats.patientsServed')}</p>
-                            <p className="text-lg font-bold">10K+</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+            {/* Right Side - Hero Illustration */}
+            <div className="relative hidden lg:flex items-center justify-center">
+              <div className="relative w-full max-w-[600px]">
+                <img 
+                  src={heroImage} 
+                  alt="Modern clinic reception with patient entering" 
+                  className="w-full h-auto rounded-3xl shadow-2xl object-cover"
+                />
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Suggestions Section - Uber Style */}
-      <section className="py-16 lg:py-24 border-t border-gray-100">
+      {/* Zero Wait Time Spotlight Section - Executive Dashboard */}
+      <section className="relative py-20 lg:py-28 text-white overflow-hidden" style={{ backgroundColor: '#0A1612' }}>
+        {/* Subtle noise texture overlay */}
+        <div 
+          className="absolute inset-0 opacity-[0.03] pointer-events-none"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+          }}
+        />
+        
+        <div className="relative max-w-[1400px] mx-auto px-6 lg:px-12">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center relative">
+            {/* Center Vertical Divider - Dashboard feel */}
+            <div className="hidden lg:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[70%] w-px bg-white/10" />
+            
+            {/* Left - The Countdown Instrument */}
+            <div className="text-center lg:text-left">
+              <div className="inline-flex items-center gap-2 mb-6">
+                <div className="relative">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <div className="absolute inset-0 w-2 h-2 rounded-full bg-emerald-400 animate-ping opacity-75" />
+                </div>
+                <span className="text-xs font-semibold text-emerald-400 uppercase tracking-[0.2em]">
+                  Live Queue Status
+                </span>
+              </div>
+              
+              {/* Precision Instrument Display */}
+              <div className="flex items-baseline justify-center lg:justify-start gap-3">
+                <CountUp
+                  from={15}
+                  to={0}
+                  direction="down"
+                  duration={2.5}
+                  delay={0.3}
+                  className="text-[100px] lg:text-[140px] font-light text-white leading-none tracking-tight"
+                  style={{ fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace" }}
+                />
+                <span className="text-3xl lg:text-4xl font-light text-gray-500" style={{ fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace" }}>
+                  min
+                </span>
+              </div>
+              
+              {/* Amber/Gold precision bar */}
+              <div className="flex justify-center lg:justify-start mt-4">
+                <div className="relative w-48 h-[2px] bg-white/10 rounded-full overflow-hidden">
+                  <div 
+                    className="absolute inset-y-0 left-0 rounded-full"
+                    style={{ 
+                      width: '100%',
+                      background: 'linear-gradient(90deg, #D4A853 0%, #C9A227 50%, #D4A853 100%)',
+                      boxShadow: '0 0 12px rgba(201, 162, 39, 0.5)'
+                    }}
+                  />
+                </div>
+              </div>
+              
+              <p className="text-lg lg:text-xl text-gray-400 mt-6 tracking-wide">
+                Average waiting time at our partner clinics
+              </p>
+            </div>
+
+            {/* Right - Value Props */}
+            <div className="space-y-8 lg:pl-8">
+              <h2 className="text-3xl lg:text-4xl font-bold leading-tight">
+                We're eliminating waiting rooms
+              </h2>
+              <p className="text-lg text-gray-400 max-w-md leading-relaxed">
+                QueueMed coordinates your arrival perfectly with your appointment. 
+                No more sitting in lobbies. Arrive, get seen, leave.
+              </p>
+              
+              {/* Trust Grid with dividers */}
+              <div className="flex items-start">
+                <div className="flex-1 pr-6">
+                  <p className="text-3xl font-bold text-white" style={{ fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace" }}>{clinicStats?.totalClinics || '50'}+</p>
+                  <p className="text-sm text-gray-500 mt-1 uppercase tracking-wider">Partner Clinics</p>
+                </div>
+                <div className="w-px h-14 bg-white/10" />
+                <div className="flex-1 px-6">
+                  <p className="text-3xl font-bold text-white" style={{ fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace" }}>10K+</p>
+                  <p className="text-sm text-gray-500 mt-1 uppercase tracking-wider">Happy Patients</p>
+                </div>
+                <div className="w-px h-14 bg-white/10" />
+                <div className="flex-1 pl-6">
+                  <p className="text-3xl font-bold text-white" style={{ fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace" }}>{clinicStats?.avgRating || '4.8'}</p>
+                  <p className="text-sm text-gray-500 mt-1 uppercase tracking-wider">Avg Rating</p>
+                </div>
+              </div>
+
+              <Button
+                onClick={handleBrowseAll}
+                className="h-12 px-8 bg-white text-gray-900 hover:bg-gray-100 font-semibold rounded-xl border-0"
+              >
+                Find a Clinic
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Suggestions Section */}
+      <section className="py-16 lg:py-24">
         <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
           <h2 className="text-3xl lg:text-4xl font-bold text-black mb-10">
             {t('landing.suggestions.title')}
@@ -378,10 +436,13 @@ const PremiumLanding = () => {
                     </span>
                   </div>
                 </div>
-                <div className="w-24 h-24 relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-100 to-blue-50 rounded-2xl flex items-center justify-center transform group-hover:scale-105 transition-transform">
-                    <Stethoscope className="w-12 h-12 text-blue-600" />
-                  </div>
+                <div className="w-32 h-32 relative rounded-xl overflow-hidden" style={{ backgroundColor: '#EEEEE8' }}>
+                  <img 
+                    src={stethoscopeImage} 
+                    alt="General Practice" 
+                    className="w-full h-full object-contain block mix-blend-multiply transform scale-110 group-hover:scale-[1.15] transition-transform"
+                    style={{ filter: 'contrast(1.05) brightness(1.02)' }}
+                  />
                 </div>
               </div>
             </button>
@@ -404,10 +465,13 @@ const PremiumLanding = () => {
                     </span>
                   </div>
                 </div>
-                <div className="w-24 h-24 relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-cyan-100 to-cyan-50 rounded-2xl flex items-center justify-center transform group-hover:scale-105 transition-transform">
-                    <Heart className="w-12 h-12 text-cyan-600" />
-                  </div>
+                <div className="w-32 h-32 relative rounded-xl overflow-hidden" style={{ backgroundColor: '#EEEEE8' }}>
+                  <img 
+                    src={dentistryImage} 
+                    alt="Dentistry" 
+                    className="w-full h-full object-contain block mix-blend-multiply transform scale-110 group-hover:scale-[1.15] transition-transform"
+                    style={{ filter: 'contrast(1.05) brightness(1.02)' }}
+                  />
                 </div>
               </div>
             </button>
@@ -430,10 +494,13 @@ const PremiumLanding = () => {
                     </span>
                   </div>
                 </div>
-                <div className="w-24 h-24 relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-red-100 to-red-50 rounded-2xl flex items-center justify-center transform group-hover:scale-105 transition-transform">
-                    <Activity className="w-12 h-12 text-red-500" />
-                  </div>
+                <div className="w-32 h-32 relative rounded-xl overflow-hidden" style={{ backgroundColor: '#EEEEE8' }}>
+                  <img 
+                    src={heartImage} 
+                    alt="Specialists" 
+                    className="w-full h-full object-contain block mix-blend-multiply transform scale-110 group-hover:scale-[1.15] transition-transform"
+                    style={{ filter: 'contrast(1.05) brightness(1.02)' }}
+                  />
                 </div>
               </div>
             </button>
@@ -441,7 +508,7 @@ const PremiumLanding = () => {
         </div>
       </section>
 
-      {/* Account Section - Uber Style */}
+      {/* Account Section */}
       <section className="py-16 lg:py-24 bg-gray-50">
         <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
@@ -470,7 +537,7 @@ const PremiumLanding = () => {
               <div className="flex flex-wrap gap-4">
                 <Button
                   onClick={() => navigate('/auth/login')}
-                  className="h-12 px-8 bg-black hover:bg-gray-900 text-white font-semibold rounded-xl"
+                  className="h-12 px-8 bg-black hover:bg-black/90 text-white font-semibold rounded-xl"
                 >
                   {t('landing.account.signIn')}
                 </Button>
@@ -502,7 +569,7 @@ const PremiumLanding = () => {
               <div className="flex flex-wrap gap-4">
                 <Button
                   onClick={() => navigate('/auth/signup')}
-                  className="h-12 px-8 bg-black hover:bg-gray-900 text-white font-semibold rounded-xl"
+                  className="h-12 px-8 bg-black hover:bg-black/90 text-white font-semibold rounded-xl"
                 >
                   {t('landing.forClinics.register')}
                 </Button>
@@ -517,7 +584,7 @@ const PremiumLanding = () => {
 
             {/* Right Side - Image */}
             <div className="relative order-1 lg:order-2">
-              <div className="aspect-[4/3] bg-gray-900 rounded-3xl overflow-hidden">
+              <div className="aspect-[4/3] bg-black rounded-3xl overflow-hidden">
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center space-y-4">
                     <div className="w-24 h-24 bg-white rounded-full shadow-lg mx-auto flex items-center justify-center">
