@@ -235,9 +235,9 @@ export default function TeamManagement() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Team</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">Team</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Manage staff members and send invitations
           </p>
@@ -245,7 +245,7 @@ export default function TeamManagement() {
 
         <Dialog open={showInvite} onOpenChange={setShowInvite}>
           <DialogTrigger asChild>
-            <Button size="sm" className="bg-foreground text-background hover:bg-foreground/90 h-8 px-3 text-xs font-medium">
+            <Button size="sm" className="bg-foreground text-background hover:bg-foreground/90 h-8 px-3 text-xs font-medium w-fit">
               <UserPlus className="w-3.5 h-3.5 mr-1.5" />
               Invite
             </Button>
@@ -367,7 +367,7 @@ export default function TeamManagement() {
       </div>
 
       {/* Staff Table */}
-      <div className="rounded-lg border border-border overflow-hidden">
+      <div className="rounded-lg border border-border overflow-hidden overflow-x-auto">
         {staff.length === 0 ? (
           <div className="text-center py-12 px-4 bg-card">
             <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center mx-auto mb-3">

@@ -321,7 +321,7 @@ export default function ClinicSettings() {
       {/* BASIC INFO */}
       {activeTab === "basic" && (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Clinic Name (English)</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Medical Center" className={inputClass} />
@@ -332,7 +332,7 @@ export default function ClinicSettings() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Specialty</Label>
               <Input value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="General Practice" className={inputClass} />
@@ -348,7 +348,7 @@ export default function ClinicSettings() {
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="clinic@example.com" className={inputClass} />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Address</Label>
               <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Medical Street" className={inputClass} />
@@ -419,7 +419,7 @@ export default function ClinicSettings() {
               <Switch checked={allowWalkIns} onCheckedChange={setAllowWalkIns} className="data-[state=checked]:bg-foreground" />
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Avg. Duration (min)</Label>
                 <Input type="number" value={avgDuration} onChange={(e) => setAvgDuration(parseInt(e.target.value) || 15)} min="5" max="120" className={inputClass} />
@@ -446,7 +446,7 @@ export default function ClinicSettings() {
       {activeTab === "queue" && (
         <div className="space-y-6">
           {/* Mode Explanation Cards */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="group relative p-4 bg-muted/40 hover:bg-muted/60 transition-colors">
               <div className="flex items-start gap-3">
                 <div className="w-9 h-9 rounded-[4px] bg-foreground flex items-center justify-center flex-shrink-0">

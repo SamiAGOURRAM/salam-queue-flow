@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   MapPin, ArrowRight, Stethoscope, Heart, Activity,
-  User, Shield, Star, Building2, Users, Menu, X
+  User, Shield, Star, Building2, Users, Search, Info, Calendar, LogOut, LogIn
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,6 +16,7 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 const PremiumLanding = () => {
   const navigate = useNavigate();
+  const routeLocation = useLocation();
   const { t } = useTranslation();
   const { user, signOut } = useAuth();
   
@@ -23,7 +25,6 @@ const PremiumLanding = () => {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [location, setLocation] = useState("");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Fetch clinic metadata for stats and specialties
   const { data: clinicStats } = useQuery({
@@ -65,128 +66,134 @@ const PremiumLanding = () => {
     navigate('/clinics');
   };
 
+  // Base navigation items available to everyone
+  const baseNavigationItems = [
+    {
+      name: t('nav.clinics'),
+      path: "/clinics",
+      icon: Search,
+    },
+    {
+      name: t('nav.about'),
+      path: "/welcome",
+      icon: Info,
+    },
+  ];
+
+  // Authenticated-only navigation items
+  const authenticatedNavigationItems = [
+    {
+      name: t('nav.appointments'),
+      path: "/my-appointments",
+      icon: Calendar,
+    },
+    {
+      name: t('nav.profile'),
+      path: "/patient/profile",
+      icon: User,
+    },
+  ];
+
+  // Combine navigation items based on auth status
+  const navigationItems = user
+    ? [...baseNavigationItems, ...authenticatedNavigationItems]
+    : baseNavigationItems;
+
+  const isActive = (path: string) => {
+    return routeLocation.pathname === path;
+  };
+
   return (
     <div className="min-h-screen bg-white">
-      {/* Premium Navigation Header - Uber Style */}
-      <header className="sticky top-0 z-50 bg-white border-b border-gray-100">
-        <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
-          <div className="flex items-center justify-between h-16 lg:h-20">
-            {/* Logo */}
-            <button
-              onClick={() => navigate('/')}
-              className="flex items-center gap-2"
-            >
-              <span className="text-2xl font-bold text-black tracking-tight">QueueMed</span>
-            </button>
+      {/* Consistent Header - Same as PatientLayout */}
+      <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center justify-between h-14">
+            {/* Left Side: Logo + Language */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate("/")}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+              >
+                <div className="w-7 h-7 rounded-md bg-gray-900 flex items-center justify-center">
+                  <span className="text-white text-sm font-bold">Q</span>
+                </div>
+                <span className="text-base font-semibold text-gray-900">QueueMed</span>
+              </button>
+              <div className="h-4 w-px bg-border" />
+              <LanguageSwitcher />
+            </div>
 
             {/* Desktop Navigation */}
-            <nav className="hidden lg:flex items-center gap-8">
-              <button
-                onClick={() => navigate('/clinics')}
-                className="text-sm font-medium text-gray-700 hover:text-black transition-colors"
-              >
-                {t('landing.nav.findClinics')}
-              </button>
-              <button
-                onClick={() => navigate('/welcome')}
-                className="text-sm font-medium text-gray-700 hover:text-black transition-colors"
-              >
-                {t('landing.nav.about')}
-              </button>
+            <nav className="hidden md:flex items-center gap-1">
+              {navigationItems.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.path);
+
+                return (
+                  <button
+                    key={item.path}
+                    onClick={() => navigate(item.path)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                      active
+                        ? "text-gray-900 bg-gray-100"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                    )}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {item.name}
+                  </button>
+                );
+              })}
             </nav>
 
-            {/* Right Side Actions */}
-            <div className="flex items-center gap-4">
-              {/* Language Switcher */}
-              <div className="hidden sm:block">
-                <LanguageSwitcher />
-              </div>
-
-              {/* Help Link */}
-              <button className="hidden lg:block text-sm font-medium text-gray-700 hover:text-black transition-colors">
-                {t('landing.nav.help')}
-              </button>
-
-              {/* Auth Buttons */}
+            {/* Right Side: Auth */}
+            <div className="flex items-center gap-2">
               {user ? (
-                <div className="flex items-center gap-3">
-                  <Button
-                    onClick={() => navigate('/my-appointments')}
-                    variant="ghost"
-                    className="hidden sm:inline-flex h-10 px-4 text-sm font-medium"
-                  >
-                    {t('landing.search.myAppointments')}
-                  </Button>
-                  <Button
-                    onClick={signOut}
-                    variant="outline"
-                    className="h-10 px-4 text-sm font-medium border-2 border-black text-black rounded-full hover:bg-black hover:text-white transition-colors"
-                  >
-                    {t('landing.nav.signOut')}
-                  </Button>
-                </div>
+                <Button
+                  variant="ghost"
+                  onClick={signOut}
+                  className="h-9 px-3 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
+                >
+                  <LogOut className="w-4 h-4 mr-1.5" />
+                  <span className="hidden sm:inline">{t('nav.logout')}</span>
+                </Button>
               ) : (
-                <div className="flex items-center gap-3">
-                  <Button
-                    onClick={() => navigate('/auth/login')}
-                    variant="ghost"
-                    className="hidden sm:inline-flex h-10 px-4 text-sm font-medium"
-                  >
-                    {t('landing.nav.logIn')}
-                  </Button>
-                  <Button
-                    onClick={() => navigate('/auth/signup')}
-                    className="h-10 px-4 text-sm font-medium bg-black text-white rounded-full hover:bg-gray-900 transition-colors"
-                  >
-                    {t('landing.nav.signUp')}
-                  </Button>
-                </div>
+                <Button
+                  onClick={() => navigate('/auth/login')}
+                  className="h-9 px-4 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-md"
+                >
+                  <LogIn className="w-4 h-4 mr-1.5" />
+                  <span className="hidden sm:inline">{t('nav.login')}</span>
+                </Button>
               )}
-
-              {/* Mobile Menu Button */}
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="lg:hidden p-2 -mr-2"
-              >
-                {mobileMenuOpen ? (
-                  <X className="w-6 h-6" />
-                ) : (
-                  <Menu className="w-6 h-6" />
-                )}
-              </button>
             </div>
           </div>
 
-          {/* Mobile Menu */}
-          {mobileMenuOpen && (
-            <div className="lg:hidden py-4 border-t border-gray-100">
-              <nav className="flex flex-col gap-2">
+          {/* Mobile Navigation */}
+          <nav className="md:hidden flex items-center gap-1 pb-3 overflow-x-auto">
+            {navigationItems.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.path);
+
+              return (
                 <button
-                  onClick={() => { navigate('/clinics'); setMobileMenuOpen(false); }}
-                  className="px-4 py-3 text-left text-base font-medium text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
+                  key={item.path}
+                  onClick={() => navigate(item.path)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap transition-colors",
+                    active
+                      ? "text-gray-900 bg-gray-100"
+                      : "text-gray-600 hover:text-gray-900"
+                  )}
                 >
-                  {t('landing.nav.findClinics')}
+                  <Icon className="w-3.5 h-3.5" />
+                  {item.name}
                 </button>
-                <button
-                  onClick={() => { navigate('/welcome'); setMobileMenuOpen(false); }}
-                  className="px-4 py-3 text-left text-base font-medium text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
-                >
-                  {t('landing.nav.about')}
-                </button>
-                {user && (
-                  <button
-                    onClick={() => { navigate('/my-appointments'); setMobileMenuOpen(false); }}
-                    className="px-4 py-3 text-left text-base font-medium text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
-                  >
-                    {t('landing.search.myAppointments')}
-                  </button>
-                )}
-                <div className="px-4 py-2">
-                  <LanguageSwitcher />
-                </div>
-              </nav>
-            </div>
-          )}
+              );
+            })}
+          </nav>
         </div>
       </header>
 

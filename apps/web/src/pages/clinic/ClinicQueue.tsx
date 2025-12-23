@@ -105,16 +105,16 @@ export default function ClinicQueue() {
   return (
     <div className="space-y-5">
       {/* Header - Compact & Premium */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Live Queue</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">Live Queue</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {format(new Date(), "EEEE, MMMM d")}
           </p>
         </div>
 
         {/* Compact Action Buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             onClick={() => {
               setBookingMode('scheduled');
@@ -123,8 +123,8 @@ export default function ClinicQueue() {
             size="sm"
             className="bg-foreground text-background hover:bg-foreground/90 h-8 px-3 text-xs font-medium"
           >
-            <Calendar className="w-3.5 h-3.5 mr-1.5" />
-            Book
+            <Calendar className="w-3.5 h-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">Book</span>
           </Button>
 
           <Button
@@ -136,11 +136,11 @@ export default function ClinicQueue() {
             size="sm"
             className="border-border hover:bg-muted h-8 px-3 text-xs font-medium"
           >
-            <UserPlus className="w-3.5 h-3.5 mr-1.5" />
-            Walk-in
+            <UserPlus className="w-3.5 h-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">Walk-in</span>
           </Button>
 
-          <div className="w-px h-5 bg-border mx-1" />
+          <div className="w-px h-5 bg-border mx-1 hidden sm:block" />
 
           <Button
             onClick={() => setShowEndDay(true)}
@@ -148,8 +148,8 @@ export default function ClinicQueue() {
             size="sm"
             className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 px-3 text-xs font-medium"
           >
-            <XCircle className="w-3.5 h-3.5 mr-1.5" />
-            End Day
+            <XCircle className="w-3.5 h-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">End Day</span>
           </Button>
         </div>
       </div>

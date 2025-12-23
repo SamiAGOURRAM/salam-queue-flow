@@ -453,23 +453,32 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
 
       {/* Dialog for non-present patient */}
       <Dialog open={nonPresentDialog.open} onOpenChange={(open) => setNonPresentDialog({ open, patient: nonPresentDialog.patient })}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg">Patient Not Present</DialogTitle>
-            <DialogDescription className="text-sm">
-              {nonPresentDialog.patient && (
-                <>
-                  <span className="font-medium text-foreground">{nonPresentDialog.patient.patient?.fullName || 'Patient'}</span> is not marked as physically present.
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex-col gap-2 sm:flex-col">
+        <DialogContent className="sm:max-w-sm rounded-[8px] p-0 gap-0">
+          {/* Premium Header */}
+          <div className="p-5 border-b border-border">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-[4px] bg-amber-500 flex items-center justify-center flex-shrink-0">
+                <AlertCircle className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-semibold tracking-tight">Patient Not Present</DialogTitle>
+                <DialogDescription className="text-sm text-muted-foreground mt-0.5">
+                  {nonPresentDialog.patient && (
+                    <>
+                      <span className="font-medium text-foreground">{nonPresentDialog.patient.patient?.fullName || 'Patient'}</span> has not checked in
+                    </>
+                  )}
+                </DialogDescription>
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-5 space-y-3">
             {nonPresentDialog.patient && (
               <>
                 <Button
                   onClick={() => handleMarkPresent(nonPresentDialog.patient!.id)}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="w-full h-10 rounded-[4px] bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
                   <UserCheck className="mr-2 h-4 w-4" />
                   Mark Present
@@ -478,7 +487,7 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
                   <Button
                     onClick={() => setNonPresentDialog({ open: false, patient: null })}
                     variant="outline"
-                    className="w-full"
+                    className="w-full h-10 rounded-[4px]"
                   >
                     <Clock className="mr-2 h-4 w-4" />
                     Wait
@@ -486,7 +495,7 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
                   <Button
                     onClick={() => handleMarkAbsent(nonPresentDialog.patient!.id)}
                     variant="outline"
-                    className="w-full text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950/50"
+                    className="w-full h-10 rounded-[4px] text-red-600 border-red-200 hover:bg-red-50"
                   >
                     <UserX className="mr-2 h-4 w-4" />
                     Absent
@@ -494,7 +503,7 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
                 </div>
               </>
             )}
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 

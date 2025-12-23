@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Star, X, MessageSquare, TrendingUp, Edit2, Trash2, AlertCircle } from "lucide-react";
+import { Star, X, MessageSquare, Edit2, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { ratingService } from "@/services/rating/RatingService";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import type { ClinicRating, ClinicRatingStats } from "@/integrations/supabase/types";
+import { cn } from "@/lib/utils";
 
 interface ReviewModalProps {
   isOpen: boolean;
@@ -163,17 +164,17 @@ export default function ReviewModal({ isOpen, onClose, clinicId, clinicName }: R
 
   const renderStars = (rating: number, interactive = false) => {
     return (
-      <div className="flex gap-1">
+      <div className="flex gap-0.5">
         {[1, 2, 3, 4, 5].map((star) => (
           <Star
             key={star}
-            className={`w-6 h-6 ${
-              interactive ? "cursor-pointer transition-transform hover:scale-110" : ""
-            } ${
+            className={cn(
+              "w-5 h-5 transition-all",
+              interactive && "cursor-pointer hover:scale-110",
               star <= (interactive && hoveredRating > 0 ? hoveredRating : rating)
                 ? "fill-amber-400 text-amber-400"
-                : "text-gray-300"
-            }`}
+                : "text-muted-foreground/30"
+            )}
             onClick={() => interactive && handleStarClick(star)}
             onMouseEnter={() => interactive && setHoveredRating(star)}
             onMouseLeave={() => interactive && setHoveredRating(0)}
@@ -188,18 +189,18 @@ export default function ReviewModal({ isOpen, onClose, clinicId, clinicName }: R
     const percentage = (count / total) * 100;
     
     return (
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1 w-16">
-          <span className="text-sm font-medium">{starCount}</span>
-          <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 w-10">
+          <span className="text-xs font-medium text-foreground">{starCount}</span>
+          <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
         </div>
-        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+        <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
           <div
-            className="h-full bg-amber-400 transition-all duration-500"
+            className="h-full bg-amber-400 rounded-full transition-all duration-500"
             style={{ width: `${percentage}%` }}
           />
         </div>
-        <span className="text-sm text-gray-600 w-12 text-right">{count}</span>
+        <span className="text-xs text-muted-foreground w-8 text-right">{count}</span>
       </div>
     );
   };
@@ -210,19 +211,24 @@ export default function ReviewModal({ isOpen, onClose, clinicId, clinicName }: R
   const canEdit = isEditing || !userRating;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white p-6 flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold mb-1">Reviews & Ratings</h2>
-            <p className="text-blue-100">{clinicName}</p>
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+      <div className="bg-background rounded-[8px] shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Premium Header */}
+        <div className="p-6 border-b border-border flex items-start justify-between">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-[4px] bg-foreground flex items-center justify-center flex-shrink-0">
+              <Star className="w-5 h-5 text-background" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight">Reviews & Ratings</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">{clinicName}</p>
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-white/20 rounded-full transition-colors"
+            className="p-2 hover:bg-muted rounded-[4px] transition-colors"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -230,18 +236,18 @@ export default function ReviewModal({ isOpen, onClose, clinicId, clinicName }: R
         <div className="overflow-y-auto flex-1 p-6 space-y-6">
           {/* Rating Overview */}
           {ratingStats && ratingStats.total_ratings > 0 && (
-            <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-6 border border-amber-200">
+            <div className="bg-muted/50 rounded-[4px] p-5">
               <div className="grid md:grid-cols-2 gap-6">
                 {/* Average Rating */}
-                <div className="text-center md:border-r border-amber-200">
-                  <div className="text-5xl font-extrabold text-gray-800 mb-2">
+                <div className="text-center md:border-r border-border">
+                  <div className="text-4xl font-bold text-foreground mb-2">
                     {ratingStats.average_rating.toFixed(1)}
                   </div>
                   <div className="flex justify-center mb-2">
                     {renderStars(Math.round(ratingStats.average_rating))}
                   </div>
-                  <p className="text-gray-600">
-                    Based on <span className="font-bold">{ratingStats.total_ratings}</span> reviews
+                  <p className="text-sm text-muted-foreground">
+                    Based on <span className="font-medium text-foreground">{ratingStats.total_ratings}</span> reviews
                   </p>
                 </div>
 
@@ -258,31 +264,28 @@ export default function ReviewModal({ isOpen, onClose, clinicId, clinicName }: R
           )}
 
           {/* Your Review Section */}
-          <div className="bg-white rounded-xl border-2 border-blue-100 p-6">
+          <div className="border border-border rounded-[4px] p-5">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-blue-600" />
-                Your Review
-              </h3>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Your Review</p>
               {userRating && !isEditing && (
                 <div className="flex gap-2">
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
                     onClick={() => setIsEditing(true)}
-                    className="gap-2"
+                    className="h-8 text-xs rounded-[4px]"
                   >
-                    <Edit2 className="w-4 h-4" />
+                    <Edit2 className="w-3.5 h-3.5 mr-1.5" />
                     Edit
                   </Button>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
                     onClick={handleDelete}
-                    className="gap-2 text-red-600 hover:text-red-700 hover:border-red-300"
+                    className="h-8 text-xs rounded-[4px] text-red-600 hover:text-red-700 hover:bg-red-50"
                     disabled={deleteRatingMutation.isPending}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3.5 h-3.5 mr-1.5" />
                     Delete
                   </Button>
                 </div>
@@ -291,42 +294,42 @@ export default function ReviewModal({ isOpen, onClose, clinicId, clinicName }: R
 
             {loadingUserRating ? (
               <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-6 w-6 border-2 border-foreground border-t-transparent"></div>
               </div>
             ) : (
               <div className="space-y-4">
                 {/* Star Rating */}
                 <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Rate your experience <span className="text-red-500">*</span>
+                  <label className="text-xs text-muted-foreground mb-2 block">
+                    Rate your experience *
                   </label>
                   {renderStars(selectedRating, canEdit)}
                   {selectedRating > 0 && (
-                    <p className="text-sm text-gray-600 mt-2">
-                      {selectedRating === 5 && "Excellent! ⭐"}
-                      {selectedRating === 4 && "Very Good! 👍"}
-                      {selectedRating === 3 && "Good 👌"}
-                      {selectedRating === 2 && "Fair 🤔"}
-                      {selectedRating === 1 && "Needs Improvement 😕"}
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {selectedRating === 5 && "Excellent!"}
+                      {selectedRating === 4 && "Very Good"}
+                      {selectedRating === 3 && "Good"}
+                      {selectedRating === 2 && "Fair"}
+                      {selectedRating === 1 && "Needs Improvement"}
                     </p>
                   )}
                 </div>
 
                 {/* Review Text */}
                 <div>
-                  <label className="block text-sm font-medium mb-2">
+                  <label className="text-xs text-muted-foreground mb-1.5 block">
                     Share your experience (optional)
                   </label>
                   <Textarea
                     value={reviewText}
                     onChange={(e) => setReviewText(e.target.value)}
-                    placeholder="Tell us about your visit to help others make informed decisions..."
-                    className="min-h-[100px] resize-none"
+                    placeholder="Tell us about your visit..."
+                    className="min-h-[80px] resize-none rounded-[4px] border-border/60"
                     disabled={!canEdit}
                     maxLength={500}
                   />
-                  <p className="text-xs text-gray-500 mt-1 text-right">
-                    {reviewText.length}/500 characters
+                  <p className="text-xs text-muted-foreground mt-1 text-right">
+                    {reviewText.length}/500
                   </p>
                 </div>
 
@@ -336,13 +339,13 @@ export default function ReviewModal({ isOpen, onClose, clinicId, clinicName }: R
                     <Button
                       onClick={handleSubmit}
                       disabled={selectedRating === 0 || submitRatingMutation.isPending}
-                      className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+                      className="rounded-[4px] bg-foreground text-background hover:bg-foreground/90"
                     >
                       {submitRatingMutation.isPending ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-white mr-2"></div>
+                        <span className="flex items-center gap-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-background border-t-transparent"></div>
                           Submitting...
-                        </>
+                        </span>
                       ) : userRating ? (
                         "Update Review"
                       ) : (
@@ -357,6 +360,7 @@ export default function ReviewModal({ isOpen, onClose, clinicId, clinicName }: R
                           setReviewText(userRating.review_text || "");
                           setIsEditing(false);
                         }}
+                        className="rounded-[4px]"
                       >
                         Cancel
                       </Button>
@@ -365,14 +369,9 @@ export default function ReviewModal({ isOpen, onClose, clinicId, clinicName }: R
                 )}
 
                 {userRating && !isEditing && (
-                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                    <div className="flex items-center gap-2 text-sm text-blue-700">
-                      <AlertCircle className="w-4 h-4" />
-                      <span>
-                        You reviewed this clinic on {formatDate(userRating.created_at)}
-                      </span>
-                    </div>
-                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Reviewed on {formatDate(userRating.created_at)}
+                  </p>
                 )}
               </div>
             )}
@@ -380,56 +379,54 @@ export default function ReviewModal({ isOpen, onClose, clinicId, clinicName }: R
 
           {/* All Reviews */}
           <div>
-            <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-green-600" />
-              Patient Reviews
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">All Reviews</p>
               {reviewsData?.count && reviewsData.count > 0 && (
-                <Badge variant="outline" className="ml-2">
+                <Badge variant="outline" className="rounded-[4px] text-xs">
                   {reviewsData.count} reviews
                 </Badge>
               )}
-            </h3>
+            </div>
 
             {loadingReviews ? (
               <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-6 w-6 border-2 border-foreground border-t-transparent"></div>
               </div>
             ) : !reviewsData?.data || reviewsData.data.length === 0 ? (
-              <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-600">No reviews yet. Be the first to review!</p>
+              <div className="text-center py-12 border border-dashed border-border rounded-[4px]">
+                <MessageSquare className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">No reviews yet. Be the first!</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {reviewsData.data.map((review: ClinicRating) => (
                   <div
                     key={review.id}
-                    className={`bg-white rounded-lg p-5 border ${
+                    className={cn(
+                      "rounded-[4px] p-4 border",
                       review.patient_id === user?.id
-                        ? "border-blue-200 bg-blue-50/50"
-                        : "border-gray-200"
-                    }`}
+                        ? "border-foreground/20 bg-muted/30"
+                        : "border-border"
+                    )}
                   >
-                    <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-start justify-between mb-2">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-gray-800">
-                            {review.patient_id === user?.id
-                              ? "You"
-                              : "Anonymous Patient"}
+                          <span className="text-sm font-medium">
+                            {review.patient_id === user?.id ? "You" : "Patient"}
                           </span>
                           {review.patient_id === user?.id && (
-                            <Badge className="bg-blue-600 text-white text-xs">Your Review</Badge>
+                            <Badge className="bg-foreground text-background text-[10px] px-1.5 py-0">Your Review</Badge>
                           )}
                         </div>
                         {renderStars(review.rating)}
                       </div>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-muted-foreground">
                         {formatDate(review.created_at)}
                       </span>
                     </div>
                     {review.review_text && (
-                      <p className="text-gray-700 text-sm leading-relaxed">{review.review_text}</p>
+                      <p className="text-sm text-foreground/80 leading-relaxed">{review.review_text}</p>
                     )}
                   </div>
                 ))}
@@ -442,12 +439,12 @@ export default function ReviewModal({ isOpen, onClose, clinicId, clinicName }: R
                       size="sm"
                       onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                       disabled={currentPage === 1}
+                      className="rounded-[4px] h-8"
                     >
                       Previous
                     </Button>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                        // Show first page, last page, current page, and adjacent pages
                         let pageNum;
                         if (totalPages <= 5) {
                           pageNum = i + 1;
@@ -465,11 +462,10 @@ export default function ReviewModal({ isOpen, onClose, clinicId, clinicName }: R
                             variant={pageNum === currentPage ? "default" : "outline"}
                             size="sm"
                             onClick={() => setCurrentPage(pageNum)}
-                            className={
-                              pageNum === currentPage
-                                ? "bg-blue-600 text-white"
-                                : ""
-                            }
+                            className={cn(
+                              "rounded-[4px] h-8 w-8 p-0",
+                              pageNum === currentPage && "bg-foreground text-background"
+                            )}
                           >
                             {pageNum}
                           </Button>
@@ -481,6 +477,7 @@ export default function ReviewModal({ isOpen, onClose, clinicId, clinicName }: R
                       size="sm"
                       onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                       disabled={currentPage === totalPages}
+                      className="rounded-[4px] h-8"
                     >
                       Next
                     </Button>

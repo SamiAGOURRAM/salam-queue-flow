@@ -152,250 +152,194 @@ export function EndDayConfirmationDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
-      <AlertDialogContent className="max-w-2xl">
+      <AlertDialogContent className="max-w-xl rounded-[8px] p-0 gap-0">
         {step === 'preview' ? (
           <>
-            <AlertDialogHeader>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center">
-                  <AlertTriangle className="h-6 w-6 text-red-600" />
+            {/* Premium Header */}
+            <div className="p-6 border-b border-border">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-[4px] bg-amber-500 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <AlertDialogTitle className="text-2xl text-red-900">
-                    End Day - Critical Action
-                  </AlertDialogTitle>
-                  <AlertDialogDescription className="text-red-700">
-                    This will close today's queue and update all appointments
+                  <AlertDialogTitle className="text-lg font-semibold tracking-tight">End Day</AlertDialogTitle>
+                  <AlertDialogDescription className="text-sm text-muted-foreground mt-0.5">
+                    Close today's queue and finalize appointments
                   </AlertDialogDescription>
                 </div>
               </div>
-            </AlertDialogHeader>
+            </div>
 
-            <div className="space-y-4 py-4">
+            <div className="p-6 space-y-5">
               {/* Warning Banner */}
-              <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm text-red-900">
-                    <p className="font-bold mb-1">⚠️ WARNING: This action will immediately:</p>
-                    <ul className="list-disc list-inside space-y-1 ml-2">
-                      <li>Mark all <strong>waiting patients</strong> as <strong>NO-SHOW</strong></li>
-                      <li>Mark all <strong>absent patients</strong> as <strong>NO-SHOW</strong></li>
-                      <li>Mark current <strong>in-progress</strong> patient as <strong>COMPLETED</strong></li>
-                      <li>Close the queue for today</li>
-                    </ul>
-                  </div>
-                </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-[4px] p-4">
+                <p className="text-xs font-medium text-amber-800 uppercase tracking-wider mb-2">This action will:</p>
+                <ul className="space-y-1.5 text-sm text-amber-900">
+                  <li className="flex items-center gap-2">
+                    <XCircle className="w-4 h-4 text-amber-600" />
+                    Mark waiting & absent patients as <strong>NO-SHOW</strong>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-amber-600" />
+                    Mark in-progress patients as <strong>COMPLETED</strong>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-amber-600" />
+                    Close the queue for today
+                  </li>
+                </ul>
               </div>
 
               {/* Impact Summary */}
-              {preview && (
-                <Card className="border-2 border-orange-200">
-                  <CardContent className="pt-6">
-                    <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                      <Calendar className="h-5 w-5 text-orange-600" />
-                      Impact Summary for {new Date().toLocaleDateString()}
-                    </h3>
-                    
-                    {preview.totalAppointments === 0 ? (
-                      <div className="text-center py-8">
-                        <p className="text-gray-500 mb-2">No appointments for today</p>
-                        <p className="text-sm text-gray-400">You can still close the day to mark it as completed</p>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="grid grid-cols-2 gap-4">
-                      {/* What will happen */}
-                      <div className="space-y-3">
-                        <p className="text-sm font-semibold text-orange-900 uppercase tracking-wide">Will Change:</p>
-                        
-                        {preview.willMarkNoShow > 0 && (
-                          <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
-                            <div className="flex items-center gap-2">
-                              <XCircle className="h-5 w-5 text-red-600" />
-                              <span className="text-sm font-medium text-red-900">Mark NO-SHOW</span>
-                            </div>
-                            <span className="text-2xl font-bold text-red-600">{preview.willMarkNoShow}</span>
-                          </div>
-                        )}
-                        
-                        {preview.willMarkCompleted > 0 && (
-                          <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
-                            <div className="flex items-center gap-2">
-                              <CheckCircle className="h-5 w-5 text-green-600" />
-                              <span className="text-sm font-medium text-green-900">Mark COMPLETED</span>
-                            </div>
-                            <span className="text-2xl font-bold text-green-600">{preview.willMarkCompleted}</span>
-                          </div>
-                        )}
-
-                        {preview.willMarkNoShow === 0 && preview.willMarkCompleted === 0 && (
-                          <p className="text-sm text-gray-500 italic">No pending appointments to update</p>
-                        )}
-                      </div>
-
-                      {/* Current state */}
-                      <div className="space-y-3">
-                        <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Current State:</p>
-                        
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                            <span className="text-gray-700">Waiting</span>
-                            <span className="font-mono font-bold">{preview.waiting}</span>
-                          </div>
-                          <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                            <span className="text-gray-700">In Progress</span>
-                            <span className="font-mono font-bold">{preview.inProgress}</span>
-                          </div>
-                          <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                            <span className="text-gray-700">Absent</span>
-                            <span className="font-mono font-bold">{preview.absent}</span>
-                          </div>
-                          <div className="flex justify-between items-center p-2 bg-green-50 rounded border border-green-200">
-                            <span className="text-green-700 font-medium">Completed</span>
-                            <span className="font-mono font-bold text-green-700">{preview.completed}</span>
-                          </div>
+              {preview && preview.totalAppointments > 0 && (
+                <div className="space-y-3">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Impact Summary</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Changes */}
+                    <div className="space-y-2">
+                      {preview.willMarkNoShow > 0 && (
+                        <div className="flex items-center justify-between p-3 bg-red-50 border border-red-100 rounded-[4px]">
+                          <span className="text-sm text-red-800">No-Show</span>
+                          <span className="text-xl font-bold text-red-600">{preview.willMarkNoShow}</span>
                         </div>
+                      )}
+                      {preview.willMarkCompleted > 0 && (
+                        <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-100 rounded-[4px]">
+                          <span className="text-sm text-emerald-800">Completed</span>
+                          <span className="text-xl font-bold text-emerald-600">{preview.willMarkCompleted}</span>
+                        </div>
+                      )}
+                    </div>
+                    {/* Current State */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between p-2 bg-muted/50 rounded-[4px]">
+                        <span className="text-sm text-muted-foreground">Waiting</span>
+                        <span className="font-medium">{preview.waiting}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-2 bg-muted/50 rounded-[4px]">
+                        <span className="text-sm text-muted-foreground">In Progress</span>
+                        <span className="font-medium">{preview.inProgress}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-2 bg-muted/50 rounded-[4px]">
+                        <span className="text-sm text-muted-foreground">Absent</span>
+                        <span className="font-medium">{preview.absent}</span>
                       </div>
                     </div>
-
-                    {/* Total */}
-                    <div className="mt-4 pt-4 border-t-2 border-gray-200">
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold text-gray-900">Total Appointments Today:</span>
-                        <span className="text-3xl font-bold text-gray-900">{preview.totalAppointments}</span>
-                      </div>
-                    </div>
-                    </>
-                    )}
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               )}
 
-              {/* Reason (optional) */}
-              <div className="space-y-2">
-                <Label htmlFor="reason" className="text-sm font-medium">
-                  Reason (Optional)
-                </Label>
+              {preview && preview.totalAppointments === 0 && (
+                <div className="text-center py-6 text-muted-foreground">
+                  <p>No appointments for today</p>
+                  <p className="text-sm">You can still close the day to mark it as completed</p>
+                </div>
+              )}
+
+              {/* Reason */}
+              <div className="space-y-1.5">
+                <Label htmlFor="reason" className="text-xs text-muted-foreground">Reason (Optional)</Label>
                 <Textarea
                   id="reason"
-                  placeholder="e.g., End of working hours, Emergency closure, etc."
+                  placeholder="e.g., End of working hours"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  className="min-h-[80px]"
+                  className="min-h-[60px] rounded-[4px] border-border/60 resize-none"
                 />
               </div>
+
+              {/* Info when no patients */}
+              {!hasActivePatients && (
+                <div className="bg-blue-50 border border-blue-100 rounded-[4px] p-3 text-center">
+                  <p className="text-sm text-blue-800">
+                    No pending appointments to finalize.
+                    {preview && preview.completed > 0 && ` All ${preview.completed} patients completed.`}
+                  </p>
+                </div>
+              )}
             </div>
 
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogFooter className="p-6 pt-0">
+              <AlertDialogCancel className="rounded-[4px]">Cancel</AlertDialogCancel>
               <Button
                 onClick={() => setStep('confirm')}
                 disabled={!hasActivePatients}
-                className="bg-orange-600 hover:bg-orange-700"
+                className="rounded-[4px] bg-amber-600 hover:bg-amber-700 text-white"
               >
-                Continue to Confirmation
+                Continue
               </Button>
             </AlertDialogFooter>
-            
-            {/* Info message when no patients to process */}
-            {!hasActivePatients && (
-              <div className="mt-2 -mb-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-900 text-center">
-                  ℹ️ <strong>End Day is not needed</strong> - There are no waiting, in-progress, or absent patients to finalize.
-                  {preview && preview.completed > 0 && ` All ${preview.completed} patients have been completed.`}
-                </p>
-              </div>
-            )}
           </>
         ) : (
           <>
-            <AlertDialogHeader>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="h-12 w-12 rounded-full bg-red-500 flex items-center justify-center animate-pulse">
-                  <AlertTriangle className="h-7 w-7 text-white" />
+            {/* Confirm Header */}
+            <div className="p-6 border-b border-border bg-red-50">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-[4px] bg-red-600 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <AlertDialogTitle className="text-2xl text-red-900">
-                    ⚠️ FINAL CONFIRMATION REQUIRED
-                  </AlertDialogTitle>
-                  <AlertDialogDescription className="text-red-700 font-medium">
-                    You are about to close the day. This action is difficult to undo.
+                  <AlertDialogTitle className="text-lg font-semibold tracking-tight text-red-900">Final Confirmation</AlertDialogTitle>
+                  <AlertDialogDescription className="text-sm text-red-700 mt-0.5">
+                    This action cannot be easily undone
                   </AlertDialogDescription>
-                </div>
-              </div>
-            </AlertDialogHeader>
-
-            <div className="space-y-4 py-4">
-              {/* Critical warning */}
-              <div className="bg-gradient-to-r from-red-100 to-orange-100 border-2 border-red-400 rounded-lg p-5">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-red-700" />
-                    <p className="font-bold text-red-900">This will happen IMMEDIATELY:</p>
-                  </div>
-                  <ul className="space-y-2 ml-7 text-sm text-red-900">
-                    <li>• <strong>{preview?.willMarkNoShow || 0}</strong> patients will be marked <strong>NO-SHOW</strong></li>
-                    <li>• <strong>{preview?.willMarkCompleted || 0}</strong> in-progress patients will be marked <strong>COMPLETED</strong></li>
-                    <li>• The queue will be closed for today</li>
-                    <li>• Patients will be notified of status changes</li>
-                  </ul>
-                </div>
-              </div>
-
-              {/* Additional notes */}
-              <div className="space-y-2">
-                <Label htmlFor="notes" className="text-sm font-medium">
-                  Additional Notes (Optional)
-                </Label>
-                <Textarea
-                  id="notes"
-                  placeholder="Any additional context or notes for the audit trail..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="min-h-[80px]"
-                />
-              </div>
-
-              {/* Confirmation checkbox */}
-              <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    id="understand"
-                    checked={understood}
-                    onCheckedChange={(checked) => setUnderstood(checked as boolean)}
-                    className="mt-1"
-                  />
-                  <Label
-                    htmlFor="understand"
-                    className="text-sm text-red-900 font-medium cursor-pointer leading-relaxed"
-                  >
-                    I understand that this will immediately close today's queue and update all pending appointments. 
-                    This action creates an audit trail but should only be used at end of day or in emergencies.
-                  </Label>
                 </div>
               </div>
             </div>
 
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setStep('preview')}>
-                ← Go Back
+            <div className="p-6 space-y-5">
+              {/* Summary */}
+              <div className="bg-red-50 border border-red-200 rounded-[4px] p-4 space-y-2">
+                <p className="text-sm font-medium text-red-900">This will happen immediately:</p>
+                <ul className="space-y-1 text-sm text-red-800">
+                  <li>• {preview?.willMarkNoShow || 0} patients → NO-SHOW</li>
+                  <li>• {preview?.willMarkCompleted || 0} patients → COMPLETED</li>
+                  <li>• Queue will be closed</li>
+                </ul>
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-1.5">
+                <Label htmlFor="notes" className="text-xs text-muted-foreground">Notes (Optional)</Label>
+                <Textarea
+                  id="notes"
+                  placeholder="Additional context for audit trail..."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="min-h-[60px] rounded-[4px] border-border/60 resize-none"
+                />
+              </div>
+
+              {/* Confirmation */}
+              <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-[4px]">
+                <Checkbox
+                  id="understand"
+                  checked={understood}
+                  onCheckedChange={(checked) => setUnderstood(checked as boolean)}
+                  className="mt-0.5"
+                />
+                <Label htmlFor="understand" className="text-sm text-foreground cursor-pointer leading-relaxed">
+                  I understand this will close today's queue and update all pending appointments.
+                </Label>
+              </div>
+            </div>
+
+            <AlertDialogFooter className="p-6 pt-0">
+              <AlertDialogCancel onClick={() => setStep('preview')} className="rounded-[4px]">
+                Back
               </AlertDialogCancel>
               <Button
                 onClick={handleEndDay}
                 disabled={!understood || loading}
-                className="bg-red-600 hover:bg-red-700 font-bold"
+                className="rounded-[4px] bg-red-600 hover:bg-red-700 text-white"
               >
                 {loading ? (
-                  <>
-                    <Clock className="mr-2 h-4 w-4 animate-spin" />
-                    Closing Day...
-                  </>
+                  <span className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    Closing...
+                  </span>
                 ) : (
-                  <>
-                    <AlertTriangle className="mr-2 h-4 w-4" />
-                    YES, END DAY NOW
-                  </>
+                  "End Day Now"
                 )}
               </Button>
             </AlertDialogFooter>

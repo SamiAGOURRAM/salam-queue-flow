@@ -209,9 +209,9 @@ export default function ClinicCalendar() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Calendar</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">Calendar</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             View and manage appointments
           </p>
@@ -219,7 +219,7 @@ export default function ClinicCalendar() {
         <Button
           onClick={() => setShowBookAppointment(true)}
           size="sm"
-          className="bg-foreground text-background hover:bg-foreground/90 h-8 px-3 text-xs font-medium"
+          className="bg-foreground text-background hover:bg-foreground/90 h-8 px-3 text-xs font-medium w-fit"
         >
           <Plus className="w-3.5 h-3.5 mr-1.5" />
           Book
@@ -227,7 +227,7 @@ export default function ClinicCalendar() {
       </div>
 
       {/* Date Navigation + Inline Stats */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         {/* Date Navigation */}
         <div className="flex items-center gap-2">
           <Button
@@ -240,7 +240,7 @@ export default function ClinicCalendar() {
           </Button>
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-foreground">
-              {format(selectedDate, 'EEEE, MMM d')}
+              {format(selectedDate, 'EEE, MMM d')}
             </span>
             {isToday(selectedDate) && (
               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500 text-white">
@@ -268,26 +268,26 @@ export default function ClinicCalendar() {
           )}
         </div>
 
-        {/* Inline Stats */}
-        <div className="flex items-center gap-5 text-sm">
-          <div className="flex items-center gap-2">
+        {/* Inline Stats - Scrollable on mobile */}
+        <div className="flex items-center gap-3 sm:gap-5 text-sm overflow-x-auto pb-1">
+          <div className="flex items-center gap-1.5 whitespace-nowrap">
             <div className="w-2 h-2 rounded-full bg-blue-500" />
-            <span className="text-muted-foreground">Scheduled</span>
+            <span className="text-muted-foreground hidden sm:inline">Scheduled</span>
             <span className="font-semibold text-foreground">{stats.scheduled}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 whitespace-nowrap">
             <div className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span className="text-muted-foreground">Active</span>
+            <span className="text-muted-foreground hidden sm:inline">Active</span>
             <span className="font-semibold text-foreground">{stats.inProgress}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 whitespace-nowrap">
             <div className="w-2 h-2 rounded-full bg-gray-400" />
-            <span className="text-muted-foreground">Done</span>
+            <span className="text-muted-foreground hidden sm:inline">Done</span>
             <span className="font-semibold text-foreground">{stats.completed}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 whitespace-nowrap">
             <div className="w-2 h-2 rounded-full bg-red-500" />
-            <span className="text-muted-foreground">Absent</span>
+            <span className="text-muted-foreground hidden sm:inline">Absent</span>
             <span className="font-semibold text-foreground">{stats.absent}</span>
           </div>
         </div>
@@ -308,8 +308,8 @@ export default function ClinicCalendar() {
 
       {/* Main Content Grid */}
       <div className="grid gap-5 lg:grid-cols-[280px_1fr] items-start">
-        {/* Calendar Sidebar */}
-        <div className="border border-border rounded-lg bg-card p-4 h-fit">
+        {/* Calendar Sidebar - Hidden on mobile, show as collapsible or just date nav */}
+        <div className="hidden lg:block border border-border rounded-lg bg-card p-4 h-fit">
           <Calendar
             mode="single"
             selected={selectedDate}

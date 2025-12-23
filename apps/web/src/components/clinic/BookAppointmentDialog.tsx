@@ -399,149 +399,190 @@ export function BookAppointmentDialog({
   const dialogTitle = title || (isWalkIn ? "Add Walk-in Patient" : "Book Appointment for Patient");
   const dialogDescription = description || (isWalkIn ? "Schedule a patient who arrived without a prior booking." : "Schedule an appointment for a patient by entering their details");
 
+  // Shared input class for premium design
+  const inputClass = "h-10 rounded-[4px] border-border/60 focus:border-foreground/40 transition-colors";
+  const selectTriggerClass = "h-10 rounded-[4px] border-border/60";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{dialogTitle}</DialogTitle>
-          <DialogDescription>
-            {dialogDescription}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="fullName">Patient Full Name *</Label>
-            <Input
-              id="fullName"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Ahmed Hassan"
-            />
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto rounded-[8px] p-0 gap-0">
+        {/* Premium Header */}
+        <div className="p-6 border-b border-border">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-[4px] bg-foreground flex items-center justify-center flex-shrink-0">
+              <CalendarIcon className="w-5 h-5 text-background" />
+            </div>
+            <div>
+              <DialogTitle className="text-lg font-semibold tracking-tight">{dialogTitle}</DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground mt-0.5">
+                {dialogDescription}
+              </DialogDescription>
+            </div>
           </div>
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="phone">Phone Number *</Label>
-            <Input
-              id="phone"
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+212 XXX XXX XXX"
-            />
-            <p className="text-xs text-muted-foreground">
-              Patient will receive SMS updates
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Appointment Date *</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !date && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {date ? format(date, "PPP") : "Pick a date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={date}
-                  onSelect={setDate}
-                  disabled={(date) => date < new Date()}
-                  initialFocus
-                  className="pointer-events-auto"
+        <div className="p-6 space-y-5">
+          {/* Patient Info Section */}
+          <div className="space-y-4">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Patient Information</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="fullName" className="text-xs text-muted-foreground">Full Name *</Label>
+                <Input
+                  id="fullName"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Ahmed Hassan"
+                  className={inputClass}
                 />
-              </PopoverContent>
-            </Popover>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="phone" className="text-xs text-muted-foreground">Phone *</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+212 XXX XXX XXX"
+                  className={inputClass}
+                />
+              </div>
+            </div>
           </div>
 
-          {/* Staff/Doctor selection removed - using one doctor per clinic assumption */}
-          {/* Future: Can add resource selection (doctor, bed, equipment) for multi-resource clinics */}
+          {/* Appointment Details Section */}
+          <div className="space-y-4">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Appointment Details</p>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Date */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Date *</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        inputClass,
+                        !date && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {date ? format(date, "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 rounded-[4px]" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={date}
+                      onSelect={setDate}
+                      disabled={(date) => date < new Date()}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
 
-          {/* Appointment Type - moved before time slots */}
-          <div className="space-y-2">
-            <Label htmlFor="type">Appointment Type *</Label>
-            <Select value={appointmentType} onValueChange={setAppointmentType}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select appointment type" />
-              </SelectTrigger>
-              <SelectContent>
-                {getAppointmentTypes().map((type) => (
-                  <SelectItem key={type.name} value={type.name}>
-                    {type.label || type.name.replace("_", " ")} ({type.duration} min)
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              {/* Appointment Type */}
+              <div className="space-y-1.5">
+                <Label htmlFor="type" className="text-xs text-muted-foreground">Type *</Label>
+                <Select value={appointmentType} onValueChange={setAppointmentType}>
+                  <SelectTrigger className={selectTriggerClass}>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-[4px]">
+                    {getAppointmentTypes().map((type) => (
+                      <SelectItem key={type.name} value={type.name}>
+                        {type.label || type.name.replace("_", " ")} ({type.duration} min)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
-          {/* Time Slot Selection */}
-          {date && appointmentType && (
-            <div className="space-y-2">
-              <Label htmlFor="time">Available Time Slots *</Label>
-              {isLoadingSlots ? (
-                <div className="text-sm text-muted-foreground">Loading available slots...</div>
-              ) : availableTimeSlots.length === 0 ? (
-                <div className="text-sm text-muted-foreground p-3 bg-muted rounded-md">
-                  No available slots for this date. Please try another date or appointment type.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-green-600 bg-green-50 px-2 py-1 rounded">
-                      {availableTimeSlots.length} slot{availableTimeSlots.length !== 1 ? 's' : ''} available
+            {/* Time Slot Selection */}
+            {date && appointmentType && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground">Time Slot *</Label>
+                  {!isLoadingSlots && availableTimeSlots.length > 0 && (
+                    <span className="text-xs text-emerald-600 font-medium">
+                      {availableTimeSlots.length} available
                     </span>
-                    {bookedSlots.length > 0 && (
-                      <span className="text-muted-foreground">
-                        {bookedSlots.length} already booked
-                      </span>
-                    )}
+                  )}
+                </div>
+                {isLoadingSlots ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-3">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-foreground border-t-transparent"></div>
+                    Loading slots...
                   </div>
-                  <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1 border rounded-md">
+                ) : availableTimeSlots.length === 0 ? (
+                  <div className="text-sm text-muted-foreground p-4 bg-muted/50 rounded-[4px] text-center">
+                    No available slots for this date
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-4 gap-1.5 max-h-40 overflow-y-auto p-1">
                     {availableTimeSlots.map((slot) => (
-                      <Button
+                      <button
                         key={slot}
                         type="button"
-                        variant={time === slot ? "default" : "outline"}
-                        size="sm"
                         onClick={() => setTime(slot)}
                         className={cn(
-                          "h-9",
-                          time === slot && "bg-primary text-primary-foreground"
+                          "h-9 text-sm font-medium rounded-[4px] transition-all",
+                          time === slot
+                            ? "bg-foreground text-background"
+                            : "bg-muted/50 hover:bg-muted text-foreground"
                         )}
                       >
-                        <Clock className="mr-1 h-3 w-3" />
                         {slot}
-                      </Button>
+                      </button>
                     ))}
                   </div>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
+          </div>
 
-
-          <div className="space-y-2">
-            <Label htmlFor="reason">Reason for Visit</Label>
+          {/* Reason */}
+          <div className="space-y-1.5">
+            <Label htmlFor="reason" className="text-xs text-muted-foreground">Reason for Visit (Optional)</Label>
             <Textarea
               id="reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Brief description..."
-              rows={3}
+              rows={2}
+              className="rounded-[4px] border-border/60 focus:border-foreground/40 resize-none"
             />
           </div>
 
-          <Button onClick={handleSubmit} disabled={loading} className="w-full">
-            {loading ? "Booking..." : "Book Appointment"}
-          </Button>
+          {/* Actions */}
+          <div className="flex gap-3 pt-2">
+            <Button 
+              variant="outline" 
+              onClick={() => onOpenChange(false)} 
+              className="flex-1 h-10 rounded-[4px]"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSubmit} 
+              disabled={loading || !fullName || !phone || !date || !time} 
+              className="flex-1 h-10 rounded-[4px] bg-foreground text-background hover:bg-foreground/90"
+            >
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-background border-t-transparent"></div>
+                  Booking...
+                </span>
+              ) : (
+                "Book Appointment"
+              )}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
