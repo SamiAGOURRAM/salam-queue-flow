@@ -18,7 +18,13 @@ import {
   Moon,
   Menu,
   X,
-  ChevronDown
+  ChevronDown,
+  ChevronRight,
+  Building2,
+  Clock,
+  ListOrdered,
+  CalendarClock,
+  CreditCard
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
@@ -35,6 +41,7 @@ export default function ClinicLayout() {
   const [clinic, setClinic] = useState<ClinicRow | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // ===== ALL CALLBACKS PRESERVED =====
   const fetchClinic = useCallback(async () => {
@@ -149,12 +156,15 @@ export default function ClinicLayout() {
       icon: UserPlus,
       showFor: ["owner"],
     },
-    {
-      name: "Settings",
-      path: "/clinic/settings",
-      icon: Settings,
-      showFor: ["owner"],
-    },
+  ];
+
+  // Settings submenu items
+  const settingsSubItems = [
+    { name: "General", path: "/clinic/settings?tab=basic", icon: Building2, tab: "basic" },
+    { name: "Schedule", path: "/clinic/settings?tab=schedule", icon: Clock, tab: "schedule" },
+    { name: "Queue Mode", path: "/clinic/settings?tab=queue", icon: ListOrdered, tab: "queue" },
+    { name: "Appointments", path: "/clinic/settings?tab=appointments", icon: CalendarClock, tab: "appointments" },
+    { name: "Payments", path: "/clinic/settings?tab=payment", icon: CreditCard, tab: "payment" },
   ];
 
   const userRole = isClinicOwner ? "owner" : isStaff ? "staff" : null;
@@ -163,6 +173,15 @@ export default function ClinicLayout() {
   );
 
   const isActive = (path: string) => location.pathname === path;
+  const isSettingsActive = location.pathname.startsWith("/clinic/settings");
+  const currentSettingsTab = new URLSearchParams(location.search).get("tab") || "basic";
+
+  // Auto-expand settings when navigating to settings page
+  useEffect(() => {
+    if (isSettingsActive) {
+      setSettingsOpen(true);
+    }
+  }, [isSettingsActive]);
 
   // ===== LOADING STATE PRESERVED =====
   if (loading) {
@@ -228,6 +247,67 @@ export default function ClinicLayout() {
               </button>
             );
           })}
+
+          {/* Settings with Submenu - Only for Owner */}
+          {userRole === "owner" && (
+            <div className="pt-1">
+              <button
+                onClick={() => {
+                  if (sidebarCollapsed) {
+                    navigate("/clinic/settings?tab=basic");
+                    setMobileOpen(false);
+                  } else {
+                    setSettingsOpen(!settingsOpen);
+                  }
+                }}
+                className={cn(
+                  "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium transition-colors",
+                  isSettingsActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                <Settings className={cn("w-4 h-4 flex-shrink-0", isSettingsActive && "text-primary")} />
+                {!sidebarCollapsed && (
+                  <>
+                    <span className="flex-1 text-left">Settings</span>
+                    <ChevronRight className={cn(
+                      "w-3.5 h-3.5 transition-transform duration-200",
+                      settingsOpen && "rotate-90"
+                    )} />
+                  </>
+                )}
+              </button>
+
+              {/* Settings Sub-items */}
+              {!sidebarCollapsed && settingsOpen && (
+                <div className="mt-0.5 ml-2 pl-3 border-l border-border space-y-0.5">
+                  {settingsSubItems.map((subItem) => {
+                    const SubIcon = subItem.icon;
+                    const subActive = isSettingsActive && currentSettingsTab === subItem.tab;
+                    return (
+                      <button
+                        key={subItem.tab}
+                        onClick={() => {
+                          navigate(subItem.path);
+                          setMobileOpen(false);
+                        }}
+                        className={cn(
+                          "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] font-medium transition-colors",
+                          subActive
+                            ? "bg-primary/10 text-primary"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        )}
+                      >
+                        <SubIcon className={cn("w-3.5 h-3.5 flex-shrink-0", subActive && "text-primary")} />
+                        <span>{subItem.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </nav>
 
         {/* Footer */}

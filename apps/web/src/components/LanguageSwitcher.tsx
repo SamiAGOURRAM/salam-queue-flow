@@ -1,12 +1,12 @@
 import { useTranslation } from 'react-i18next';
-import { Globe } from 'lucide-react';
+import { Globe, Check } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 const languages = [
   { code: 'en', name: 'English', flag: '🇬🇧' },
@@ -35,32 +35,49 @@ export const LanguageSwitcher = () => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex items-center gap-2 border-2 border-blue-100 hover:border-blue-300 hover:bg-blue-50 transition-all"
+        <button
+          className={cn(
+            "flex items-center gap-1.5 h-8 px-2 rounded-[4px]",
+            "border border-border/60 hover:border-foreground/40",
+            "bg-background hover:bg-muted/50",
+            "transition-colors text-sm font-medium",
+            "text-muted-foreground hover:text-foreground"
+          )}
+          aria-label="Change language"
         >
-          <Globe className="h-4 w-4 text-blue-600" />
-          <span className="text-lg">{currentLanguage.flag}</span>
-          <span className="font-medium text-gray-700">{currentLanguage.name}</span>
-        </Button>
+          <Globe className="w-3.5 h-3.5" />
+          <span className="text-base leading-none">{currentLanguage.flag}</span>
+          <span className="hidden sm:inline text-xs uppercase tracking-wide">
+            {currentLanguage.code}
+          </span>
+        </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48 bg-white border-blue-100">
-        {languages.map((language) => (
-          <DropdownMenuItem
-            key={language.code}
-            onClick={() => changeLanguage(language.code)}
-            className={`flex items-center gap-3 cursor-pointer px-4 py-2 hover:bg-blue-50 ${
-              i18n.language === language.code ? 'bg-blue-50 text-blue-600' : ''
-            }`}
-          >
-            <span className="text-2xl">{language.flag}</span>
-            <span className="font-medium">{language.name}</span>
-            {i18n.language === language.code && (
-              <span className="ml-auto text-blue-600">✓</span>
-            )}
-          </DropdownMenuItem>
-        ))}
+      <DropdownMenuContent 
+        align="end" 
+        className="w-40 rounded-[4px] border-border/60 p-1"
+      >
+        {languages.map((language) => {
+          const isActive = i18n.language === language.code;
+          return (
+            <DropdownMenuItem
+              key={language.code}
+              onClick={() => changeLanguage(language.code)}
+              className={cn(
+                "flex items-center gap-2.5 px-2.5 py-2 rounded-[2px] cursor-pointer",
+                "text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <span className="text-lg leading-none">{language.flag}</span>
+              <span className="flex-1">{language.name}</span>
+              {isActive && (
+                <Check className="w-3.5 h-3.5 text-foreground" />
+              )}
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );

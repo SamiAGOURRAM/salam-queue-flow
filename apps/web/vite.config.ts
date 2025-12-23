@@ -19,6 +19,6 @@ export default defineConfig(({ mode }) => ({
   },
   // Optimize deps for workspace packages
   optimizeDeps: {
-    include: ["@queuemed/core"],
+    include: ["@queuemed/core", "@tanstack/react-table"],
   },
 }));

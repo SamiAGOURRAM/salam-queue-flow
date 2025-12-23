@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import { useForceLightMode } from "@/hooks/useForceLightMode";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { User, Building2 } from "lucide-react";
 
@@ -22,6 +23,9 @@ export default function Signup() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useTranslation();
+  
+  // Force light mode on signup page
+  useForceLightMode();
 
   // Pre-fill form from URL parameters (for staff invitations)
   useEffect(() => {

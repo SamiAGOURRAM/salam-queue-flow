@@ -4,10 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { staffService } from "@/services/staff";
 import { logger } from "@/services/shared/logging/Logger";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { UserPlus, Mail, Trash2, Users, Sparkles, Shield, Activity } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -47,7 +48,6 @@ export default function TeamManagement() {
   const [sending, setSending] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Predefined staff roles
   const PREDEFINED_ROLES = [
     { value: "doctor", label: "Doctor" },
     { value: "surgeon", label: "Surgeon" },
@@ -66,7 +66,6 @@ export default function TeamManagement() {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        // Fetch clinic
         const { data: clinicData, error: clinicError } = await supabase
           .from("clinics")
           .select("*")
@@ -82,7 +81,6 @@ export default function TeamManagement() {
         if (clinicData) {
           setClinic(clinicData);
 
-          // Fetch staff members
           const { data: staffData, error: staffError } = await supabase
             .from("clinic_staff")
             .select(`
@@ -119,7 +117,6 @@ export default function TeamManagement() {
       return;
     }
 
-    // Validate role
     const finalRole = showCustomRole ? customRole.trim() : inviteRole;
     if (!finalRole) {
       toast({
@@ -141,7 +138,6 @@ export default function TeamManagement() {
 
     setSending(true);
     try {
-      // Call edge function to send invitation
       const invitationBody = {
         clinicId: clinic.id,
         email: inviteEmail,
@@ -167,7 +163,6 @@ export default function TeamManagement() {
         description: `Invitation sent to ${inviteName} as ${finalRole.replace(/_/g, ' ')}`,
       });
 
-      // Reset all fields
       setShowInvite(false);
       setInviteEmail("");
       setInviteName("");
@@ -188,11 +183,8 @@ export default function TeamManagement() {
 
   const handleRemoveStaff = async (staffId: string) => {
     try {
-      // Use StaffService to remove staff
       await staffService.removeStaff(staffId);
-
       setStaff(staff.filter((s) => s.id !== staffId));
-
       toast({
         title: "Success",
         description: "Staff member removed",
@@ -209,15 +201,15 @@ export default function TeamManagement() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="text-center space-y-6">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center mx-auto animate-pulse">
-            <Users className="w-10 h-10 text-blue-600" />
-          </div>
-          <div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Loading team data...</h3>
-            <p className="text-gray-500">Please wait a moment</p>
-          </div>
-        </div>
+        <Card className="border border-border bg-card">
+          <CardContent className="py-16 text-center">
+            <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center mx-auto mb-4">
+              <Users className="w-6 h-6 text-muted-foreground" />
+            </div>
+            <p className="font-medium text-foreground mb-1">Loading team data...</p>
+            <p className="text-sm text-muted-foreground">Please wait a moment</p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -225,16 +217,16 @@ export default function TeamManagement() {
   if (!clinic) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Card className="w-full max-w-md shadow-xl border-0">
-          <CardHeader className="text-center pb-6">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-red-100 to-orange-100 flex items-center justify-center mx-auto mb-4">
-              <Users className="w-10 h-10 text-red-600" />
+        <Card className="border border-border bg-card">
+          <CardContent className="py-16 text-center">
+            <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center mx-auto mb-4">
+              <Users className="w-6 h-6 text-muted-foreground" />
             </div>
-            <CardTitle className="text-2xl">No Clinic Found</CardTitle>
-            <CardDescription className="text-base mt-2">
+            <p className="font-medium text-foreground mb-1">No Clinic Found</p>
+            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
               You don't have a clinic associated with your account.
-            </CardDescription>
-          </CardHeader>
+            </p>
+          </CardContent>
         </Card>
       </div>
     );
@@ -242,55 +234,51 @@ export default function TeamManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Clean Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Your Team</h1>
-          <p className="text-base text-gray-600">Manage staff members and send invitations</p>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Team</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Manage staff members and send invitations
+          </p>
         </div>
+
         <Dialog open={showInvite} onOpenChange={setShowInvite}>
           <DialogTrigger asChild>
-            <Button 
-              size="lg" 
-              className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg hover:shadow-xl transition-all rounded-xl"
-            >
-              <UserPlus className="w-5 h-5 mr-2" />
-              Invite Staff Member
+            <Button size="sm" className="bg-foreground text-background hover:bg-foreground/90 h-8 px-3 text-xs font-medium">
+              <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+              Invite
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-xl">Invite New Staff Member</DialogTitle>
+              <DialogTitle>Invite New Staff Member</DialogTitle>
               <DialogDescription>
                 Send an invitation email to add a new team member to your clinic
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="staff-name" className="text-sm font-medium">Full Name</Label>
+                <Label htmlFor="staff-name">Full Name</Label>
                 <Input
                   id="staff-name"
                   value={inviteName}
                   onChange={(e) => setInviteName(e.target.value)}
                   placeholder="Dr. Sarah Johnson"
-                  className="h-11"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="staff-email" className="text-sm font-medium">Email Address</Label>
+                <Label htmlFor="staff-email">Email Address</Label>
                 <Input
                   id="staff-email"
                   type="email"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder="sarah@example.com"
-                  className="h-11"
                 />
               </div>
-              
-              {/* Role Selection */}
               <div className="space-y-2">
-                <Label htmlFor="staff-role" className="text-sm font-medium">Role</Label>
+                <Label htmlFor="staff-role">Role</Label>
                 <Select
                   value={inviteRole}
                   onValueChange={(value) => {
@@ -299,7 +287,7 @@ export default function TeamManagement() {
                     if (value !== "other") setCustomRole("");
                   }}
                 >
-                  <SelectTrigger className="h-11">
+                  <SelectTrigger>
                     <SelectValue placeholder="Select a role" />
                   </SelectTrigger>
                   <SelectContent>
@@ -311,19 +299,14 @@ export default function TeamManagement() {
                   </SelectContent>
                 </Select>
               </div>
-
-              {/* Custom Role Input (conditional) */}
               {showCustomRole && (
                 <div className="space-y-2">
-                  <Label htmlFor="custom-role" className="text-sm font-medium">
-                    Specify Role
-                  </Label>
+                  <Label htmlFor="custom-role">Specify Role</Label>
                   <Input
                     id="custom-role"
                     value={customRole}
                     onChange={(e) => setCustomRole(e.target.value)}
                     placeholder="e.g., Medical Assistant, Consultant"
-                    className="h-11"
                   />
                 </div>
               )}
@@ -340,7 +323,7 @@ export default function TeamManagement() {
               <Button 
                 onClick={handleInviteStaff} 
                 disabled={sending}
-                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+                className="bg-foreground text-background hover:bg-foreground/90"
               >
                 <Mail className="w-4 h-4 mr-2" />
                 {sending ? "Sending..." : "Send Invitation"}
@@ -350,138 +333,116 @@ export default function TeamManagement() {
         </Dialog>
       </div>
 
-      {/* Team Stats Cards */}
+      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="group relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-white to-blue-50/50 rounded-2xl p-5">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-500/10 to-transparent rounded-full blur-2xl"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-gray-600">Total Members</span>
-              <div className="p-2 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 group-hover:scale-110 transition-transform">
-                <Users className="w-4 h-4 text-blue-600" />
-              </div>
-            </div>
-            <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-              {staff.length}
+        <div className="border border-border rounded-lg bg-card p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-muted-foreground font-medium">Total Members</span>
+            <div className="p-1.5 rounded-md bg-muted">
+              <Users className="w-3.5 h-3.5 text-muted-foreground" />
             </div>
           </div>
+          <div className="text-2xl font-semibold text-foreground">{staff.length}</div>
         </div>
 
-        <div className="group relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-white to-green-50/50 rounded-2xl p-5">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-green-500/10 to-transparent rounded-full blur-2xl"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-gray-600">Active Staff</span>
-              <div className="p-2 rounded-lg bg-gradient-to-br from-green-100 to-emerald-200 group-hover:scale-110 transition-transform">
-                <Activity className="w-4 h-4 text-green-600" />
-              </div>
-            </div>
-            <div className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-              {staff.filter(s => s.is_active).length}
+        <div className="border border-border rounded-lg bg-card p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-muted-foreground font-medium">Active Staff</span>
+            <div className="p-1.5 rounded-md bg-muted">
+              <Activity className="w-3.5 h-3.5 text-muted-foreground" />
             </div>
           </div>
+          <div className="text-2xl font-semibold text-foreground">{staff.filter(s => s.is_active).length}</div>
         </div>
 
-        <div className="group relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-white to-purple-50/50 rounded-2xl p-5">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-purple-500/10 to-transparent rounded-full blur-2xl"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-gray-600">Clinic</span>
-              <div className="p-2 rounded-lg bg-gradient-to-br from-purple-100 to-purple-200 group-hover:scale-110 transition-transform">
-                <Sparkles className="w-4 h-4 text-purple-600" />
-              </div>
-            </div>
-            <div className="text-lg font-bold text-gray-900 truncate">
-              {clinic?.name || "Your Clinic"}
+        <div className="border border-border rounded-lg bg-card p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-muted-foreground font-medium">Clinic</span>
+            <div className="p-1.5 rounded-md bg-muted">
+              <Sparkles className="w-3.5 h-3.5 text-muted-foreground" />
             </div>
           </div>
+          <div className="text-sm font-semibold text-foreground truncate">{clinic?.name || "Your Clinic"}</div>
         </div>
       </div>
 
-      {/* Staff List Card */}
-      <Card className="relative overflow-hidden shadow-xl border-0 bg-white rounded-2xl">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-500/5 to-transparent rounded-full blur-3xl"></div>
-        <CardHeader className="border-b bg-gradient-to-r from-blue-50/50 via-sky-50/30 to-cyan-50/50 relative z-10 pb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-2xl font-bold">Staff Members</CardTitle>
-              <CardDescription className="text-base mt-2 text-gray-600">
-                {staff.length} active team {staff.length === 1 ? "member" : "members"}
-              </CardDescription>
+      {/* Staff Table */}
+      <div className="rounded-lg border border-border overflow-hidden">
+        {staff.length === 0 ? (
+          <div className="text-center py-12 px-4 bg-card">
+            <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center mx-auto mb-3">
+              <UserPlus className="w-5 h-5 text-muted-foreground" />
             </div>
-            <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center">
-              <Users className="h-7 w-7 text-blue-600" />
-            </div>
+            <p className="text-sm text-muted-foreground mb-1">No staff members yet</p>
+            <p className="text-xs text-muted-foreground mb-4">Invite your first team member to get started</p>
+            <Button 
+              onClick={() => setShowInvite(true)}
+              size="sm"
+              className="bg-foreground text-background hover:bg-foreground/90 h-8 px-3 text-xs font-medium"
+            >
+              <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+              Invite
+            </Button>
           </div>
-        </CardHeader>
-        <CardContent className="pt-6 relative z-10">
-          {staff.length === 0 ? (
-            <div className="text-center py-20">
-              <div className="h-24 w-24 rounded-2xl bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center mx-auto mb-6">
-                <UserPlus className="w-12 h-12 text-blue-600" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">No staff members yet</h3>
-              <p className="text-gray-500 mb-6 text-base">Invite your first team member to get started</p>
-              <Button 
-                onClick={() => setShowInvite(true)}
-                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg hover:shadow-xl transition-all rounded-xl"
-              >
-                <UserPlus className="w-4 h-4 mr-2" />
-                Invite Staff Member
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
+        ) : (
+          <Table>
+            <TableHeader className="bg-muted/50">
+              <TableRow className="hover:bg-transparent border-b border-border">
+                <TableHead className="font-medium">Name</TableHead>
+                <TableHead className="font-medium">Email</TableHead>
+                <TableHead className="font-medium">Status</TableHead>
+                <TableHead className="font-medium">Role</TableHead>
+                <TableHead className="font-medium text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {staff.map((member) => (
-                <div
-                  key={member.id}
-                  className="group flex items-center justify-between p-6 border-2 border-gray-100 rounded-2xl hover:border-blue-300 hover:bg-blue-50/50 hover:shadow-lg transition-all duration-200 bg-white"
-                >
-                  <div className="flex items-center gap-5 flex-1">
-                    <div className="relative">
-                      <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold text-xl shadow-lg group-hover:scale-110 transition-transform">
-                        {(member.profile?.full_name || "U").charAt(0).toUpperCase()}
+                <TableRow key={member.id} className="group">
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex-shrink-0">
+                        <div className="h-9 w-9 rounded-lg bg-foreground text-background flex items-center justify-center text-sm font-semibold">
+                          {(member.profile?.full_name || "U").charAt(0).toUpperCase()}
+                        </div>
+                        {member.is_active && (
+                          <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-background rounded-full"></div>
+                        )}
                       </div>
-                      {member.is_active && (
-                        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full"></div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-lg text-gray-900 truncate">
+                      <span className="font-medium text-foreground">
                         {member.profile?.full_name || "Unknown"}
-                      </h3>
-                      <p className="text-sm text-gray-500 truncate">{member.profile?.email}</p>
-                      <div className="flex items-center gap-2 mt-2 flex-wrap">
-                        <Badge 
-                          className={
-                            member.is_active 
-                              ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0 shadow-sm" 
-                              : "bg-gray-100 text-gray-600 border-gray-200"
-                          }
-                        >
-                          {member.is_active ? "Active" : "Inactive"}
-                        </Badge>
-                        <Badge className="bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-700 border-blue-200">
-                          <Shield className="w-3 h-3 mr-1" />
-                          <span className="capitalize">{member.role?.replace(/_/g, ' ') || "Staff"}</span>
-                        </Badge>
-                      </div>
+                      </span>
                     </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleRemoveStaff(member.id)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl h-10 w-10"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </Button>
-                </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {member.profile?.email || "—"}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={member.is_active ? "default" : "secondary"} className="text-xs">
+                      {member.is_active ? "Active" : "Inactive"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-xs">
+                      <Shield className="w-3 h-3 mr-1" />
+                      <span className="capitalize">{member.role?.replace(/_/g, ' ') || "Staff"}</span>
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleRemoveStaff(member.id)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
               ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            </TableBody>
+          </Table>
+        )}
+      </div>
     </div>
   );
 }

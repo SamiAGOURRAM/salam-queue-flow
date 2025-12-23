@@ -1,5 +1,6 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useForceLightMode } from "@/hooks/useForceLightMode";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -18,13 +19,26 @@ export default function PatientLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
+  
+  // Force light mode on public pages
+  useForceLightMode();
 
-  const navigationItems = [
+  // Base navigation items available to everyone
+  const baseNavigationItems = [
     {
       name: t('nav.clinics'),
       path: "/clinics",
       icon: Search,
     },
+    {
+      name: t('nav.about'),
+      path: "/welcome",
+      icon: Info,
+    },
+  ];
+
+  // Authenticated-only navigation items
+  const authenticatedNavigationItems = [
     {
       name: t('nav.appointments'),
       path: "/my-appointments",
@@ -35,12 +49,12 @@ export default function PatientLayout() {
       path: "/patient/profile",
       icon: User,
     },
-    {
-      name: t('nav.about'),
-      path: "/welcome",
-      icon: Info,
-    },
   ];
+
+  // Combine navigation items based on auth status
+  const navigationItems = user
+    ? [...baseNavigationItems, ...authenticatedNavigationItems]
+    : baseNavigationItems;
 
   const isActive = (path: string) => {
     return location.pathname === path;
@@ -52,16 +66,20 @@ export default function PatientLayout() {
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-14">
-            {/* Logo */}
-            <button
-              onClick={() => navigate("/")}
-              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-            >
-              <div className="w-7 h-7 rounded-md bg-gray-900 flex items-center justify-center">
-                <span className="text-white text-sm font-bold">Q</span>
-              </div>
-              <span className="text-base font-semibold text-gray-900">QueueMed</span>
-            </button>
+            {/* Left Side: Logo + Language */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate("/")}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+              >
+                <div className="w-7 h-7 rounded-md bg-gray-900 flex items-center justify-center">
+                  <span className="text-white text-sm font-bold">Q</span>
+                </div>
+                <span className="text-base font-semibold text-gray-900">QueueMed</span>
+              </button>
+              <div className="h-4 w-px bg-border" />
+              <LanguageSwitcher />
+            </div>
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-1">
@@ -87,10 +105,8 @@ export default function PatientLayout() {
               })}
             </nav>
 
-            {/* Right Side */}
+            {/* Right Side: Auth */}
             <div className="flex items-center gap-2">
-              <LanguageSwitcher />
-
               {user ? (
                 <Button
                   variant="ghost"

@@ -10,12 +10,16 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useForceLightMode } from "@/hooks/useForceLightMode";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 const PremiumLanding = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { user, signOut } = useAuth();
+  
+  // Force light mode on landing page
+  useForceLightMode();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [location, setLocation] = useState("");

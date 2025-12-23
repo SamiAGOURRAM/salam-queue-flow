@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import { useForceLightMode } from "@/hooks/useForceLightMode";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Mail, Lock, ArrowRight } from "lucide-react";
 
@@ -16,6 +17,9 @@ export default function Login() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useTranslation();
+  
+  // Force light mode on login page
+  useForceLightMode();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -5,12 +5,22 @@ import { supabase } from "@/integrations/supabase/client";
 import { queueService } from "@/services/queue";
 import { DisruptionDetector } from "@/services/ml/DisruptionDetector";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Activity, Clock, MapPin, Users, ArrowLeft } from "lucide-react";
+import { 
+  Clock, 
+  MapPin, 
+  Users, 
+  ArrowLeft, 
+  Building2,
+  Calendar,
+  Bell,
+  Navigation,
+  CheckCircle2,
+  AlertCircle
+} from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { logger } from "@/services/shared/logging/Logger";
+import { cn } from "@/lib/utils";
 
 interface QueueInfo {
   id: string;
@@ -74,7 +84,6 @@ export default function MyQueue() {
       setHasDisruption(disruptionInfo.hasDisruption);
     } catch (error) {
       logger.error("Error checking disruption", error instanceof Error ? error : new Error(String(error)), { appointmentId });
-      // Default to no disruption on error
       setHasDisruption(false);
     }
   }, [disruptionDetector]);
@@ -87,7 +96,6 @@ export default function MyQueue() {
     }
   }, [user, loading, appointmentId, navigate, fetchQueueInfo]);
 
-  // Check for disruptions when queueInfo is loaded
   useEffect(() => {
     if (queueInfo && appointmentId) {
       checkDisruption(appointmentId);
@@ -97,7 +105,6 @@ export default function MyQueue() {
   useEffect(() => {
     if (!appointmentId) return;
 
-    // Subscribe to real-time updates
     const channel = supabase
       .channel('my-queue-updates')
       .on(
@@ -122,10 +129,9 @@ export default function MyQueue() {
   useEffect(() => {
     if (!queueInfo?.predicted_start_time) return;
 
-    // Calculate time to leave (assuming 15 min travel time)
     const interval = setInterval(() => {
       const predictedTime = new Date(queueInfo.predicted_start_time!);
-      const travelTimeMinutes = 15; // TODO: Get from user settings
+      const travelTimeMinutes = 15;
       const leaveTime = new Date(predictedTime.getTime() - travelTimeMinutes * 60000);
       const now = new Date();
       const minutesUntilLeave = Math.round((leaveTime.getTime() - now.getTime()) / 60000);
@@ -136,84 +142,78 @@ export default function MyQueue() {
     return () => clearInterval(interval);
   }, [queueInfo?.predicted_start_time]);
 
-  
-
-  // Note: Check-in is now controlled by staff when they call "Call Next"
-  // Patient no longer needs to manually check in
-
   if (loading || loadingQueue) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-foreground border-t-transparent mx-auto mb-4"></div>
+          <p className="text-sm text-muted-foreground">Loading queue info...</p>
+        </div>
       </div>
     );
   }
 
   if (!queueInfo) {
     return (
-      <div className="max-w-2xl mx-auto">
-        <Card className="border-0 shadow-lg">
-          <CardContent className="text-center py-12">
-            <p className="text-muted-foreground mb-4">Appointment not found</p>
-            <Button 
-              className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
-              onClick={() => navigate("/my-appointments")}
-            >
-              Go to Dashboard
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="max-w-md mx-auto px-4 py-12 text-center">
+        <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+          <AlertCircle className="w-8 h-8 text-muted-foreground" />
+        </div>
+        <h2 className="text-lg font-semibold mb-2">Appointment not found</h2>
+        <p className="text-sm text-muted-foreground mb-6">
+          This appointment may have been cancelled or doesn't exist.
+        </p>
+        <Button 
+          onClick={() => navigate("/my-appointments")}
+          className="rounded-full px-6 bg-foreground text-background"
+        >
+          Back to Appointments
+        </Button>
       </div>
     );
   }
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      scheduled: "bg-gray-500",
-      waiting: "bg-blue-500",
-      in_progress: "bg-green-500",
-      completed: "bg-gray-400",
-      no_show: "bg-red-500"
+  const getStatusConfig = (status: string) => {
+    const configs: Record<string, { label: string, color: string, bg: string }> = {
+      scheduled: { label: "Scheduled", color: "text-foreground", bg: "bg-muted" },
+      waiting: { label: "In Queue", color: "text-amber-700", bg: "bg-amber-50" },
+      in_progress: { label: "Your Turn!", color: "text-emerald-700", bg: "bg-emerald-50" },
+      completed: { label: "Completed", color: "text-muted-foreground", bg: "bg-muted" },
+      no_show: { label: "Missed", color: "text-red-700", bg: "bg-red-50" }
     };
-    return colors[status] || "bg-gray-500";
+    return configs[status] || { label: status, color: "text-foreground", bg: "bg-muted" };
   };
 
-  // Smart time display: Show scheduled time if no disruption, estimated time if disruption
   const getEstimatedTimeDisplay = () => {
-    // Show loading state while fetching
     if (loadingQueue || !queueInfo) {
       return 'Calculating...';
     }
 
-    // If no disruption detected, show scheduled time
     if (!hasDisruption && queueInfo.scheduled_time) {
-      // Format scheduled time nicely (HH:mm format)
       const [hours, minutes] = queueInfo.scheduled_time.split(':');
       const scheduledDate = new Date();
       scheduledDate.setHours(parseInt(hours || '0'), parseInt(minutes || '0'), 0, 0);
       return scheduledDate.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
+        hour: 'numeric', 
         minute: '2-digit',
         hour12: true
       });
     }
 
-    // If disruption detected, show estimated time (if available)
     if (hasDisruption && queueInfo.predicted_start_time) {
       try {
         return new Date(queueInfo.predicted_start_time).toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
+          hour: 'numeric', 
           minute: '2-digit',
           hour12: true
         });
       } catch (error) {
-        // Fallback to scheduled time if date parsing fails
         if (queueInfo.scheduled_time) {
           const [hours, minutes] = queueInfo.scheduled_time.split(':');
           const scheduledDate = new Date();
           scheduledDate.setHours(parseInt(hours || '0'), parseInt(minutes || '0'), 0, 0);
           return scheduledDate.toLocaleTimeString('en-US', { 
-            hour: '2-digit', 
+            hour: 'numeric', 
             minute: '2-digit',
             hour12: true
           });
@@ -221,139 +221,148 @@ export default function MyQueue() {
       }
     }
 
-    // If disruption but no estimation yet, show scheduled time
     if (hasDisruption && queueInfo.scheduled_time) {
       const [hours, minutes] = queueInfo.scheduled_time.split(':');
       const scheduledDate = new Date();
       scheduledDate.setHours(parseInt(hours || '0'), parseInt(minutes || '0'), 0, 0);
       return scheduledDate.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
+        hour: 'numeric', 
         minute: '2-digit',
         hour12: true
       });
     }
 
-    // Last resort - should not happen if scheduled_time exists
     return queueInfo.scheduled_time || 'Calculating...';
   };
 
   const estimatedTime = getEstimatedTimeDisplay();
+  const statusConfig = getStatusConfig(queueInfo.status);
+  const isActive = ['scheduled', 'waiting', 'in_progress'].includes(queueInfo.status);
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-md mx-auto px-4 py-6">
       {/* Back Button */}
-      <Button 
-        variant="ghost" 
+      <button 
         onClick={() => navigate("/my-appointments")}
-        className="mb-6 gap-2 hover:bg-blue-50"
+        className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors"
       >
-        <ArrowLeft className="w-4 h-4" />
-        Back to Appointments
-      </Button>
+        <ArrowLeft className="w-5 h-5" />
+        <span className="text-sm font-medium">Back</span>
+      </button>
 
-      {/* Clinic Header Card */}
-      <Card className="mb-6 border-0 shadow-lg">
-        <CardHeader className="bg-gradient-to-r from-gray-50 to-blue-50/30 border-b">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-2xl">{queueInfo.clinic_name}</CardTitle>
-              <CardDescription className="text-base capitalize">{queueInfo.appointment_type.replace('_', ' ')}</CardDescription>
-            </div>
-            <Badge className={getStatusColor(queueInfo.status)}>
-              {queueInfo.status.replace('_', ' ').toUpperCase()}
-            </Badge>
+      {/* Status Hero */}
+      {queueInfo.status === 'in_progress' ? (
+        <div className="bg-emerald-500 text-white rounded-3xl p-8 mb-6 text-center">
+          <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-4">
+            <CheckCircle2 className="w-10 h-10" />
           </div>
-        </CardHeader>
-      </Card>
+          <h1 className="text-2xl font-bold mb-2">It's Your Turn! 🎉</h1>
+          <p className="text-emerald-100">Please proceed to the consultation room</p>
+        </div>
+      ) : (
+        <div className="bg-foreground text-background rounded-3xl p-8 mb-6">
+          {/* Queue Position - Hero */}
+          <div className="text-center mb-6">
+            <p className="text-sm text-background/60 uppercase tracking-wider mb-2">Your Position</p>
+            <div className="text-7xl font-bold mb-1">#{queueInfo.queue_position}</div>
+            <span className={cn(
+              "inline-block px-3 py-1 rounded-full text-xs font-medium",
+              queueInfo.status === 'waiting' ? "bg-amber-400 text-amber-900" : "bg-background/20"
+            )}>
+              {statusConfig.label}
+            </span>
+          </div>
 
-      {/* Queue Stats */}
-      <div className="grid gap-4 mb-6">
-        <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg">
-                <Users className="w-7 h-7 text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Your Position in Queue</p>
-                <p className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-                  #{queueInfo.queue_position}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg">
-                <Clock className="w-7 h-7 text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Estimated Time</p>
-                <p className="text-3xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
-                  {estimatedTime}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {timeToLeave !== null && timeToLeave > 0 && queueInfo.status === 'waiting' && (
-          <Card className="border-2 border-blue-300 bg-blue-50/50 shadow-lg">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-600 to-cyan-600 flex items-center justify-center shadow-lg animate-pulse">
-                  <MapPin className="w-7 h-7 text-white" />
-                </div>
-                <div>
-                  <p className="text-sm text-blue-700 mb-1 font-medium">Time to Leave</p>
-                  <p className="text-3xl font-bold text-blue-900">
-                    {timeToLeave <= 0 ? '🚀 Leave Now!' : `${timeToLeave} min`}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* Waiting Card - Staff will check you in when they call "Call Next" */}
-      {(queueInfo.status === 'scheduled' || queueInfo.status === 'waiting') && !queueInfo.checked_in_at && (
-        <Card className="border-2 border-blue-300 bg-gradient-to-br from-blue-50 to-cyan-50 shadow-lg">
-          <CardContent className="pt-6">
+          {/* Estimated Time */}
+          <div className="flex items-center justify-center gap-3 pt-6 border-t border-background/20">
+            <Clock className="w-5 h-5 text-background/60" />
             <div className="text-center">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-600 to-cyan-600 flex items-center justify-center mx-auto mb-4 shadow-lg">
-                <Clock className="w-8 h-8 text-white" />
-              </div>
-              <h3 className="text-2xl font-bold mb-2">Waiting for Your Turn</h3>
-              <p className="text-muted-foreground mb-2 text-base">
-                Your appointment is scheduled. The clinic staff will call you when it's your turn.
-              </p>
-              <p className="text-sm text-muted-foreground">
-                You don't need to check in - staff controls entry timing for accuracy.
-              </p>
+              <p className="text-sm text-background/60">Estimated time</p>
+              <p className="text-xl font-semibold">{estimatedTime}</p>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
-      {/* In Progress Card */}
-      {queueInfo.status === 'in_progress' && (
-        <Card className="border-2 border-green-500 bg-gradient-to-br from-green-50 to-emerald-50 shadow-lg">
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center mx-auto mb-4 shadow-lg">
-                <Activity className="w-8 h-8 text-white animate-pulse" />
-              </div>
-              <h3 className="text-2xl font-bold mb-2 text-green-900">It's Your Turn! 🎉</h3>
-              <p className="text-green-700 text-base font-medium">
-                Please proceed to the consultation room
+      {/* Clinic Info Card */}
+      <div className="rounded-2xl border border-border bg-card p-5 mb-4">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center">
+            <Building2 className="w-6 h-6 text-muted-foreground" />
+          </div>
+          <div className="flex-1">
+            <h2 className="font-semibold text-lg">{queueInfo.clinic_name}</h2>
+            <p className="text-sm text-muted-foreground capitalize">
+              {queueInfo.appointment_type.replace('_', ' ')}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Time to Leave Alert */}
+      {timeToLeave !== null && timeToLeave > 0 && timeToLeave <= 30 && queueInfo.status === 'waiting' && (
+        <div className="rounded-2xl bg-amber-50 border border-amber-200 p-5 mb-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-amber-500 flex items-center justify-center animate-pulse">
+              <Navigation className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <p className="font-semibold text-amber-900">
+                {timeToLeave <= 5 ? '🚀 Leave now!' : `Leave in ${timeToLeave} min`}
+              </p>
+              <p className="text-sm text-amber-700">
+                Based on 15 min travel time
               </p>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+      )}
+
+      {/* Info Cards */}
+      {isActive && (
+        <div className="space-y-3">
+          {/* Real-time Updates */}
+          <div className="rounded-2xl border border-border bg-card p-4 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
+              <Bell className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div className="flex-1">
+              <p className="font-medium text-sm">Real-time updates</p>
+              <p className="text-xs text-muted-foreground">This page updates automatically</p>
+            </div>
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          </div>
+
+          {/* How it works */}
+          <div className="rounded-2xl border border-border bg-card p-4 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+              <Users className="w-5 h-5 text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <p className="font-medium text-sm">No check-in needed</p>
+              <p className="text-xs text-muted-foreground">Staff will call you when ready</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Completed State */}
+      {queueInfo.status === 'completed' && (
+        <div className="text-center py-8">
+          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+            <CheckCircle2 className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <h3 className="font-semibold mb-1">Appointment Complete</h3>
+          <p className="text-sm text-muted-foreground mb-6">
+            Thank you for your visit
+          </p>
+          <Button 
+            onClick={() => navigate("/my-appointments")}
+            className="rounded-full px-6 bg-foreground text-background"
+          >
+            Back to Appointments
+          </Button>
+        </div>
       )}
     </div>
   );

@@ -307,9 +307,9 @@ export default function ClinicCalendar() {
       ) : null}
 
       {/* Main Content Grid */}
-      <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
+      <div className="grid gap-5 lg:grid-cols-[280px_1fr] items-start">
         {/* Calendar Sidebar */}
-        <div className="border border-border rounded-lg bg-card p-4">
+        <div className="border border-border rounded-lg bg-card p-4 h-fit">
           <Calendar
             mode="single"
             selected={selectedDate}

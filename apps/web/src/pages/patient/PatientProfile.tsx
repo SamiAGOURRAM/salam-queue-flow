@@ -3,19 +3,19 @@ import { useAuth } from "@/hooks/useAuth";
 import { patientService } from "@/services/patient";
 import { logger } from "@/services/shared/logging/Logger";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { favoriteService } from "@/services/favorite/FavoriteService";
+import { supabase } from "@/integrations/supabase/client";
 import { 
-  User, Mail, Phone, Save, MapPin, 
-  Heart, Building, ChevronRight, Trash2 
+  User, Mail, Phone, MapPin, 
+  Heart, Building, ChevronRight, X,
+  Check, Loader2
 } from "lucide-react";
-import { useTranslation } from "react-i18next"; // CRITICAL REQUIREMENT: Added hook
+import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 
 // Define a type for the clinic data we'll fetch
 interface FavoriteClinic {
@@ -27,21 +27,20 @@ interface FavoriteClinic {
 
 export default function PatientProfile() {
   const { user } = useAuth();
-  const { t } = useTranslation(); // CRITICAL REQUIREMENT: Initialize hook
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
 
-  const [loading, setLoading]          = useState(false);
-  const [saving, setSaving]            = useState(false);
-  const [fullName, setFullName]        = useState("");
-  const [phone, setPhone]              = useState("");
-  const [email, setEmail]              = useState("");
-  const [city, setCity]                = useState("");
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [city, setCity] = useState("");
 
   const fetchProfile = useCallback(async () => {
     if (!user?.id) return;
     try {
       setLoading(true);
-      // Use PatientService to fetch profile (consistent with saving)
       const profile = await patientService.getPatientProfile(user.id);
       
       setFullName(profile.fullName || "");
@@ -50,8 +49,8 @@ export default function PatientProfile() {
     } catch (error) {
       logger.error("Error fetching profile", error instanceof Error ? error : new Error(String(error)), { userId: user?.id });
       toast({
-        title: t('errors.error'), // Translated
-        description: t('errors.failedToLoad'), // Translated
+        title: t('errors.error'),
+        description: t('errors.failedToLoad'),
         variant: "destructive",
       });
     } finally {
@@ -72,7 +71,6 @@ export default function PatientProfile() {
     try {
       setSaving(true);
       
-      // Use PatientService to update profile
       await patientService.updatePatientProfile(user.id, {
         fullName,
         phoneNumber: phone,
@@ -90,8 +88,8 @@ export default function PatientProfile() {
           ? error.message
           : t('profile.saveError', { defaultValue: 'Failed to update profile' });
       toast({
-        title: t('errors.error'), // Translated
-        description, // Translated
+        title: t('errors.error'),
+        description,
         variant: "destructive",
       });
     } finally {
@@ -129,15 +127,15 @@ export default function PatientProfile() {
     },
     onSuccess: () => {
       toast({
-        title: t('favorites.removed', { defaultValue: 'Removed' }), // Translated (Reusing favorites key)
-        description: t('favorites.removedFromList', { defaultValue: 'Clinic removed from your favorites.' }), // Translated
+        title: t('favorites.removed', { defaultValue: 'Removed' }),
+        description: t('favorites.removedFromList', { defaultValue: 'Clinic removed from your favorites.' }),
       });
       queryClient.invalidateQueries({ queryKey: ['favorite-clinics', user?.id] });
     },
     onError: (error) => {
       toast({
-        title: t('errors.error'), // Translated
-        description: t('profile.removeFavoriteError', { // Translated
+        title: t('errors.error'),
+        description: t('profile.removeFavoriteError', {
           error: error.message, 
           defaultValue: `Failed to remove favorite: ${error.message}`
         }),
@@ -146,186 +144,196 @@ export default function PatientProfile() {
     },
   });
 
+  const firstName = fullName.split(' ')[0] || user?.email?.split('@')[0] || 'there';
+
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto space-y-8 py-8">
-        <Skeleton className="h-10 w-64 bg-blue-100/50" />
-        <Skeleton className="h-4 w-96 bg-blue-100/50" />
-        <Card className="rounded-3xl shadow-xl bg-white/90 border border-white/60 p-8 space-y-6">
-          <Skeleton className="h-8 w-60 bg-blue-100/50" />
-          <div className="grid md:grid-cols-2 gap-6">
-            <Skeleton className="h-11 w-full bg-blue-100/50" />
-            <Skeleton className="h-11 w-full bg-blue-100/50" />
-          </div>
-          <Skeleton className="h-11 w-full bg-blue-100/50" />
-          <Skeleton className="h-11 w-full bg-blue-100/50" />
-          <Skeleton className="h-12 w-full bg-blue-100/50" />
-        </Card>
-        <Card className="rounded-3xl shadow-xl bg-white/90 border border-white/60 p-8 space-y-6">
-          <Skeleton className="h-8 w-60 bg-blue-100/50" />
-          <Skeleton className="h-16 w-full bg-blue-100/50" />
-          <Skeleton className="h-16 w-full bg-blue-100/50" />
-        </Card>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-foreground border-t-transparent mx-auto mb-4"></div>
+          <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-blue-50 via-white to-sky-50 relative py-12">
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-sky-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse" style={{animationDelay: '2s'}}></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse" style={{animationDelay: '4s'}}></div>
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">
+          Profile
+        </h1>
+        <p className="text-muted-foreground">
+          Manage your account settings
+        </p>
       </div>
 
-      <div className="relative z-10 max-w-4xl mx-auto px-4 space-y-8">
-        <div>
-          <h1 className="text-5xl font-extrabold tracking-tight text-gray-900">
-            <span className="bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-600 bg-clip-text text-transparent">
-              {t('nav.profile')}
-            </span>
-          </h1>
-          <p className="text-lg text-gray-600 mt-3">{t('profile.tagline', { defaultValue: 'Manage your personal information and account details.' })}</p>
+      {/* Avatar Section */}
+      <div className="flex items-center gap-4 mb-8 pb-8 border-b border-border">
+        <div className="w-20 h-20 rounded-full bg-foreground text-background flex items-center justify-center text-2xl font-bold">
+          {firstName.charAt(0).toUpperCase()}
         </div>
+        <div>
+          <h2 className="text-xl font-semibold">{fullName || 'Set your name'}</h2>
+          <p className="text-sm text-muted-foreground">{email}</p>
+        </div>
+      </div>
 
-        <Card className="relative backdrop-blur-sm bg-white/95 border border-white/60 rounded-3xl shadow-2xl transition-all duration-300">
-          <CardHeader className="border-b border-blue-100 bg-gradient-to-r from-blue-50 to-sky-50/50 rounded-t-3xl p-6">
-            <CardTitle className="text-2xl font-bold flex items-center gap-3 text-gray-800">
-              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center shadow-md">
-                <User className="w-4 h-4 text-white" />
-              </div>
-              {t('profile.personalInfoTitle', { defaultValue: 'Personal Information' })}
-            </CardTitle>
-            <CardDescription className="text-gray-500 ml-11">{t('profile.personalInfoDesc', { defaultValue: 'Update your profile details' })}</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-8 space-y-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="fullName" className="text-sm font-semibold flex items-center gap-2 text-gray-700">
-                  <User className="w-4 h-4 text-blue-600" />
-                  {t('profile.fullName', { defaultValue: 'Full Name' })}
-                </Label>
-                <Input
-                  id="fullName"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder={t('profile.fullNamePlaceholder', { defaultValue: 'John Doe' })}
-                  className="h-12 bg-white border-2 border-blue-100 text-gray-900 rounded-xl focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100 transition-all"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phone" className="text-sm font-semibold flex items-center gap-2 text-gray-700">
-                  <Phone className="w-4 h-4 text-blue-600" />
-                  {t('location.phone')}
-                </Label>
-                <Input
-                  id="phone"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder={t('profile.phonePlaceholder', { defaultValue: '+212...' })}
-                  className="h-12 bg-white border-2 border-blue-100 text-gray-900 rounded-xl focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100 transition-all"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-semibold flex items-center gap-2 text-gray-700">
-                <Mail className="w-4 h-4 text-blue-600" />
-                {t('profile.emailReadOnly', { defaultValue: 'Email Address (Read-Only)' })}
-              </Label>
+      {/* Personal Information */}
+      <div className="mb-8">
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
+          Personal Information
+        </h3>
+        
+        <div className="space-y-4">
+          {/* Full Name */}
+          <div className="group">
+            <label className="text-sm text-muted-foreground mb-1.5 block">Full Name</label>
+            <div className="relative">
+              <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
               <Input
-                id="email"
-                type="email"
-                value={email}
-                disabled
-                className="h-12 bg-blue-50/50 border-2 border-blue-100 text-gray-600 rounded-xl cursor-not-allowed"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Enter your full name"
+                className="h-14 pl-12 rounded-2xl border-border bg-card text-base focus:ring-2 focus:ring-foreground/10"
               />
-              <p className="text-xs text-gray-500">{t('profile.emailNote', { defaultValue: 'Email is tied to your account and cannot be changed here.' })}</p>
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="city" className="text-sm font-semibold flex items-center gap-2 text-gray-700">
-                <MapPin className="w-4 h-4 text-blue-600" />
-                {t('location.city')}
-              </Label>
+          {/* Phone */}
+          <div className="group">
+            <label className="text-sm text-muted-foreground mb-1.5 block">Phone Number</label>
+            <div className="relative">
+              <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
               <Input
-                id="city"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+212 6XX XXX XXX"
+                className="h-14 pl-12 rounded-2xl border-border bg-card text-base focus:ring-2 focus:ring-foreground/10"
+              />
+            </div>
+          </div>
+
+          {/* City */}
+          <div className="group">
+            <label className="text-sm text-muted-foreground mb-1.5 block">City</label>
+            <div className="relative">
+              <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Input
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
-                placeholder={t('profile.cityPlaceholder', { defaultValue: 'Casablanca' })}
-                className="h-12 bg-white border-2 border-blue-100 text-gray-900 rounded-xl focus:border-blue-400 focus:shadow-lg focus:shadow-blue-100 transition-all"
+                placeholder="Your city"
+                className="h-14 pl-12 rounded-2xl border-border bg-card text-base focus:ring-2 focus:ring-foreground/10"
               />
             </div>
+          </div>
 
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-              className="w-full h-14 text-lg bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 shadow-xl hover:shadow-2xl text-white rounded-xl font-bold transition-all"
-            >
-              <Save className="w-5 h-5 mr-2" />
-              {saving ? t('common.saving', { defaultValue: 'Saving...' }) : t('profile.saveChanges', { defaultValue: 'Save Changes' })}
-            </Button>
-          </CardContent>
-        </Card>
+          {/* Email - Read Only */}
+          <div className="group">
+            <label className="text-sm text-muted-foreground mb-1.5 block">Email</label>
+            <div className="relative">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Input
+                value={email}
+                disabled
+                className="h-14 pl-12 rounded-2xl border-border bg-muted text-base text-muted-foreground cursor-not-allowed"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1.5">
+              Email is linked to your account
+            </p>
+          </div>
+        </div>
 
-        <Card className="relative backdrop-blur-sm bg-white/95 border border-white/60 rounded-3xl shadow-xl transition-all duration-300">
-          <CardHeader className="border-b border-blue-100 bg-gradient-to-r from-blue-50 to-sky-50/50 rounded-t-3xl p-6">
-            <CardTitle className="text-2xl font-bold flex items-center gap-3 text-gray-800">
-              <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center shadow-md">
-                <Heart className="w-4 h-4 text-white" />
-              </div>
-              {t('profile.favoritesTitle', { defaultValue: 'My Favorite Clinics' })}
-            </CardTitle>
-            <CardDescription className="text-gray-500 ml-11">{t('favorites.savedForQuickAccess')}</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-3">
-            {isLoadingFavorites ? (
-              <>
-                <Skeleton className="h-16 w-full bg-blue-100/50 rounded-xl" />
-                <Skeleton className="h-16 w-full bg-blue-100/50 rounded-xl" />
-              </>
-            ) : favoriteClinics && favoriteClinics.length > 0 ? (
-              favoriteClinics.map((clinic) => (
-                <div key={clinic.id} className="flex items-center justify-between p-3 bg-blue-50/80 border border-blue-200 rounded-xl shadow-inner transition-all hover:bg-white hover:border-blue-300">
-                  <Link to={`/clinic/${clinic.id}`} className="flex items-center gap-4 flex-grow">
-                    {clinic.logo_url ? (
-                      <img src={clinic.logo_url} alt={clinic.name} className="w-12 h-12 rounded-lg object-contain bg-white p-1" />
-                    ) : (
-                      <div className="w-12 h-12 flex-shrink-0 rounded-lg bg-blue-200 flex items-center justify-center">
-                        <Building className="w-6 h-6 text-blue-600" />
-                      </div>
-                    )}
-                    <div>
-                      <p className="font-bold text-gray-900">{clinic.name}</p>
-                      <p className="text-sm text-gray-500">{clinic.specialty}</p>
+        {/* Save Button */}
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          className="w-full h-14 mt-6 rounded-full bg-foreground text-background hover:bg-foreground/90 text-base font-semibold"
+        >
+          {saving ? (
+            <>
+              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Check className="w-5 h-5 mr-2" />
+              Save Changes
+            </>
+          )}
+        </Button>
+      </div>
+
+      {/* Favorite Clinics */}
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
+          Favorite Clinics
+        </h3>
+
+        {isLoadingFavorites ? (
+          <div className="space-y-3">
+            {[1, 2].map((i) => (
+              <div key={i} className="h-20 rounded-2xl bg-muted animate-pulse" />
+            ))}
+          </div>
+        ) : favoriteClinics && favoriteClinics.length > 0 ? (
+          <div className="space-y-3">
+            {favoriteClinics.map((clinic) => (
+              <div 
+                key={clinic.id} 
+                className="flex items-center gap-4 p-4 rounded-2xl border border-border bg-card hover:border-foreground/20 transition-colors"
+              >
+                <Link to={`/clinic/${clinic.id}`} className="flex items-center gap-4 flex-1 min-w-0">
+                  {clinic.logo_url ? (
+                    <img 
+                      src={clinic.logo_url} 
+                      alt={clinic.name} 
+                      className="w-14 h-14 rounded-xl object-contain bg-muted p-1" 
+                    />
+                  ) : (
+                    <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center">
+                      <Building className="w-6 h-6 text-muted-foreground" />
                     </div>
-                  </Link>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeFavorite(clinic.id)}
-                    disabled={isRemovingFavorite}
-                    className="text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8 px-4 bg-blue-50/50 rounded-xl border border-dashed border-blue-200">
-                <Heart className="w-12 h-12 text-blue-300 mx-auto mb-4" />
-                <p className="font-semibold text-gray-800">{t('favorites.noFavoritesYet', { defaultValue: 'No favorite clinics yet' })}</p>
-                <p className="text-sm text-gray-500 mb-4">{t('favorites.savedClinicsAppearHere', { defaultValue: 'Your saved clinics will appear here.' })}</p>
-                <Button asChild variant="link" className="text-blue-600">
-                  <Link to="/clinics">
-                    {t('nav.clinics')} <ChevronRight className="w-4 h-4 ml-1" />
-                  </Link>
-                </Button>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-foreground truncate">{clinic.name}</p>
+                    <p className="text-sm text-muted-foreground">{clinic.specialty}</p>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                </Link>
+                <button
+                  onClick={() => removeFavorite(clinic.id)}
+                  disabled={isRemovingFavorite}
+                  className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-destructive"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-border">
+            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+              <Heart className="w-8 h-8 text-muted-foreground" />
+            </div>
+            <h4 className="font-semibold mb-1">No favorites yet</h4>
+            <p className="text-sm text-muted-foreground mb-4">
+              Clinics you save will appear here
+            </p>
+            <Button 
+              asChild 
+              variant="outline" 
+              className="rounded-full"
+            >
+              <Link to="/clinics">
+                Browse Clinics
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Link>
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

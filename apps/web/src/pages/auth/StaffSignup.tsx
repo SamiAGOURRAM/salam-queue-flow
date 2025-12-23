@@ -9,12 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useForceLightMode } from "@/hooks/useForceLightMode";
 import { Eye, EyeOff, Loader2, UserCheck, Building2, Mail, User, Phone, Lock } from "lucide-react";
 
 export default function StaffSignup() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  
+  // Force light mode on staff signup page
+  useForceLightMode();
   
   const [formData, setFormData] = useState({
     email: searchParams.get("email") || "",
