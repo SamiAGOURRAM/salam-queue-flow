@@ -4,105 +4,105 @@
 
 @layer base {
   :root {
-    /* Background Colors - Premium Healthcare Design System */
-    --background: 210 20% 98%; /* #FAFBFC */
-    --background-secondary: 210 20% 97%; /* #F5F7FA */
-    --background-tertiary: 210 20% 95%; /* #F0F2F5 */
-    --background-elevated: 0 0% 100%; /* #FFFFFF */
+    /* Background Colors - Premium Warm Neutrals */
+    --background: 60 10% 98%; /* Warm off-white */
+    --background-secondary: 60 8% 96%; /* Subtle cream */
+    --background-tertiary: 60 6% 94%; /* Light warm gray */
+    --background-elevated: 0 0% 100%; /* Pure white for cards */
     
-    /* Foreground Colors */
-    --foreground: 230 30% 10%; /* #0A0E27 */
-    --foreground-secondary: 230 20% 30%; /* #3A3F5C */
-    --foreground-tertiary: 215 10% 45%; /* #6B7280 */
-    --foreground-muted: 215 10% 65%; /* #9CA3AF */
-    --foreground-subtle: 215 10% 84%; /* #D1D5DB */
+    /* Foreground Colors - Obsidian-based */
+    --foreground: 150 10% 8%; /* Deep obsidian */
+    --foreground-secondary: 150 6% 25%; /* Softer obsidian */
+    --foreground-tertiary: 150 4% 42%; /* Muted text */
+    --foreground-muted: 150 3% 58%; /* Placeholder text */
+    --foreground-subtle: 150 2% 78%; /* Disabled text */
     
-    /* Primary Colors - Deep Teal */
-    --primary: 193 100% 36%; /* #0091B9 */
+    /* Primary Colors - Sage Green (Brand) */
+    --primary: 150 40% 35%; /* #3D7A56 - Sage green */
     --primary-foreground: 0 0% 100%;
-    --primary-50: 193 50% 94%;
-    --primary-100: 193 50% 87%;
-    --primary-200: 193 50% 75%;
-    --primary-300: 193 50% 62%;
-    --primary-400: 193 50% 49%;
-    --primary-500: 193 100% 36%;
-    --primary-600: 193 100% 29%;
-    --primary-700: 193 100% 22%;
-    --primary-800: 193 100% 15%;
-    --primary-900: 193 100% 7%;
+    --primary-50: 150 30% 96%;
+    --primary-100: 150 30% 90%;
+    --primary-200: 150 30% 80%;
+    --primary-300: 150 35% 65%;
+    --primary-400: 150 38% 50%;
+    --primary-500: 150 40% 35%;
+    --primary-600: 150 42% 28%;
+    --primary-700: 150 45% 22%;
+    --primary-800: 150 48% 16%;
+    --primary-900: 150 50% 10%;
     
-    /* Accent Colors - Sky Blue */
-    --accent: 199 89% 48%; /* #0EA5E9 */
+    /* Accent Colors - Teal for variety */
+    --accent: 168 70% 38%; /* #1D9B7A - Teal-sage */
     --accent-foreground: 0 0% 100%;
     
-    /* Teal - Mint/Teal for charts */
-    --teal: 173 80% 40%; /* #14B8A6 */
+    /* Teal - For charts/highlights */
+    --teal: 168 65% 42%; /* #25A882 */
     --teal-foreground: 0 0% 100%;
     
-    /* Coral - Warm coral for highlights */
-    --coral: 14 100% 69%; /* #FF8660 */
+    /* Coral - Warm accent */
+    --coral: 16 85% 62%; /* #E8734A */
     --coral-foreground: 0 0% 100%;
     
-    /* Salmon - Soft salmon */
-    --salmon: 0 100% 71%; /* #FF6B6B */
+    /* Salmon - Soft warm */
+    --salmon: 4 75% 65%; /* #E06B6B */
     --salmon-foreground: 0 0% 100%;
     
-    /* Navy - Deep navy */
-    --navy: 217 25% 51%; /* #697D9B */
+    /* Navy - Muted sage for subtle elements */
+    --navy: 150 15% 48%; /* #688F76 */
     --navy-foreground: 0 0% 100%;
     
-    /* Success */
-    --success: 142 71% 45%; /* #22C55E */
+    /* Success - Harmonized green */
+    --success: 145 60% 40%; /* #2E9B5A */
     --success-foreground: 0 0% 100%;
     
     /* Warning */
-    --warning: 38 92% 50%; /* #F59E0B */
-    --warning-foreground: 0 0% 100%;
+    --warning: 40 90% 48%; /* #E8A317 */
+    --warning-foreground: 150 10% 8%;
     
     /* Error/Destructive */
-    --destructive: 0 84% 60%; /* #EF4444 */
+    --destructive: 0 72% 55%; /* #D94848 */
     --destructive-foreground: 0 0% 100%;
     
     /* Card Colors */
     --card: 0 0% 100%;
-    --card-foreground: 230 30% 10%;
-    --card-hover: 210 20% 98%;
+    --card-foreground: 150 10% 8%;
+    --card-hover: 60 8% 97%;
     
     /* Popover */
     --popover: 0 0% 100%;
-    --popover-foreground: 230 30% 10%;
+    --popover-foreground: 150 10% 8%;
     
     /* Muted */
-    --muted: 210 20% 95%;
-    --muted-foreground: 215 10% 45%;
+    --muted: 60 6% 94%;
+    --muted-foreground: 150 4% 42%;
     
     /* Secondary */
-    --secondary: 210 20% 95%;
-    --secondary-foreground: 230 30% 10%;
+    --secondary: 60 6% 94%;
+    --secondary-foreground: 150 10% 8%;
     
-    /* Border */
-    --border: 215 16% 88%; /* More visible border */
-    --border-muted: 220 14% 96%; /* #F3F4F6 */
-    --border-strong: 215 16% 80%; /* More prominent border */
+    /* Border - Warm neutral */
+    --border: 60 6% 88%;
+    --border-muted: 60 4% 94%;
+    --border-strong: 60 6% 80%;
     
     /* Input */
-    --input: 215 16% 91%;
+    --input: 60 6% 90%;
     
-    /* Ring */
-    --ring: 193 100% 36%;
+    /* Ring - Sage accent */
+    --ring: 150 40% 35%;
     
     /* Radius */
-    --radius: 1rem; /* 0.75rem from design system, but using 1rem for better feel */
+    --radius: 1rem;
     
     /* Sidebar */
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 230 30% 10%;
-    --sidebar-primary: 199 100% 97%; /* #F0F9FF */
-    --sidebar-primary-foreground: 193 100% 36%;
-    --sidebar-accent: 210 20% 97%;
-    --sidebar-accent-foreground: 230 30% 10%;
-    --sidebar-border: 215 16% 91%;
-    --sidebar-ring: 193 100% 36%;
+    --sidebar-foreground: 150 10% 8%;
+    --sidebar-primary: 150 25% 96%; /* Subtle sage tint */
+    --sidebar-primary-foreground: 150 40% 35%;
+    --sidebar-accent: 60 8% 96%;
+    --sidebar-accent-foreground: 150 10% 8%;
+    --sidebar-border: 60 6% 90%;
+    --sidebar-ring: 150 40% 35%;
     
     /* Glass Effects */
     --glass-light: 0 0% 100%;
@@ -111,95 +111,95 @@
   }
 
   .dark {
-    /* Background Colors */
-    --background: 230 30% 10%; /* #0A0E27 */
-    --background-secondary: 230 25% 12%; /* #141829 */
-    --background-tertiary: 230 20% 16%; /* #1E2332 */
-    --background-elevated: 230 18% 20%; /* #252A3A */
+    /* Background Colors - Obsidian Green System */
+    --background: 150 10% 5%; /* #0C0F0D - Deepest Obsidian */
+    --background-secondary: 150 10% 7%; /* #101412 */
+    --background-tertiary: 150 8% 10%; /* #161A18 */
+    --background-elevated: 150 8% 13%; /* #1C211E */
     
-    /* Foreground Colors */
-    --foreground: 210 20% 97%; /* #F5F7FA */
-    --foreground-secondary: 215 20% 88%; /* #CBD5E1 */
-    --foreground-tertiary: 215 15% 72%; /* #94A3B8 */
-    --foreground-muted: 215 15% 55%; /* #64748B */
-    --foreground-subtle: 215 15% 41%; /* #475569 */
+    /* Foreground Colors - Warm whites */
+    --foreground: 120 5% 96%; /* #F4F5F4 */
+    --foreground-secondary: 120 5% 85%; /* #D4D6D4 */
+    --foreground-tertiary: 120 4% 68%; /* #A8ACA9 */
+    --foreground-muted: 120 4% 52%; /* #7F847F */
+    --foreground-subtle: 120 4% 38%; /* #5C615C */
     
-    /* Primary Colors */
-    --primary: 193 50% 49%; /* #33A7C7 */
-    --primary-foreground: 230 30% 10%;
+    /* Primary Colors - Sage Green accent */
+    --primary: 150 35% 45%; /* #4A9973 */
+    --primary-foreground: 150 10% 5%;
     
-    /* Accent */
-    --accent: 199 89% 65%; /* #38BDF8 */
-    --accent-foreground: 230 30% 10%;
+    /* Accent - Brighter sage */
+    --accent: 150 45% 55%; /* #5BB88A */
+    --accent-foreground: 150 10% 5%;
     
-    /* Teal */
-    --teal: 173 80% 50%; /* #2DD4BF */
-    --teal-foreground: 230 30% 10%;
+    /* Teal - Keep for variety */
+    --teal: 165 60% 45%; /* #2DB88A */
+    --teal-foreground: 150 10% 5%;
     
     /* Coral */
     --coral: 14 100% 75%; /* #FF9F80 */
-    --coral-foreground: 230 30% 10%;
+    --coral-foreground: 150 10% 5%;
     
     /* Salmon */
     --salmon: 0 100% 75%; /* #FF8787 */
-    --salmon-foreground: 230 30% 10%;
+    --salmon-foreground: 150 10% 5%;
     
-    /* Navy */
-    --navy: 217 25% 60%; /* #8797AF */
-    --navy-foreground: 230 30% 10%;
+    /* Navy - Now a muted sage */
+    --navy: 150 15% 55%; /* #7A9B85 */
+    --navy-foreground: 150 10% 5%;
     
-    /* Success */
-    --success: 142 71% 60%; /* #4ADE80 */
-    --success-foreground: 230 30% 10%;
+    /* Success - Harmonized green */
+    --success: 145 65% 52%; /* #3DBF7A */
+    --success-foreground: 150 10% 5%;
     
     /* Warning */
-    --warning: 38 92% 60%; /* #FBBF24 */
-    --warning-foreground: 230 30% 10%;
+    --warning: 42 92% 55%; /* #F5A623 */
+    --warning-foreground: 150 10% 5%;
     
     /* Error/Destructive */
-    --destructive: 0 84% 70%; /* #F87171 */
-    --destructive-foreground: 230 30% 10%;
+    --destructive: 0 75% 62%; /* #E05252 */
+    --destructive-foreground: 120 5% 96%;
     
-    /* Card */
-    --card: 230 20% 16%;
-    --card-foreground: 210 20% 97%;
-    --card-hover: 230 18% 20%;
+    /* Card - Obsidian surfaces */
+    --card: 150 8% 10%;
+    --card-foreground: 120 5% 96%;
+    --card-hover: 150 8% 13%;
     
     /* Popover */
-    --popover: 230 20% 16%;
-    --popover-foreground: 210 20% 97%;
+    --popover: 150 8% 10%;
+    --popover-foreground: 120 5% 96%;
     
     /* Muted */
-    --muted: 230 20% 16%;
-    --muted-foreground: 215 15% 72%;
+    --muted: 150 8% 13%;
+    --muted-foreground: 120 4% 68%;
     
     /* Secondary */
-    --secondary: 230 20% 16%;
-    --secondary-foreground: 210 20% 97%;
+    --secondary: 150 8% 13%;
+    --secondary-foreground: 120 5% 96%;
     
-    /* Border */
-    --border: 230 18% 20%;
-    --border-muted: 230 20% 16%;
-    --border-strong: 230 16% 24%;
+    /* Border - Subtle green tint */
+    --border: 150 6% 18%;
+    --border-muted: 150 6% 14%;
+    --border-strong: 150 6% 24%;
     
     /* Input */
-    --input: 230 18% 20%;
+    --input: 150 6% 18%;
     
-    /* Ring */
-    --ring: 193 50% 49%;
+    /* Ring - Sage accent */
+    --ring: 150 35% 45%;
     
-    /* Sidebar */
-    --sidebar-background: 230 25% 12%;
-    --sidebar-foreground: 210 20% 97%;
-    --sidebar-primary: 230 20% 16%;
-    --sidebar-primary-foreground: 193 50% 49%;
-    --sidebar-accent: 230 20% 16%;
-    --sidebar-accent-foreground: 210 20% 97%;
-    --sidebar-border: 230 18% 20%;
-    --sidebar-ring: 193 50% 49%;
+    /* Sidebar - Obsidian */
+    --sidebar-background: 150 10% 6%;
+    --sidebar-foreground: 120 5% 96%;
+    --sidebar-primary: 150 8% 12%;
+    --sidebar-primary-foreground: 150 35% 55%;
+    --sidebar-accent: 150 8% 14%;
+    --sidebar-accent-foreground: 120 5% 96%;
+    --sidebar-border: 150 6% 16%;
+    --sidebar-ring: 150 35% 45%;
     
     /* Glass Effects */
-    --glass-light: 230 18% 20%;
+    --glass-light: 150 8% 16%;
     --glass-opacity-light: 0.7;
   }
 }

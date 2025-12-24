@@ -72,7 +72,7 @@ export default function PatientLayout() {
                 onClick={() => navigate("/")}
                 className="flex items-center gap-2 hover:opacity-80 transition-opacity"
               >
-                <div className="w-7 h-7 rounded-md bg-gray-900 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-md bg-obsidian flex items-center justify-center">
                   <span className="text-white text-sm font-bold">Q</span>
                 </div>
                 <span className="text-base font-semibold text-gray-900">QueueMed</span>
@@ -119,7 +119,7 @@ export default function PatientLayout() {
               ) : (
                 <Button
                   onClick={() => navigate('/auth/login')}
-                  className="h-9 px-4 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-md"
+                  className="h-9 px-4 bg-obsidian hover:bg-obsidian-hover text-white text-sm font-medium rounded-md"
                 >
                   <LogIn className="w-4 h-4 mr-1.5" />
                   <span className="hidden sm:inline">{t('nav.login')}</span>

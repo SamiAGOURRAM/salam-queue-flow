@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { useForceLightMode } from "@/hooks/useForceLightMode";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Mail, Lock, ArrowRight } from "lucide-react";
+import stethoscopeImage from "@/assets/stetoscope.png";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -74,16 +75,24 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left Side - Dark with Form */}
-      <div className="flex-1 bg-[#1a1a1a] flex flex-col">
+      {/* Left Side - Obsidian Dark with Form */}
+      <div className="flex-1 bg-obsidian flex flex-col relative overflow-hidden">
+        {/* Subtle noise texture */}
+        <div 
+          className="absolute inset-0 opacity-[0.03] pointer-events-none"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+          }}
+        />
+        
         {/* Top Bar */}
-        <div className="flex items-center justify-between p-6">
+        <div className="relative flex items-center justify-between p-6">
           <button
             onClick={() => navigate("/")}
             className="flex items-center gap-2 hover:opacity-80 transition-opacity"
           >
             <div className="w-7 h-7 rounded-md bg-white flex items-center justify-center">
-              <span className="text-[#1a1a1a] text-sm font-bold">Q</span>
+              <span className="text-obsidian text-sm font-bold">Q</span>
             </div>
             <span className="text-base font-semibold text-white">QueueMed</span>
           </button>
@@ -91,14 +100,14 @@ export default function Login() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 flex items-center justify-center px-6 pb-12">
+        <div className="relative flex-1 flex items-center justify-center px-6 pb-12">
           <div className="w-full max-w-md">
             {/* Headline */}
             <div className="mb-10">
               <h1 className="text-4xl sm:text-5xl font-serif text-white leading-tight mb-3">
                 {t('auth.login.welcomeTitle', 'Welcome back')}
               </h1>
-              <p className="text-gray-500 text-base">
+              <p className="text-gray-400 text-base">
                 {t('auth.login.subtitle', 'Sign in to continue to your account')}
               </p>
             </div>
@@ -159,7 +168,7 @@ export default function Login() {
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="w-full h-11 bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white text-sm font-medium rounded-lg"
+                  className="w-full h-11 bg-obsidian hover:bg-obsidian-hover text-white text-sm font-medium rounded-lg"
                 >
                   {loading ? (
                     <span className="flex items-center gap-2">
@@ -232,54 +241,35 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right Side - Image/Illustration */}
-      <div className="hidden lg:block lg:w-[45%] bg-[#f5ebe0] relative overflow-hidden">
-        {/* Abstract Healthcare Illustration */}
-        <div className="absolute inset-0 flex items-center justify-center p-12">
-          <div className="relative w-full h-full max-w-lg">
-            {/* Decorative elements */}
-            <div className="absolute top-10 right-10 w-32 h-32 rounded-full bg-[#e8d5c4] opacity-60"></div>
-            <div className="absolute bottom-20 left-10 w-48 h-48 rounded-full bg-[#dcc9b6] opacity-50"></div>
-            <div className="absolute top-1/3 left-1/4 w-24 h-24 rounded-full bg-[#c9b8a8] opacity-40"></div>
+      {/* Right Side - The Gallery */}
+      <div className="hidden lg:block lg:w-[45%] relative overflow-hidden" style={{ backgroundColor: '#F9F8F6' }}>
+        {/* Subtle noise texture - Heavy cardstock feel */}
+        <div 
+          className="absolute inset-0 opacity-[0.035] pointer-events-none"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+          }}
+        />
+        
+        {/* Elegant Tagline - Top Left */}
+        <p 
+          className="absolute top-12 left-12 text-lg font-serif tracking-wide z-10"
+          style={{ color: '#3D5A45' }}
+        >
+          Healthcare, simplified.
+        </p>
 
-            {/* Central card */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-xl p-8 w-72">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Appointment Confirmed</p>
-                  <p className="text-xs text-gray-500">Today at 2:30 PM</p>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <div className="h-2 bg-gray-100 rounded-full w-full"></div>
-                <div className="h-2 bg-gray-100 rounded-full w-3/4"></div>
-                <div className="h-2 bg-gray-100 rounded-full w-1/2"></div>
-              </div>
-            </div>
-
-            {/* Floating elements */}
-            <div className="absolute top-16 left-8 bg-white rounded-lg shadow-lg px-4 py-2">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                <span className="text-xs font-medium text-gray-700">Queue: #3</span>
-              </div>
-            </div>
-
-            <div className="absolute bottom-24 right-8 bg-white rounded-lg shadow-lg px-4 py-2">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-gray-200"></div>
-                <div>
-                  <p className="text-xs font-medium text-gray-900">Dr. Smith</p>
-                  <p className="text-[10px] text-gray-500">Available</p>
-                </div>
-              </div>
-            </div>
-          </div>
+        {/* Hero 3D Asset - Stethoscope centered */}
+        <div className="absolute inset-0 flex items-center justify-center p-8">
+          <img 
+            src={stethoscopeImage}
+            alt="Medical stethoscope"
+            className="w-full h-full object-contain mix-blend-multiply"
+            style={{ 
+              transform: 'rotate(-8deg) scale(1.1)',
+              filter: 'contrast(1.05) brightness(1.02)'
+            }}
+          />
         </div>
       </div>
     </div>

@@ -58,7 +58,7 @@ const WelcomePage = () => {
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Button
                 onClick={() => navigate('/clinics')}
-                className="h-10 px-6 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-md"
+                className="h-10 px-6 bg-obsidian hover:bg-obsidian-hover text-white text-sm font-medium rounded-md"
               >
                 Find a clinic
                 <ArrowRight className="w-4 h-4 ml-2" />
@@ -109,7 +109,7 @@ const WelcomePage = () => {
                 key={index}
                 className="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-sm transition-shadow"
               >
-                <div className="w-10 h-10 rounded-lg bg-gray-900 flex items-center justify-center mb-4">
+                <div className="w-10 h-10 rounded-lg bg-obsidian flex items-center justify-center mb-4">
                   <feature.icon className="w-5 h-5 text-white" />
                 </div>
                 <h3 className="text-sm font-semibold text-gray-900 mb-1">
@@ -125,7 +125,7 @@ const WelcomePage = () => {
       </section>
 
       {/* Benefits Section */}
-      <section className="py-16 sm:py-20 bg-gray-900">
+      <section className="py-16 sm:py-20 bg-obsidian">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
@@ -192,7 +192,7 @@ const WelcomePage = () => {
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Button
                 onClick={() => navigate('/clinics')}
-                className="h-10 px-6 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-md"
+                className="h-10 px-6 bg-obsidian hover:bg-obsidian-hover text-white text-sm font-medium rounded-md"
               >
                 Browse clinics
               </Button>
@@ -213,7 +213,7 @@ const WelcomePage = () => {
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded bg-gray-900 flex items-center justify-center">
+              <div className="w-6 h-6 rounded bg-obsidian flex items-center justify-center">
                 <span className="text-white text-xs font-bold">Q</span>
               </div>
               <span className="text-sm font-medium text-gray-900">QueueMed</span>

@@ -211,7 +211,7 @@ export default function ReviewModal({ isOpen, onClose, clinicId, clinicName }: R
   const canEdit = isEditing || !userRating;
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-obsidian/60 z-50 flex items-center justify-center p-4">
       <div className="bg-background rounded-[8px] shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Premium Header */}
         <div className="p-6 border-b border-border flex items-start justify-between">

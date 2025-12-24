@@ -120,7 +120,7 @@ const PremiumLanding = () => {
                 onClick={() => navigate("/")}
                 className="flex items-center gap-2 hover:opacity-80 transition-opacity"
               >
-                <div className="w-7 h-7 rounded-md bg-black flex items-center justify-center">
+                <div className="w-7 h-7 rounded-md flex items-center justify-center bg-obsidian">
                   <span className="text-white text-sm font-bold">Q</span>
                 </div>
                 <span className="text-base font-semibold text-gray-900">QueueMed</span>
@@ -167,7 +167,7 @@ const PremiumLanding = () => {
               ) : (
                 <Button
                   onClick={() => navigate('/auth/login')}
-                  className="h-9 px-4 bg-black hover:bg-black/90 text-white text-sm font-medium rounded-md"
+                  className="h-9 px-4 bg-obsidian hover:bg-obsidian-hover text-white text-sm font-medium rounded-md transition-colors"
                 >
                   <LogIn className="w-4 h-4 mr-1.5" />
                   <span className="hidden sm:inline">{t('nav.login')}</span>
@@ -235,7 +235,7 @@ const PremiumLanding = () => {
                 <div className="space-y-1">
                   {/* Specialty/Clinic Search */}
                   <div className="relative flex items-center">
-                    <div className="absolute left-4 w-2.5 h-2.5 rounded-full bg-black"></div>
+                    <div className="absolute left-4 w-2.5 h-2.5 rounded-full bg-obsidian"></div>
                     <Input
                       type="text"
                       placeholder={t('landing.search.specialtyPlaceholder')}
@@ -252,7 +252,7 @@ const PremiumLanding = () => {
 
                   {/* Location Search */}
                   <div className="relative flex items-center">
-                    <div className="absolute left-4 w-2.5 h-2.5 bg-black"></div>
+                    <div className="absolute left-4 w-2.5 h-2.5 bg-obsidian"></div>
                     <Input
                       type="text"
                       placeholder={t('landing.search.locationPlaceholder')}
@@ -269,7 +269,7 @@ const PremiumLanding = () => {
                 {/* Search Button */}
                 <Button
                   type="submit"
-                  className="w-full h-14 mt-3 bg-black hover:bg-black/90 text-white font-semibold text-base rounded-xl transition-all"
+                  className="w-full h-14 mt-3 bg-obsidian hover:bg-obsidian-hover text-white font-semibold text-base rounded-xl transition-all"
                 >
                   {t('landing.search.searchButton')}
                 </Button>
@@ -309,7 +309,7 @@ const PremiumLanding = () => {
       </section>
 
       {/* Zero Wait Time Spotlight Section - Executive Dashboard */}
-      <section className="relative py-20 lg:py-28 text-white overflow-hidden" style={{ backgroundColor: '#0A1612' }}>
+      <section className="relative py-20 lg:py-28 text-white overflow-hidden bg-obsidian">
         {/* Subtle noise texture overlay */}
         <div 
           className="absolute inset-0 opacity-[0.03] pointer-events-none"
@@ -537,14 +537,14 @@ const PremiumLanding = () => {
               <div className="flex flex-wrap gap-4">
                 <Button
                   onClick={() => navigate('/auth/login')}
-                  className="h-12 px-8 bg-black hover:bg-black/90 text-white font-semibold rounded-xl"
+                  className="h-12 px-8 bg-obsidian hover:bg-obsidian-hover text-white font-semibold rounded-xl transition-colors"
                 >
                   {t('landing.account.signIn')}
                 </Button>
                 <Button
                   onClick={() => navigate('/auth/signup')}
                   variant="outline"
-                  className="h-12 px-8 border-2 border-black text-black font-semibold rounded-xl hover:bg-black hover:text-white transition-colors"
+                  className="h-12 px-8 border-2 border-obsidian text-obsidian font-semibold rounded-xl transition-colors hover:bg-obsidian hover:text-white"
                 >
                   {t('landing.account.createAccount')}
                 </Button>
@@ -569,13 +569,13 @@ const PremiumLanding = () => {
               <div className="flex flex-wrap gap-4">
                 <Button
                   onClick={() => navigate('/auth/signup')}
-                  className="h-12 px-8 bg-black hover:bg-black/90 text-white font-semibold rounded-xl"
+                  className="h-12 px-8 bg-obsidian hover:bg-obsidian-hover text-white font-semibold rounded-xl transition-colors"
                 >
                   {t('landing.forClinics.register')}
                 </Button>
                 <Button
                   variant="outline"
-                  className="h-12 px-8 border-2 border-black text-black font-semibold rounded-xl hover:bg-black hover:text-white transition-colors"
+                  className="h-12 px-8 border-2 border-obsidian text-obsidian font-semibold rounded-xl transition-colors hover:bg-obsidian hover:text-white"
                 >
                   {t('landing.forClinics.learnMore')}
                 </Button>
@@ -584,7 +584,7 @@ const PremiumLanding = () => {
 
             {/* Right Side - Image */}
             <div className="relative order-1 lg:order-2">
-              <div className="aspect-[4/3] bg-black rounded-3xl overflow-hidden">
+              <div className="aspect-[4/3] rounded-3xl overflow-hidden bg-obsidian">
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center space-y-4">
                     <div className="w-24 h-24 bg-white rounded-full shadow-lg mx-auto flex items-center justify-center">
@@ -600,7 +600,7 @@ const PremiumLanding = () => {
       </section>
 
       {/* Footer */}
-      <footer className="bg-black text-white py-12 lg:py-16">
+      <footer className="text-white py-12 lg:py-16 bg-obsidian">
         <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
             <div>

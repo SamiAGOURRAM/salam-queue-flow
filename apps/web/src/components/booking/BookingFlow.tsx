@@ -484,14 +484,14 @@ const BookingFlow = () => {
               <div key={s} className="flex items-center">
                 <div className={`w-8 h-8 rounded-md flex items-center justify-center text-sm font-medium transition-colors ${
                   step >= s
-                    ? "bg-gray-900 text-white"
+                    ? "bg-obsidian text-white"
                     : "bg-gray-200 text-gray-500"
                 }`}>
                   {s}
                 </div>
                 {s < 3 && (
                   <div className={`w-8 h-0.5 mx-1 transition-colors ${
-                    step > s ? "bg-gray-900" : "bg-gray-200"
+                    step > s ? "bg-obsidian" : "bg-gray-200"
                   }`} />
                 )}
               </div>
@@ -590,7 +590,7 @@ const BookingFlow = () => {
                                 onClick={() => setSelectedTime(time)}
                                 className={`h-9 text-xs font-medium rounded-md transition-colors ${
                                   selectedTime === time
-                                    ? "bg-gray-900 text-white hover:bg-gray-800"
+                                    ? "bg-obsidian text-white hover:bg-obsidian-hover"
                                     : "border-gray-200 hover:bg-gray-50"
                                 }`}
                               >
@@ -621,7 +621,7 @@ const BookingFlow = () => {
 
                 <Button
                   onClick={handleNextStep}
-                  className="w-full h-10 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-md"
+                  className="w-full h-10 bg-obsidian hover:bg-obsidian-hover text-white text-sm font-medium rounded-md"
                   disabled={!selectedDate || !selectedTime || !appointmentType}
                 >
                   Continue
@@ -640,7 +640,7 @@ const BookingFlow = () => {
 
                 <div className="space-y-3 p-4 bg-gray-50 border border-gray-200 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-md bg-gray-900 text-white flex items-center justify-center flex-shrink-0">
+                    <div className="w-9 h-9 rounded-md bg-obsidian text-white flex items-center justify-center flex-shrink-0">
                       <CalendarIcon className="h-4 w-4" />
                     </div>
                     <div>
@@ -652,7 +652,7 @@ const BookingFlow = () => {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-md bg-gray-900 text-white flex items-center justify-center flex-shrink-0">
+                    <div className="w-9 h-9 rounded-md bg-obsidian text-white flex items-center justify-center flex-shrink-0">
                       <Clock className="h-4 w-4" />
                     </div>
                     <div>
@@ -682,7 +682,7 @@ const BookingFlow = () => {
                   </Button>
                   <Button
                     onClick={handleSubmitBooking}
-                    className="flex-1 h-10 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-md"
+                    className="flex-1 h-10 bg-obsidian hover:bg-obsidian-hover text-white text-sm font-medium rounded-md"
                   >
                     Confirm Booking
                   </Button>
@@ -707,7 +707,7 @@ const BookingFlow = () => {
                 {/* Queue Position */}
                 {queuePosition !== null && (
                   <div className="inline-flex items-center gap-3 px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg">
-                    <div className="w-10 h-10 rounded-md bg-gray-900 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-md bg-obsidian flex items-center justify-center">
                       <Users className="h-5 w-5 text-white" />
                     </div>
                     <div className="text-left">
@@ -748,7 +748,7 @@ const BookingFlow = () => {
                 <div className="flex gap-3 justify-center">
                   <Button
                     onClick={() => navigate("/clinics")}
-                    className="h-10 px-5 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-md"
+                    className="h-10 px-5 bg-obsidian hover:bg-obsidian-hover text-white text-sm font-medium rounded-md"
                   >
                     Browse Clinics
                   </Button>

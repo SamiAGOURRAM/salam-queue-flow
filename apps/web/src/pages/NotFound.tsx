@@ -37,7 +37,7 @@ const NotFound = () => {
           </Button>
           <Button
             onClick={() => navigate("/")}
-            className="h-10 px-5 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-md"
+            className="h-10 px-5 bg-obsidian hover:bg-obsidian-hover text-white text-sm font-medium rounded-md"
           >
             <Home className="w-4 h-4 mr-2" />
             Home

@@ -102,6 +102,24 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // Obsidian Green Color System - Premium, Safe, Secure
+        obsidian: {
+          DEFAULT: "#0C0F0D",
+          hover: "#141A16",
+          light: "#1A201C",
+          muted: "#252B27",
+        },
+        // Sage Green - Soft accent for light backgrounds
+        sage: {
+          DEFAULT: "#3D5A45",
+          50: "#E8EFEA",
+          100: "#C8D9CE",
+          200: "#B8CBBD",
+          300: "#A8BBAD",
+          400: "#7A9B82",
+          500: "#3D5A45",
+          600: "#2D3A32",
+        },
       },
       fontFamily: {
         sans: ["-apple-system", "BlinkMacSystemFont", "'SF Pro Display'", "'Segoe UI'", "system-ui", "sans-serif"],

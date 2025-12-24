@@ -282,7 +282,7 @@ const ClinicDirectory = () => {
                 onClick={() => setShowFilters(!showFilters)}
                 className={`h-10 px-3 rounded-md border text-sm font-medium transition-colors ${
                   showFilters || hasActiveFilters
-                    ? 'bg-gray-900 text-white border-gray-900 hover:bg-gray-800'
+                    ? 'bg-obsidian text-white border-obsidian hover:bg-obsidian-hover'
                     : 'border-gray-200 hover:bg-gray-50'
                 }`}
               >
@@ -338,7 +338,7 @@ const ClinicDirectory = () => {
                         onClick={() => setSelectedTimeSlot(value as typeof selectedTimeSlot)}
                         className={`flex-1 h-9 text-xs font-medium rounded-md ${
                           selectedTimeSlot === value
-                            ? 'bg-gray-900 text-white hover:bg-gray-800'
+                            ? 'bg-obsidian text-white hover:bg-obsidian-hover'
                             : 'border-gray-200 hover:bg-gray-50'
                         }`}
                       >
@@ -432,7 +432,7 @@ const ClinicDirectory = () => {
             <p className="text-sm text-gray-500 mb-4">{t('clinic.tryAdjustingFilters')}</p>
             <Button
               onClick={clearFilters}
-              className="h-9 px-4 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-md"
+              className="h-9 px-4 bg-obsidian hover:bg-obsidian-hover text-white text-sm font-medium rounded-md"
             >
               {t('common.resetFilters')}
             </Button>
@@ -540,7 +540,7 @@ const ClinicDirectory = () => {
                             e.stopPropagation();
                             navigate(`/booking/${clinic.id}`);
                           }}
-                          className="flex-1 h-8 text-xs font-medium bg-gray-900 hover:bg-gray-800 text-white rounded-md transition-colors"
+                          className="flex-1 h-8 text-xs font-medium bg-obsidian hover:bg-obsidian-hover text-white rounded-md transition-colors"
                         >
                           {t('clinic.bookNow')}
                           <ArrowRight className="w-3 h-3 ml-1" />

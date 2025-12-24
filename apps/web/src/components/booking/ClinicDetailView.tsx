@@ -217,7 +217,7 @@ const ClinicDetailView = () => {
             <p className="text-sm text-gray-500 mb-6">The clinic you're looking for doesn't exist or has been removed.</p>
             <Button
               onClick={() => navigate("/clinics")}
-              className="h-9 px-4 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-md"
+              className="h-9 px-4 bg-obsidian hover:bg-obsidian-hover text-white text-sm font-medium rounded-md"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Clinics
@@ -325,7 +325,7 @@ const ClinicDetailView = () => {
             <div className="mt-5 pt-5 border-t border-gray-100 flex flex-col sm:flex-row gap-3">
               <Button
                 onClick={() => navigate(`/booking/${clinic.id}`)}
-                className="h-10 px-6 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-md flex-1 sm:flex-none"
+                className="h-10 px-6 bg-obsidian hover:bg-obsidian-hover text-white text-sm font-medium rounded-md flex-1 sm:flex-none"
               >
                 <Calendar className="w-4 h-4 mr-2" />
                 {t('clinic.bookAppointment')}
@@ -389,7 +389,7 @@ const ClinicDetailView = () => {
                       }`}
                     >
                       <div className={`w-9 h-9 rounded-md flex items-center justify-center ${
-                        method.enabled ? "bg-gray-900" : "bg-gray-300"
+                        method.enabled ? "bg-obsidian" : "bg-gray-300"
                       }`}>
                         <method.icon className="h-4 w-4 text-white" />
                       </div>
@@ -418,7 +418,7 @@ const ClinicDetailView = () => {
                       <div
                         key={day}
                         className={`px-5 py-3 flex items-center justify-between ${
-                          isToday ? "bg-gray-900 text-white" : ""
+                          isToday ? "bg-obsidian text-white" : ""
                         }`}
                       >
                         <span className={`text-sm font-medium capitalize ${isToday ? "text-white" : "text-gray-700"}`}>
@@ -475,7 +475,7 @@ const ClinicDetailView = () => {
 
                 {clinic.settings?.average_appointment_duration && (
                   <div className="flex items-center gap-3 p-3 rounded-md bg-gray-50">
-                    <div className="w-8 h-8 rounded-md bg-gray-900 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-md bg-obsidian flex items-center justify-center">
                       <Clock className="h-4 w-4 text-white" />
                     </div>
                     <div>
@@ -487,7 +487,7 @@ const ClinicDetailView = () => {
 
                 {clinic.settings?.max_queue_size && (
                   <div className="flex items-center gap-3 p-3 rounded-md bg-gray-50">
-                    <div className="w-8 h-8 rounded-md bg-gray-900 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-md bg-obsidian flex items-center justify-center">
                       <Users className="h-4 w-4 text-white" />
                     </div>
                     <div>
@@ -499,7 +499,7 @@ const ClinicDetailView = () => {
 
                 {clinic.settings?.buffer_time && (
                   <div className="flex items-center gap-3 p-3 rounded-md bg-gray-50">
-                    <div className="w-8 h-8 rounded-md bg-gray-900 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-md bg-obsidian flex items-center justify-center">
                       <Timer className="h-4 w-4 text-white" />
                     </div>
                     <div>
@@ -523,7 +523,7 @@ const ClinicDetailView = () => {
                       key={member.id}
                       className="px-5 py-3 flex items-center gap-3"
                     >
-                      <div className="w-9 h-9 rounded-full bg-gray-900 flex items-center justify-center text-white text-sm font-medium">
+                      <div className="w-9 h-9 rounded-full bg-obsidian flex items-center justify-center text-white text-sm font-medium">
                         {member.profiles?.full_name?.charAt(0) || "S"}
                       </div>
                       <div className="min-w-0">
@@ -539,7 +539,7 @@ const ClinicDetailView = () => {
             )}
 
             {/* Quick Book CTA */}
-            <Card className="bg-gray-900 rounded-lg overflow-hidden">
+            <Card className="bg-obsidian rounded-lg overflow-hidden">
               <div className="p-5">
                 <h3 className="text-base font-semibold text-white mb-1">Ready to book?</h3>
                 <p className="text-sm text-gray-400 mb-4">

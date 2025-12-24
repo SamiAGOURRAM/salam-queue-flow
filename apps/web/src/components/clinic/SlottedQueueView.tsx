@@ -93,7 +93,7 @@ export function SlottedQueueView({
   const getStatusConfig = (apt: QueueEntry) => {
     if (apt.status === AppointmentStatus.COMPLETED) {
       return {
-        bg: 'bg-gray-50 dark:bg-gray-900/50',
+        bg: 'bg-gray-50 dark:bg-obsidian/50',
         border: 'border-gray-200 dark:border-gray-800',
         dot: 'bg-gray-400',
         text: 'text-gray-500 dark:text-gray-400',
