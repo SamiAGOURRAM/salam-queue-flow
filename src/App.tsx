@@ -44,6 +44,9 @@ import { ProtectedRoute } from "./components/auth/ProtectedRoute.tsx";
 // Chat Widget
 import { ChatWidget } from "./components/chat/ChatWidget.tsx";
 
+// Pod Indicator for Kubernetes demo
+import { PodIndicator } from "./components/PodIndicator.tsx";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -106,6 +109,9 @@ const App = () => (
         </Routes>
         {/* Global Chat Widget */}
         <ChatWidget />
+        
+        {/* Kubernetes Pod Indicator - Shows which pod is serving the request */}
+        <PodIndicator />
       </TooltipProvider>
     </BrowserRouter>
   </QueryClientProvider>

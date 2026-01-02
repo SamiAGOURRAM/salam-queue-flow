@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: salam-queue
-        image: intidar:v2           # <--- The image you just built
+        image: salam-queue:v2        # <--- The image you just built
         imagePullPolicy: Never       # <--- CRITICAL: Use local Minikube image
         ports:
         - containerPort: 3000        # <--- The port we exposed in Dockerfile
