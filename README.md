@@ -24,11 +24,12 @@ This project demonstrates containerization and orchestration of a React web appl
 ## 🗂️ Project Structure
 
 ```
-├── Dockerfile           # Multi-stage Docker build
-├── deployment.yaml      # Kubernetes Deployment (3 replicas)
-├── service.yaml         # Kubernetes Service (NodePort)
-├── server.js            # Express server with health endpoint
-├── K8S_Guide.md         # Detailed deployment guide
+├── Dockerfile              # Multi-stage Docker build
+├── deployment.yaml         # Kubernetes Deployment (3 replicas)
+├── service.yaml            # Kubernetes Service (NodePort)
+├── server.js               # Express server with health endpoint
+├── K8S_Guide.md            # Detailed deployment guide
+├── kubernetes_report.pdf   # Detailed Kubernetes deployment report
 └── src/
     └── components/
         └── PodIndicator.tsx  # Visual pod indicator component
