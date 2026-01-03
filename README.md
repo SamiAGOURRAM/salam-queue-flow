@@ -4,7 +4,25 @@ A cloud-native healthcare queue management application deployed on **Kubernetes*
 
 ---
 
-## 📋 Project Overview
+## � Deliverables
+
+| Deliverable | File |
+|-------------|------|
+| 📄 **Report (PDF)** | [kubernetes_report.pdf](kubernetes_report.pdf) |
+| 🎬 **Demo Video** | [demo_video.mov](demo_video.mov) |
+| 📝 **Deployment YAML** | [deployment.yaml](deployment.yaml) |
+| 📝 **Service YAML** | [service.yaml](service.yaml) |
+
+### Report Contents
+- ✅ Short reflection (~10 lines) on deployment process
+- ✅ Screenshots of Minikube cluster running
+- ✅ Screenshots of 3 pods running
+- ✅ Screenshots of exposed service
+- ✅ Load balancing proof with different pod responses
+- ✅ Self-healing proof (before/after pod deletion)
+---
+
+## �📋 Project Overview
 
 This project demonstrates containerization and orchestration of a React web application using:
 - **Docker** - Multi-stage container build
@@ -29,7 +47,8 @@ This project demonstrates containerization and orchestration of a React web appl
 ├── service.yaml            # Kubernetes Service (NodePort)
 ├── server.js               # Express server with health endpoint
 ├── K8S_Guide.md            # Detailed deployment guide
-├── kubernetes_report.pdf   # Detailed Kubernetes deployment report
+├── kubernetes_report.pdf   # PDF report with reflection & screenshots
+├── demo_video.mov          # Video walkthrough (5-10 min)
 └── src/
     └── components/
         └── PodIndicator.tsx  # Visual pod indicator component
