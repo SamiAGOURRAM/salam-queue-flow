@@ -171,7 +171,7 @@ export default function PatientProfile() {
 
       {/* Avatar Section */}
       <div className="flex items-center gap-4 mb-8 pb-8 border-b border-border">
-        <div className="w-20 h-20 rounded-full bg-foreground text-background flex items-center justify-center text-2xl font-bold">
+        <div className="w-20 h-20 rounded-full bg-foreground dark:bg-gradient-to-br dark:from-primary dark:to-accent text-background flex items-center justify-center text-2xl font-bold dark:glow-primary">
           {firstName.charAt(0).toUpperCase()}
         </div>
         <div>
@@ -250,7 +250,7 @@ export default function PatientProfile() {
         <Button
           onClick={handleSave}
           disabled={saving}
-          className="w-full h-14 mt-6 rounded-full bg-foreground text-background hover:bg-foreground/90 text-base font-semibold"
+          className="w-full h-14 mt-6 rounded-full bg-foreground text-background hover:bg-foreground/90 text-base font-semibold dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90 dark:hover:glow-primary transition-all"
         >
           {saving ? (
             <>
@@ -283,7 +283,7 @@ export default function PatientProfile() {
             {favoriteClinics.map((clinic) => (
               <div 
                 key={clinic.id} 
-                className="flex items-center gap-4 p-4 rounded-2xl border border-border bg-card hover:border-foreground/20 transition-colors"
+                className="flex items-center gap-4 p-4 rounded-2xl border border-border bg-card hover:border-foreground/20 transition-all dark:interactive-card"
               >
                 <Link to={`/clinic/${clinic.id}`} className="flex items-center gap-4 flex-1 min-w-0">
                   {clinic.logo_url ? (
@@ -293,8 +293,8 @@ export default function PatientProfile() {
                       className="w-14 h-14 rounded-xl object-contain bg-muted p-1" 
                     />
                   ) : (
-                    <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center">
-                      <Building className="w-6 h-6 text-muted-foreground" />
+                    <div className="w-14 h-14 rounded-xl bg-muted dark:bg-primary/10 flex items-center justify-center">
+                      <Building className="w-6 h-6 text-muted-foreground dark:text-primary" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
@@ -306,7 +306,7 @@ export default function PatientProfile() {
                 <button
                   onClick={() => removeFavorite(clinic.id)}
                   disabled={isRemovingFavorite}
-                  className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-destructive"
+                  className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-destructive dark:hover:bg-red-500/10"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -314,9 +314,9 @@ export default function PatientProfile() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-border">
-            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-              <Heart className="w-8 h-8 text-muted-foreground" />
+          <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-border dark:border-border/50">
+            <div className="w-16 h-16 rounded-full bg-muted dark:bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <Heart className="w-8 h-8 text-muted-foreground dark:text-primary/60" />
             </div>
             <h4 className="font-semibold mb-1">No favorites yet</h4>
             <p className="text-sm text-muted-foreground mb-4">
@@ -325,7 +325,7 @@ export default function PatientProfile() {
             <Button 
               asChild 
               variant="outline" 
-              className="rounded-full"
+              className="rounded-full dark:border-primary/30 dark:text-primary dark:hover:bg-primary/10"
             >
               <Link to="/clinics">
                 Browse Clinics

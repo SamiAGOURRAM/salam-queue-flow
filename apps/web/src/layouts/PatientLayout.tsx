@@ -1,6 +1,7 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useForceLightMode } from "@/hooks/useForceLightMode";
+import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -9,7 +10,9 @@ import {
   User,
   LogOut,
   LogIn,
-  Info
+  Info,
+  Moon,
+  Sun
 } from "lucide-react";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useTranslation } from "react-i18next";
@@ -19,9 +22,20 @@ export default function PatientLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
+  const { theme, setTheme } = useTheme();
   
-  // Force light mode on public pages
+  // Force light mode on public pages (patient dashboard routes support dark mode)
   useForceLightMode();
+
+  // Check if current route supports dark mode
+  const darkModeRoutes = ['/my-appointments', '/patient/'];
+  const supportsDarkMode = darkModeRoutes.some(route => 
+    location.pathname === route || location.pathname.startsWith(route)
+  );
+
+  const toggleTheme = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  };
 
   // Base navigation items available to everyone
   const baseNavigationItems = [
@@ -61,9 +75,9 @@ export default function PatientLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fafafa]">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
+      <header className="sticky top-0 z-50 bg-card border-b border-border">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-14">
             {/* Left Side: Logo + Language */}
@@ -72,10 +86,10 @@ export default function PatientLayout() {
                 onClick={() => navigate("/")}
                 className="flex items-center gap-2 hover:opacity-80 transition-opacity"
               >
-                <div className="w-7 h-7 rounded-md bg-obsidian flex items-center justify-center">
-                  <span className="text-white text-sm font-bold">Q</span>
+                <div className="w-7 h-7 rounded-md bg-foreground dark:bg-primary flex items-center justify-center">
+                  <span className="text-background dark:text-primary-foreground text-sm font-bold">Q</span>
                 </div>
-                <span className="text-base font-semibold text-gray-900">QueueMed</span>
+                <span className="text-base font-semibold text-foreground">QueueMed</span>
               </button>
               <div className="h-4 w-px bg-border" />
               <LanguageSwitcher />
@@ -94,8 +108,8 @@ export default function PatientLayout() {
                     className={cn(
                       "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
                       active
-                        ? "text-gray-900 bg-gray-100"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                        ? "text-foreground bg-muted"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                     )}
                   >
                     <Icon className="w-4 h-4" />
@@ -105,13 +119,28 @@ export default function PatientLayout() {
               })}
             </nav>
 
-            {/* Right Side: Auth */}
+            {/* Right Side: Theme Toggle + Auth */}
             <div className="flex items-center gap-2">
+              {/* Theme Toggle - Only show on dark-mode enabled routes */}
+              {supportsDarkMode && user && (
+                <button
+                  onClick={toggleTheme}
+                  className="h-9 w-9 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  aria-label="Toggle theme"
+                >
+                  {theme === 'dark' ? (
+                    <Sun className="w-4 h-4" />
+                  ) : (
+                    <Moon className="w-4 h-4" />
+                  )}
+                </button>
+              )}
+              
               {user ? (
                 <Button
                   variant="ghost"
                   onClick={signOut}
-                  className="h-9 px-3 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
+                  className="h-9 px-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-md"
                 >
                   <LogOut className="w-4 h-4 mr-1.5" />
                   <span className="hidden sm:inline">{t('nav.logout')}</span>
@@ -119,7 +148,7 @@ export default function PatientLayout() {
               ) : (
                 <Button
                   onClick={() => navigate('/auth/login')}
-                  className="h-9 px-4 bg-obsidian hover:bg-obsidian-hover text-white text-sm font-medium rounded-md"
+                  className="h-9 px-4 bg-foreground hover:bg-foreground/90 dark:bg-primary dark:hover:bg-primary/90 text-background dark:text-primary-foreground text-sm font-medium rounded-md"
                 >
                   <LogIn className="w-4 h-4 mr-1.5" />
                   <span className="hidden sm:inline">{t('nav.login')}</span>
@@ -141,8 +170,8 @@ export default function PatientLayout() {
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap transition-colors",
                     active
-                      ? "text-gray-900 bg-gray-100"
-                      : "text-gray-600 hover:text-gray-900"
+                      ? "text-foreground bg-muted"
+                      : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   <Icon className="w-3.5 h-3.5" />

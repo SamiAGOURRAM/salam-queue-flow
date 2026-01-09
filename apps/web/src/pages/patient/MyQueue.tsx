@@ -252,7 +252,7 @@ export default function MyQueue() {
 
       {/* Status Hero */}
       {queueInfo.status === 'in_progress' ? (
-        <div className="bg-emerald-500 text-white rounded-3xl p-8 mb-6 text-center">
+        <div className="bg-emerald-500 dark:bg-gradient-to-br dark:from-emerald-500 dark:to-teal-600 text-white rounded-3xl p-8 mb-6 text-center dark:glow-success">
           <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-4">
             <CheckCircle2 className="w-10 h-10" />
           </div>
@@ -260,35 +260,37 @@ export default function MyQueue() {
           <p className="text-emerald-100">Please proceed to the consultation room</p>
         </div>
       ) : (
-        <div className="bg-foreground text-background rounded-3xl p-8 mb-6">
+        <div className="bg-foreground text-background rounded-3xl p-8 mb-6 dark:card-gradient dark:border dark:border-border">
           {/* Queue Position - Hero */}
           <div className="text-center mb-6">
-            <p className="text-sm text-background/60 uppercase tracking-wider mb-2">Your Position</p>
-            <div className="text-7xl font-bold mb-1">#{queueInfo.queue_position}</div>
+            <p className="text-sm text-background/60 dark:text-foreground/50 uppercase tracking-wider mb-2">Your Position</p>
+            <div className="text-7xl font-bold mb-1 dark:gradient-text">#{queueInfo.queue_position}</div>
             <span className={cn(
               "inline-block px-3 py-1 rounded-full text-xs font-medium",
-              queueInfo.status === 'waiting' ? "bg-amber-400 text-amber-900" : "bg-background/20"
+              queueInfo.status === 'waiting' 
+                ? "bg-amber-400 text-amber-900 dark:bg-amber-500/20 dark:text-amber-400" 
+                : "bg-background/20 dark:bg-primary/15 dark:text-primary"
             )}>
               {statusConfig.label}
             </span>
           </div>
 
           {/* Estimated Time */}
-          <div className="flex items-center justify-center gap-3 pt-6 border-t border-background/20">
-            <Clock className="w-5 h-5 text-background/60" />
+          <div className="flex items-center justify-center gap-3 pt-6 border-t border-background/20 dark:border-border">
+            <Clock className="w-5 h-5 text-background/60 dark:text-primary" />
             <div className="text-center">
-              <p className="text-sm text-background/60">Estimated time</p>
-              <p className="text-xl font-semibold">{estimatedTime}</p>
+              <p className="text-sm text-background/60 dark:text-foreground/50">Estimated time</p>
+              <p className="text-xl font-semibold dark:text-primary">{estimatedTime}</p>
             </div>
           </div>
         </div>
       )}
 
       {/* Clinic Info Card */}
-      <div className="rounded-2xl border border-border bg-card p-5 mb-4">
+      <div className="rounded-2xl border border-border bg-card p-5 mb-4 dark:interactive-card">
         <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center">
-            <Building2 className="w-6 h-6 text-muted-foreground" />
+          <div className="w-12 h-12 rounded-xl bg-muted dark:bg-primary/10 flex items-center justify-center">
+            <Building2 className="w-6 h-6 text-muted-foreground dark:text-primary" />
           </div>
           <div className="flex-1">
             <h2 className="font-semibold text-lg">{queueInfo.clinic_name}</h2>
@@ -301,16 +303,16 @@ export default function MyQueue() {
 
       {/* Time to Leave Alert */}
       {timeToLeave !== null && timeToLeave > 0 && timeToLeave <= 30 && queueInfo.status === 'waiting' && (
-        <div className="rounded-2xl bg-amber-50 border border-amber-200 p-5 mb-4">
+        <div className="rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 p-5 mb-4 dark:animate-border-gradient">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-amber-500 flex items-center justify-center animate-pulse">
-              <Navigation className="w-6 h-6 text-white" />
+            <div className="w-12 h-12 rounded-full bg-amber-500 dark:bg-amber-500/20 flex items-center justify-center animate-pulse">
+              <Navigation className="w-6 h-6 text-white dark:text-amber-400" />
             </div>
             <div>
-              <p className="font-semibold text-amber-900">
+              <p className="font-semibold text-amber-900 dark:text-amber-300">
                 {timeToLeave <= 5 ? '🚀 Leave now!' : `Leave in ${timeToLeave} min`}
               </p>
-              <p className="text-sm text-amber-700">
+              <p className="text-sm text-amber-700 dark:text-amber-400/70">
                 Based on 15 min travel time
               </p>
             </div>
@@ -322,21 +324,21 @@ export default function MyQueue() {
       {isActive && (
         <div className="space-y-3">
           {/* Real-time Updates */}
-          <div className="rounded-2xl border border-border bg-card p-4 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
-              <Bell className="w-5 h-5 text-emerald-600" />
+          <div className="rounded-2xl border border-border bg-card p-4 flex items-center gap-4 dark:glass-card">
+            <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-500/15 flex items-center justify-center">
+              <Bell className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div className="flex-1">
               <p className="font-medium text-sm">Real-time updates</p>
               <p className="text-xs text-muted-foreground">This page updates automatically</p>
             </div>
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <div className="w-2 h-2 rounded-full bg-emerald-500 dark:animate-pulse-glow animate-pulse" />
           </div>
 
           {/* How it works */}
-          <div className="rounded-2xl border border-border bg-card p-4 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
-              <Users className="w-5 h-5 text-blue-600" />
+          <div className="rounded-2xl border border-border bg-card p-4 flex items-center gap-4 dark:glass-card">
+            <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-primary/15 flex items-center justify-center">
+              <Users className="w-5 h-5 text-blue-600 dark:text-primary" />
             </div>
             <div className="flex-1">
               <p className="font-medium text-sm">No check-in needed</p>

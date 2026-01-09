@@ -5,14 +5,16 @@ import { useTheme } from 'next-themes';
 /**
  * Hook to force light mode on public pages
  * Prevents dark mode from persisting on pages that don't support it
+ * 
+ * Authenticated patient routes (/my-appointments, /patient/*) support dark mode
  */
 export function useForceLightMode() {
   const { setTheme, theme } = useTheme();
   const location = useLocation();
 
   useEffect(() => {
-    // List of public routes that should always be light mode
-    const publicRoutes = [
+    // Routes that should ALWAYS be light mode (public/unauthenticated pages)
+    const forceLightRoutes = [
       '/',
       '/auth/login',
       '/auth/signup',
@@ -24,13 +26,29 @@ export function useForceLightMode() {
       '/booking/', // Public booking flow
     ];
 
-    // Check if current route is a public route
-    const isPublicRoute = publicRoutes.some(route => 
+    // Routes that SUPPORT dark mode (authenticated patient dashboard)
+    const darkModeEnabledRoutes = [
+      '/my-appointments',
+      '/patient/',
+    ];
+
+    // Check if current route supports dark mode
+    const supportsDarkMode = darkModeEnabledRoutes.some(route => 
+      location.pathname === route || location.pathname.startsWith(route)
+    );
+
+    // If route supports dark mode, don't force anything
+    if (supportsDarkMode) {
+      return;
+    }
+
+    // Check if current route should be forced to light mode
+    const shouldForceLight = forceLightRoutes.some(route => 
       location.pathname === route || location.pathname.startsWith(route)
     );
 
     // Force light mode on public routes
-    if (isPublicRoute && theme !== 'light') {
+    if (shouldForceLight && theme !== 'light') {
       setTheme('light');
     }
   }, [location.pathname, theme, setTheme]);

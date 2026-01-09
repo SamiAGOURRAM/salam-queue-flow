@@ -248,15 +248,15 @@ export default function PatientDashboard() {
 
   const getStatusConfig = (status: string) => {
     const configs: Record<string, { label: string, bg: string, text: string }> = {
-      scheduled: { label: "Scheduled", bg: "bg-emerald-50", text: "text-emerald-700" },
-      confirmed: { label: "Confirmed", bg: "bg-emerald-50", text: "text-emerald-700" },
-      waiting: { label: "In Queue", bg: "bg-amber-50", text: "text-amber-700" },
-      in_progress: { label: "In Progress", bg: "bg-blue-50", text: "text-blue-700" },
-      completed: { label: "Completed", bg: "bg-slate-100", text: "text-slate-600" },
-      cancelled: { label: "Cancelled", bg: "bg-slate-100", text: "text-slate-500" },
-      no_show: { label: "Missed", bg: "bg-red-50", text: "text-red-600" }
+      scheduled: { label: "Scheduled", bg: "bg-emerald-50 dark:bg-emerald-500/15", text: "text-emerald-700 dark:text-emerald-400" },
+      confirmed: { label: "Confirmed", bg: "bg-emerald-50 dark:bg-emerald-500/15", text: "text-emerald-700 dark:text-emerald-400" },
+      waiting: { label: "In Queue", bg: "bg-amber-50 dark:bg-amber-500/15", text: "text-amber-700 dark:text-amber-400" },
+      in_progress: { label: "In Progress", bg: "bg-blue-50 dark:bg-primary/15", text: "text-blue-700 dark:text-primary" },
+      completed: { label: "Completed", bg: "bg-slate-100 dark:bg-muted", text: "text-slate-600 dark:text-muted-foreground" },
+      cancelled: { label: "Cancelled", bg: "bg-slate-100 dark:bg-muted", text: "text-slate-500 dark:text-muted-foreground" },
+      no_show: { label: "Missed", bg: "bg-red-50 dark:bg-red-500/15", text: "text-red-600 dark:text-red-400" }
     };
-    return configs[status] || { label: status, bg: "bg-slate-100", text: "text-slate-600" };
+    return configs[status] || { label: status, bg: "bg-slate-100 dark:bg-muted", text: "text-slate-600 dark:text-muted-foreground" };
   };
 
   const handleOpenReviewModal = (clinicId: string, clinicName: string, e: React.MouseEvent) => {
@@ -319,11 +319,11 @@ export default function PatientDashboard() {
       {/* Quick Action - Book New */}
       <button
         onClick={() => navigate("/clinics")}
-        className="w-full mb-8 p-5 rounded-2xl bg-foreground text-background flex items-center justify-between group hover:opacity-90 transition-opacity"
+        className="w-full mb-8 p-5 rounded-2xl bg-foreground text-background flex items-center justify-between group hover:opacity-90 transition-all dark:hover:glow-primary"
       >
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-background/20 flex items-center justify-center">
-            <Plus className="w-6 h-6" />
+          <div className="w-12 h-12 rounded-full bg-background/20 dark:bg-primary/20 flex items-center justify-center">
+            <Plus className="w-6 h-6 dark:text-primary" />
           </div>
           <div className="text-left">
             <p className="font-semibold text-lg">Book an appointment</p>
@@ -390,7 +390,7 @@ export default function PatientDashboard() {
                 key={apt.id}
                 className={cn(
                   "rounded-2xl border border-border bg-card overflow-hidden transition-all",
-                  isActive && "hover:shadow-lg hover:border-border/80 cursor-pointer"
+                  isActive && "hover:shadow-lg hover:border-border/80 cursor-pointer dark:interactive-card"
                 )}
                 onClick={() => {
                   if (isActive) {
@@ -491,10 +491,10 @@ export default function PatientDashboard() {
 
       {/* Cancel Confirmation Dialog */}
       <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
-        <AlertDialogContent className="rounded-2xl max-w-sm">
+        <AlertDialogContent className="rounded-2xl max-w-sm dark:glass-card">
           <AlertDialogHeader className="text-center">
-            <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
-              <XCircle className="w-8 h-8 text-red-500" />
+            <div className="w-16 h-16 rounded-full bg-red-50 dark:bg-red-500/15 flex items-center justify-center mx-auto mb-4">
+              <XCircle className="w-8 h-8 text-red-500 dark:text-red-400" />
             </div>
             <AlertDialogTitle className="text-xl">
               Cancel appointment?
