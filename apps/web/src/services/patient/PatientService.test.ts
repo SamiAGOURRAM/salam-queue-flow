@@ -52,7 +52,6 @@ describe('PatientService', () => {
       const result = await service.findOrCreatePatient(phoneNumber, fullName);
 
       expect(result.patientId).toBe('patient-123');
-      expect(result.isGuest).toBe(false);
       expect(result.isNew).toBe(false);
       expect(mockRepository.findPatientByPhone).toHaveBeenCalledWith(phoneNumber);
       expect(mockRepository.findGuestPatientByPhone).not.toHaveBeenCalled();
@@ -76,8 +75,7 @@ describe('PatientService', () => {
 
       const result = await service.findOrCreatePatient(phoneNumber, fullName);
 
-      expect(result.guestPatientId).toBe('guest-123');
-      expect(result.isGuest).toBe(true);
+      expect(result.patientId).toBe('guest-123');
       expect(result.isNew).toBe(false);
       expect(mockRepository.findGuestPatientByPhone).toHaveBeenCalledWith(phoneNumber);
     });
@@ -101,8 +99,7 @@ describe('PatientService', () => {
 
       const result = await service.findOrCreatePatient(phoneNumber, fullName);
 
-      expect(result.guestPatientId).toBe('guest-new');
-      expect(result.isGuest).toBe(true);
+      expect(result.patientId).toBe('guest-new');
       expect(result.isNew).toBe(true);
       expect(mockRepository.createGuestPatient).toHaveBeenCalledWith(fullName, phoneNumber);
     });

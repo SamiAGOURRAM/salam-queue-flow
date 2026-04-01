@@ -33,8 +33,6 @@ export interface GuestPatient {
 
 export interface FindOrCreatePatientResult {
   patientId: string | null;
-  guestPatientId: string | null;
-  isGuest: boolean;
   isNew: boolean;
 }
 
@@ -61,8 +59,6 @@ export class PatientService {
         logger.info('Found registered patient', { patientId: registeredPatient.id, phoneNumber });
         return {
           patientId: registeredPatient.id,
-          guestPatientId: null,
-          isGuest: false,
           isNew: false,
         };
       }
@@ -73,9 +69,7 @@ export class PatientService {
       if (existingGuest) {
         logger.info('Found existing guest patient', { guestPatientId: existingGuest.id, phoneNumber });
         return {
-          patientId: null,
-          guestPatientId: existingGuest.id,
-          isGuest: true,
+          patientId: existingGuest.id,
           isNew: false,
         };
       }
@@ -85,9 +79,7 @@ export class PatientService {
 
       logger.info('Created new guest patient', { guestPatientId: newGuest.id, phoneNumber, fullName });
       return {
-        patientId: null,
-        guestPatientId: newGuest.id,
-        isGuest: true,
+        patientId: newGuest.id,
         isNew: true,
       };
     } catch (error) {

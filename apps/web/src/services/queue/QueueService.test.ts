@@ -69,7 +69,7 @@ describe('QueueService', () => {
       ];
 
       mockRepository.getDailySchedule = vi.fn().mockResolvedValue({
-        operating_mode: 'clinic_wide',
+        queue_mode: 'slotted',
         schedule: mockSchedule,
       });
       mockRepository.getClinicEstimationConfigByStaffId = vi.fn().mockResolvedValue({
@@ -78,10 +78,10 @@ describe('QueueService', () => {
 
       const result = await service.getDailySchedule(staffId, targetDate);
 
-      expect(result.operating_mode).toBe('clinic_wide');
+      expect(result.queue_mode).toBe('slotted');
       expect(result.schedule).toHaveLength(2);
       expect(mockRepository.getDailySchedule).toHaveBeenCalledWith(staffId, targetDate);
-      expect(logger.info).toHaveBeenCalled();
+      expect(logger.debug).toHaveBeenCalled();
     });
 
     it('should handle errors when fetching schedule', async () => {
@@ -276,9 +276,10 @@ describe('QueueService', () => {
       });
 
       mockRepository.getDailySchedule = vi.fn().mockResolvedValue({
-        operating_mode: 'staff_specific',
+        queue_mode: 'slotted',
         schedule: [waitingPatient],
       });
+      mockRepository.getQueueEntryById = vi.fn().mockResolvedValue(waitingPatient);
       mockRepository.getClinicEstimationConfigByStaffId = vi.fn().mockResolvedValue({
         mlEnabled: false,
       });
@@ -307,7 +308,7 @@ describe('QueueService', () => {
       };
 
       mockRepository.getDailySchedule = vi.fn().mockResolvedValue({
-        operating_mode: 'staff_specific',
+        queue_mode: 'slotted',
         schedule: [],
       });
       mockRepository.getClinicEstimationConfigByStaffId = vi.fn().mockResolvedValue({
@@ -439,13 +440,14 @@ describe('QueueService', () => {
     it('should complete appointment and calculate wait time', async () => {
       const appointmentId = 'app-123';
       const performedBy = 'user-123';
-      const startTime = new Date(Date.now() - 1800000); // 30 minutes ago (scheduled start)
+      const scheduledDate = new Date(Date.now() - 1800000); // 30 minutes ago (scheduled start)
       const checkedInAt = new Date(Date.now() - 900000); // 15 minutes ago (when entered)
 
       const mockEntry = createMockQueueEntry({
         id: appointmentId,
         status: AppointmentStatus.IN_PROGRESS,
-        startTime,
+        appointmentDate: scheduledDate,
+        scheduledTime: scheduledDate.toISOString().substring(11, 16),
         checkedInAt,
       });
 

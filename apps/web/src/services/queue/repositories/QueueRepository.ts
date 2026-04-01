@@ -11,6 +11,7 @@ import {
   QueueOverride,
   QueueFilters,
   AppointmentStatus,
+  AppointmentType,
   QueueActionType,
   CreateQueueEntryDTO,
   UpdateQueueEntryDTO,
@@ -25,15 +26,7 @@ import { logger } from '../../shared/logging/Logger';
 
 type PatientProfile = {
   id: string;
-  full_name?: string | null;
-  phone_number?: string | null;
-  email?: string | null;
-};
-
-type GuestPatientProfile = {
-  id: string;
-  full_name?: string | null;
-  phone_number?: string | null;
+  display_name?: string | null;
 };
 
 type ClinicInfo = {
@@ -44,22 +37,16 @@ type ClinicInfo = {
   address?: string | null;
   phone?: string | null; // clinics table uses 'phone', not 'phone_number'
   settings?: Record<string, unknown> | null;
-  estimation_mode?: string | null;
-  ml_enabled?: boolean | null;
-  ml_model_version?: string | null;
-  ml_endpoint_url?: string | null;
-  eta_buffer_minutes?: number | null;
-  eta_refresh_interval_sec?: number | null;
+  queue_mode?: string | null;
 };
 
 type RawAppointmentRow = {
   id: string;
   clinic_id: string;
   patient_id?: string | null;
-  guest_patient_id?: string | null;
   staff_id?: string | null;
-  start_time?: string | null;
-  end_time?: string | null;
+  scheduled_time?: string | null;
+  time_slot?: string | null;
   appointment_date?: string | null;
   queue_position?: number | null;
   status?: AppointmentStatus | null;
@@ -69,28 +56,27 @@ type RawAppointmentRow = {
   returned_at?: string | null;
   checked_in_at?: string | null;
   actual_end_time?: string | null;
+  actual_duration?: number | null;
   estimated_duration?: number | null;
   predicted_wait_time?: number | null;
-  prediction_mode?: string | null;
   prediction_confidence?: number | null;
   predicted_start_time?: string | null;
   last_prediction_update?: string | null;
   created_at: string;
   updated_at: string;
-  is_guest?: boolean | null;
   original_queue_position?: number | null;
   skip_count?: number | null;
   skip_reason?: string | null;
   override_by?: string | null;
   is_walk_in?: boolean | null;
   patient?: PatientProfile | null;
-  guest_patient?: GuestPatientProfile | null;
   clinic?: ClinicInfo | null;
   priority_score?: number | null;
   is_gap_filler?: boolean | null;
   promoted_from_waitlist?: boolean | null;
   late_arrival_converted?: boolean | null;
   original_slot_time?: string | null;
+  reason_for_visit?: string | null;
 };
 
 type RawAbsentPatientRow = {
@@ -123,7 +109,6 @@ type RawQueueOverrideRow = {
 
 type ClinicScheduleResponse = {
   queue_mode?: string;
-  operating_mode?: string;
   schedule?: RawAppointmentRow[] | null;
 };
 
@@ -138,28 +123,28 @@ export class QueueRepository {
     staffId: string,
     targetDate: string,
     useClinicWide: boolean = true
-  ): Promise<{ queue_mode: string; operating_mode: string; schedule: QueueEntry[] }> {
+  ): Promise<{ queue_mode: string; schedule: QueueEntry[] }> {
     try {
       if (useClinicWide) {
         // ======= CLINIC-WIDE MODE (CURRENT) =======
-        logger.debug('Fetching clinic-wide daily schedule via RPC', { staffId, targetDate });
+        logger.debug('Fetching clinic-wide daily schedule', { staffId, targetDate });
 
-        // Get clinic_id from staff_id using RPC (bypasses RLS)
-        const { data: clinicId, error: clinicError } = await supabase.rpc('get_clinic_from_staff', {
-          p_staff_id: staffId,
-        });
+        const { data: staffRecord, error: staffError } = await supabase
+          .from('clinic_staff')
+          .select('clinic_id')
+          .eq('id', staffId)
+          .single();
 
-        if (clinicError || !clinicId) {
-          logger.error('Failed to get clinic from staff via RPC', clinicError, { staffId });
+        if (staffError || !staffRecord?.clinic_id) {
+          logger.error('Failed to resolve clinic from staff record', staffError, { staffId });
           throw new DatabaseError(
             `Staff with ID ${staffId} not found or has no associated clinic`,
-            clinicError
+            staffError
           );
         }
 
-        // Call the clinic-wide function with the clinic_id from RPC
         const { data, error } = await supabase.rpc('get_daily_schedule_for_clinic', {
-          p_clinic_id: clinicId,
+          p_clinic_id: staffRecord.clinic_id,
           p_target_date: targetDate,
         });
 
@@ -168,7 +153,7 @@ export class QueueRepository {
           throw new DatabaseError('Failed to fetch schedule', error);
         }
 
-        return this.mapScheduleResponse(data, 'clinic_wide');
+        return this.mapScheduleResponse(data);
 
       } else {
         // ======= STAFF-SPECIFIC MODE (FOR FUTURE) =======
@@ -184,7 +169,7 @@ export class QueueRepository {
           throw new DatabaseError('Failed to fetch schedule', error);
         }
 
-        return this.mapScheduleResponse(data, 'staff_specific');
+        return this.mapScheduleResponse(data);
       }
 
     } catch (error) {
@@ -204,13 +189,14 @@ export class QueueRepository {
     settings?: Record<string, unknown> | null;
   } | null> {
     try {
-      // Get clinic_id from staff_id
-      const { data: clinicId, error: clinicError } = await supabase.rpc('get_clinic_from_staff', {
-        p_staff_id: staffId,
-      });
+      const { data: staffRecord, error: staffError } = await supabase
+        .from('clinic_staff')
+        .select('clinic_id')
+        .eq('id', staffId)
+        .single();
 
-      if (clinicError || !clinicId) {
-        logger.warn('Clinic not found for staff', { staffId, error: clinicError });
+      if (staffError || !staffRecord?.clinic_id) {
+        logger.warn('Clinic not found for staff', { staffId, error: staffError });
         return null;
       }
 
@@ -218,11 +204,11 @@ export class QueueRepository {
       const { data, error } = await supabase
         .from('clinics')
         .select('grace_period_minutes, allow_overflow, daily_capacity_limit, settings')
-        .eq('id', clinicId)
+        .eq('id', staffRecord.clinic_id)
         .single();
 
       if (error || !data) {
-        logger.warn('Clinic queue config not found', { clinicId, error });
+        logger.warn('Clinic queue config not found', { clinicId: staffRecord.clinic_id, error });
         return null;
       }
 
@@ -240,29 +226,37 @@ export class QueueRepository {
 
   async getClinicEstimationConfigByStaffId(staffId: string): Promise<ClinicEstimationConfig | null> {
     try {
-      // Use RPC function to bypass RLS
-      const { data, error } = await supabase.rpc('get_clinic_estimation_config', {
-        p_staff_id: staffId,
-      });
+      const { data: staffRecord, error: staffError } = await supabase
+        .from('clinic_staff')
+        .select('clinic_id')
+        .eq('id', staffId)
+        .single();
 
-      if (error || !data || !data.clinic) {
-        logger.warn('Clinic estimation config not found for staff', { staffId, error });
+      if (staffError || !staffRecord?.clinic_id) {
+        logger.warn('Clinic estimation config not found for staff', { staffId, error: staffError });
         return null;
       }
 
-      // RPC returns: { clinic_id, clinic: { ... } }
-      const clinic = data.clinic as {
+      const { data: clinic, error: clinicError } = await supabase
+        .from('clinics')
+        .select('id, settings, queue_mode, allow_overflow, daily_capacity_limit')
+        .eq('id', staffRecord.clinic_id)
+        .single();
+
+      if (clinicError || !clinic) {
+        logger.warn('Clinic estimation config not found for staff', { staffId, error: clinicError });
+        return null;
+      }
+
+      const clinicData = clinic as {
         id: string;
         settings: Record<string, unknown> | null;
-        estimation_mode: string;
-        ml_enabled: boolean | null;
-        ml_model_version: string | null;
-        ml_endpoint_url: string | null;
-        eta_buffer_minutes: number | null;
-        eta_refresh_interval_sec: number | null;
+        queue_mode: string | null;
+        allow_overflow: boolean | null;
+        daily_capacity_limit: number | null;
       };
 
-      const settings = clinic.settings || {};
+      const settings = clinicData.settings || {};
       const coerceNumber = (value: unknown): number | undefined => {
         if (typeof value === 'number') return value;
         if (typeof value === 'string') {
@@ -279,16 +273,31 @@ export class QueueRepository {
 
       const averageAppointmentDuration = averageDurationRaw ?? 15;
 
+      const estimationModeRaw = settings['estimation_mode'];
+      const estimationMode =
+        estimationModeRaw === 'ml' || estimationModeRaw === 'hybrid' || estimationModeRaw === 'basic'
+          ? (estimationModeRaw as EstimationMode)
+          : 'basic';
+
+      const mlEnabled = settings['ml_enabled'] === true;
+      const mlModelVersion = typeof settings['ml_model_version'] === 'string' ? settings['ml_model_version'] : undefined;
+      const mlEndpointUrl = typeof settings['ml_endpoint_url'] === 'string' ? settings['ml_endpoint_url'] : undefined;
+      const etaBufferMinutes = coerceNumber(settings['eta_buffer_minutes']) ?? 5;
+      const etaRefreshIntervalSec = coerceNumber(settings['eta_refresh_interval_sec']) ?? 60;
+
       return {
-        clinicId: data.clinic_id as string,
-        estimationMode: (clinic.estimation_mode || 'basic') as EstimationMode,
+        clinicId: clinicData.id,
+        estimationMode,
         averageAppointmentDuration,
-        etaBufferMinutes: clinic.eta_buffer_minutes ?? 5,
-        etaRefreshIntervalSec: clinic.eta_refresh_interval_sec ?? 60,
-        mlEnabled: clinic.ml_enabled ?? false,
-        mlModelVersion: clinic.ml_model_version ?? undefined,
-        mlEndpointUrl: clinic.ml_endpoint_url ?? undefined,
+        etaBufferMinutes,
+        etaRefreshIntervalSec,
+        mlEnabled,
+        mlModelVersion,
+        mlEndpointUrl,
         rawSettings: settings,
+        queueMode: (clinicData.queue_mode as 'slotted' | 'fluid' | null) ?? undefined,
+        allowOverflow: clinicData.allow_overflow ?? undefined,
+        dailyCapacityLimit: clinicData.daily_capacity_limit ?? undefined,
         // Map new overrides
         lateArrivalThresholdMinutes: coerceNumber(settings['late_arrival_threshold_minutes']),
         appointmentRunOverThresholdMinutes: coerceNumber(settings['appointment_run_over_threshold_minutes']),
@@ -482,8 +491,7 @@ export class QueueRepository {
         .from('appointments')
         .select(`
           *,
-          patient:profiles!appointments_patient_fkey(id, full_name, phone_number, email),
-          guest_patient:guest_patients(id, full_name, phone_number),
+          patient:patients!appointments_patient_id_fkey(id, display_name),
           clinic:clinics(id, name)
         `)
         .eq('id', id)
@@ -513,13 +521,12 @@ export class QueueRepository {
         .from('appointments')
         .select(`
           *,
-          patient:profiles!appointments_patient_fkey(id, full_name, phone_number, email),
-          guest_patient:guest_patients(id, full_name, phone_number),
+          patient:patients!appointments_patient_id_fkey(id, display_name),
           clinic:clinics(id, name, specialty, city)
         `)
         .eq('patient_id', patientId)
         .order('appointment_date', { ascending: true })
-        .order('start_time', { ascending: true, nullsFirst: false });
+        .order('scheduled_time', { ascending: true, nullsFirst: false });
 
       if (error) {
         logger.error('Failed to fetch patient appointments', error, { patientId });
@@ -536,9 +543,9 @@ export class QueueRepository {
 
   /**
    * Get booked slots for a clinic on a specific date
-   * Returns array of appointment IDs and start times for active appointments
+    * Returns array of appointment IDs and scheduled times for active appointments
    */
-  async getClinicBookedSlots(clinicId: string, date: string): Promise<Array<{ id: string; startTime: string }>> {
+    async getClinicBookedSlots(clinicId: string, date: string): Promise<Array<{ id: string; scheduledTime: string }>> {
     try {
       logger.debug('Fetching booked slots', { clinicId, date });
 
@@ -546,7 +553,7 @@ export class QueueRepository {
 
       const { data, error } = await supabase
         .from('appointments')
-        .select('id, start_time, status')
+        .select('id, appointment_date, scheduled_time, status')
         .eq('clinic_id', clinicId)
         .eq('appointment_date', date)
         .in('status', activeStatuses);
@@ -557,10 +564,10 @@ export class QueueRepository {
       }
 
       return (data || [])
-        .filter(apt => apt.start_time)
+        .filter(apt => apt.scheduled_time)
         .map(apt => ({
           id: apt.id,
-          startTime: apt.start_time!,
+          scheduledTime: apt.scheduled_time!,
         }));
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
@@ -601,12 +608,12 @@ export class QueueRepository {
         p_clinic_id: dto.clinicId,
         p_staff_id: dto.staffId,
         p_patient_id: dto.patientId,
-        p_guest_patient_id: dto.guestPatientId || null,
-        p_is_guest: dto.isGuest || false,
+        p_guest_patient_id: null,
+        p_is_guest: false,
         p_appointment_type: appointmentTypeString, // Ensure it's a string
         p_is_walk_in: dto.isWalkIn || false,
-        p_start_time: dto.startTime,
-        p_end_time: dto.endTime,
+        p_start_time: dto.startTime || null,
+        p_end_time: dto.endTime || null,
       });
 
       if (error || !data) {
@@ -647,10 +654,8 @@ export class QueueRepository {
       if (dto.appointmentType !== undefined) updateObj.appointment_type = dto.appointmentType;
       if (dto.markedAbsentAt !== undefined) updateObj.marked_absent_at = dto.markedAbsentAt;
       if (dto.returnedAt !== undefined) updateObj.returned_at = dto.returnedAt;
+      if (dto.scheduledTime !== undefined) updateObj.scheduled_time = dto.scheduledTime;
 
-      // Add new updatable time fields
-      if (dto.startTime !== undefined) updateObj.start_time = dto.startTime;
-      if (dto.endTime !== undefined) updateObj.end_time = dto.endTime;
       if (dto.checkedInAt !== undefined) updateObj.checked_in_at = dto.checkedInAt;
       if (dto.actualEndTime !== undefined) updateObj.actual_end_time = dto.actualEndTime;
       if (dto.actualDuration !== undefined) updateObj.actual_duration = dto.actualDuration;
@@ -686,8 +691,7 @@ export class QueueRepository {
         .from('appointments')
         .select(`
           *,
-          patient:profiles!appointments_patient_fkey(id, full_name, phone_number, email),
-          guest_patient:guest_patients(id, full_name, phone_number),
+          patient:patients!appointments_patient_id_fkey(id, display_name),
           clinic:clinics(id, name)
         `)
         .eq('id', id)
@@ -780,15 +784,12 @@ export class QueueRepository {
       // Create a timezone-aware start and end of the target day
       const startOfDay = new Date(targetDate);
       startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(targetDate);
-      endOfDay.setHours(23, 59, 59, 999);
 
       const { data, error } = await supabase
         .from('appointments')
         .select('queue_position')
         .eq('clinic_id', clinicId)
-        .gte('start_time', startOfDay.toISOString()) // Use new start_time column
-        .lte('start_time', endOfDay.toISOString())   // Use new start_time column
+        .eq('appointment_date', startOfDay.toISOString().split('T')[0])
         .order('queue_position', { ascending: false })
         .limit(1)
         .single();
@@ -854,17 +855,13 @@ export class QueueRepository {
     clinicId: string,
     patientId: string | null,
     markedBy: string,
-    reason?: string,
-    isGuest?: boolean,
-    guestPatientId?: string
+    reason?: string
   ): Promise<AbsentPatient> {
     try {
       logger.debug('Creating absent patient record', {
         appointmentId,
         clinicId,
         patientId,
-        isGuest,
-        guestPatientId,
       });
 
       // Build insert object based on patient type
@@ -1191,7 +1188,7 @@ export class QueueRepository {
       // Get all appointments for the clinic on this date
       const { data: appointments, error } = await supabase
         .from('appointments')
-        .select('status, checked_in_at, start_time')
+        .select('status, checked_in_at, appointment_date, scheduled_time')
         .eq('clinic_id', clinicId)
         .eq('appointment_date', dateStr);
 
@@ -1211,13 +1208,15 @@ export class QueueRepository {
 
       // Calculate average wait time from completed appointments today
       const completed = appointments.filter(a =>
-        a.status === AppointmentStatus.COMPLETED && a.checked_in_at && a.start_time
+        a.status === AppointmentStatus.COMPLETED && a.checked_in_at && a.scheduled_time
       );
 
       let averageWaitTime: number | undefined;
       if (completed.length > 0) {
         const totalWaitMinutes = completed.reduce((sum, a) => {
-          const scheduled = new Date(a.start_time!).getTime();
+          const scheduledIso = this.composeDateTimeISO(a.appointment_date, a.scheduled_time);
+          if (!scheduledIso) return sum;
+          const scheduled = new Date(scheduledIso).getTime();
           const checkedIn = new Date(a.checked_in_at!).getTime();
           const waitMinutes = (checkedIn - scheduled) / 60000;
           return sum + Math.max(0, waitMinutes);
@@ -1248,8 +1247,7 @@ export class QueueRepository {
         .from('appointments')
         .select(`
           *,
-          patient:profiles!appointments_patient_fkey(id, full_name, phone_number, email),
-          guest_patient:guest_patients(id, full_name, phone_number),
+          patient:patients!appointments_patient_id_fkey(id, display_name),
           clinic:clinics(id, name)
         `)
         .eq('appointment_date', dateStr)
@@ -1279,8 +1277,7 @@ export class QueueRepository {
         .from('appointments')
         .select(`
           *,
-          patient:profiles!appointments_patient_fkey(id, full_name, phone_number, email),
-          guest_patient:guest_patients(id, full_name, phone_number),
+          patient:patients!appointments_patient_id_fkey(id, display_name),
           clinic:clinics(id, name)
         `)
         .eq('clinic_id', clinicId)
@@ -1333,82 +1330,65 @@ export class QueueRepository {
   // MAPPING FUNCTIONS
   // ============================================
 
-  private mapScheduleResponse(data: any, source: string): { queue_mode: string; operating_mode: string; schedule: QueueEntry[] } {
-    // Handle different RPC return structures if needed
-    // Currently assuming both RPCs return { queue_mode: string, operating_mode: string, schedule: [...] }
-
-    // If data is just an array (legacy RPCs might do this), wrap it
+  private mapScheduleResponse(data: ClinicScheduleResponse | RawAppointmentRow[] | null): { queue_mode: string; schedule: QueueEntry[] } {
     if (Array.isArray(data)) {
-      return {
-        queue_mode: 'fluid', // Default fallback
-        operating_mode: 'fluid', // Default fallback (clean standard)
-        schedule: this.mapToQueueEntries(data),
-      };
+      throw new DatabaseError('Invalid schedule RPC payload: expected object with queue_mode and schedule');
+    }
+
+    const mode = data?.queue_mode;
+    if (mode !== 'slotted' && mode !== 'fluid') {
+      throw new DatabaseError(`Invalid queue_mode in schedule RPC payload: ${String(mode)}`);
     }
 
     return {
-      queue_mode: data?.queue_mode || 'fluid',
-      operating_mode: data?.operating_mode || 'fluid', // Clean standard fallback
+      queue_mode: mode,
       schedule: this.mapToQueueEntries(data?.schedule || []),
     };
   }
 
+  private composeDateTimeISO(dateValue?: string | null, timeValue?: string | null): string | null {
+    if (!dateValue || !timeValue) return null;
+    const normalizedTime = timeValue.length === 5 ? `${timeValue}:00` : timeValue;
+    return `${dateValue}T${normalizedTime}`;
+  }
+
   private mapToQueueEntry(data: RawAppointmentRow): QueueEntry {
-    const patientInfo = data.is_guest && data.guest_patient ? {
-      id: data.guest_patient.id,
-      fullName: data.guest_patient.full_name,
-      phoneNumber: data.guest_patient.phone_number,
-    } : data.patient ? {
+    const resolvedScheduledTime = data.scheduled_time || data.time_slot || undefined;
+    const resolvedAppointmentDate = data.appointment_date
+      ? new Date(`${data.appointment_date}T00:00:00`)
+      : new Date();
+
+    const patientInfo = data.patient ? {
       id: data.patient.id,
-      fullName: data.patient.full_name,
-      phoneNumber: data.patient.phone_number,
-      email: data.patient.email,
+      fullName: data.patient.display_name,
     } : undefined;
 
     return {
       id: data.id,
       clinicId: data.clinic_id,
-      patientId: data.patient_id || data.guest_patient_id,
+      patientId: data.patient_id || '',
       staffId: data.staff_id,
-
-      // New authoritative fields
-      startTime: data.start_time ? new Date(data.start_time) : undefined,
-      endTime: data.end_time ? new Date(data.end_time) : undefined,
-
-      // Deprecated fields, mapped for backward compatibility during transition
-      appointmentDate: data.start_time ? new Date(data.start_time) : new Date(data.appointment_date || ''),
-      scheduledTime: data.start_time ? new Date(data.start_time).toTimeString().substring(0, 5) : undefined,
-
-      queuePosition: data.queue_position,
-      status: data.status as AppointmentStatus,
-      appointmentType: data.appointment_type,
-      isPresent: data.is_present,
+      appointmentDate: resolvedAppointmentDate,
+      scheduledTime: resolvedScheduledTime,
+      queuePosition: data.queue_position ?? 0,
+      status: (data.status as AppointmentStatus) || AppointmentStatus.SCHEDULED,
+      appointmentType: (data.appointment_type as AppointmentType) || AppointmentType.CONSULTATION,
+      isPresent: data.is_present ?? true,
       markedAbsentAt: data.marked_absent_at ? new Date(data.marked_absent_at) : undefined,
       returnedAt: data.returned_at ? new Date(data.returned_at) : undefined,
       checkedInAt: data.checked_in_at ? new Date(data.checked_in_at) : undefined,
       actualEndTime: data.actual_end_time ? new Date(data.actual_end_time) : undefined,
       estimatedDurationMinutes: data.estimated_duration ?? undefined,
       estimatedWaitTime: typeof data.predicted_wait_time === 'number' ? data.predicted_wait_time : undefined,
-      predictionMode: data.prediction_mode as EstimationMode | undefined,
+      predictionMode: undefined,
       predictionConfidence: data.prediction_confidence ?? undefined,
       predictedStartTime: data.predicted_start_time ? new Date(data.predicted_start_time) : undefined,
-      etaSource: data.prediction_mode as EstimationMode | undefined,
+      etaSource: undefined,
       etaUpdatedAt: data.last_prediction_update ? new Date(data.last_prediction_update) : undefined,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
-      isGuest: data.is_guest || false,
-      guestPatientId: data.guest_patient_id,
       isWalkIn: data.is_walk_in || false,
       patient: patientInfo,
-      clinic: data.clinic ? {
-        id: data.clinic.id,
-        name: data.clinic.name,
-        specialty: data.clinic.specialty || '',
-        city: data.clinic.city || '',
-        address: data.clinic.address || '',
-        phoneNumber: data.clinic.phone || '',
-      } : undefined,
-      // Add other fields from your model as needed
       originalQueuePosition: data.original_queue_position,
       skipCount: data.skip_count || 0,
       skipReason: data.skip_reason,
@@ -1431,13 +1411,13 @@ export class QueueRepository {
       id: data.id,
       appointmentId: data.appointment_id,
       clinicId: data.clinic_id,
-      patientId: data.patient_id,
+      patientId: data.patient_id || '',
       markedAbsentAt: new Date(data.marked_absent_at),
       returnedAt: data.returned_at ? new Date(data.returned_at) : undefined,
       newPosition: data.new_position,
-      notificationSent: data.notification_sent,
+      notificationSent: data.notification_sent ?? false,
       gracePeriodEndsAt: data.grace_period_ends_at ? new Date(data.grace_period_ends_at) : undefined,
-      autoCancelled: data.auto_cancelled,
+      autoCancelled: data.auto_cancelled ?? false,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
     };

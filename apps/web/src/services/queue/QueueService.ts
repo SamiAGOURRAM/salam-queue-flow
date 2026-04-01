@@ -38,10 +38,10 @@ export class QueueService {
   // ============================================
 
   /**
-   * Fetches the daily schedule for a staff member, including operating mode.
-   * This is the new primary method for retrieving all schedule-related data.
+   * Fetches the daily schedule for a staff member with queue mode metadata.
+   * This is the primary method for retrieving schedule data.
    */
-  async getDailySchedule(staffId: string, targetDate: string): Promise<{ queue_mode: string; operating_mode: string; schedule: QueueEntry[] }> {
+  async getDailySchedule(staffId: string, targetDate: string): Promise<{ queue_mode: string; schedule: QueueEntry[] }> {
     // Reduced verbosity - only log in debug mode
     logger.debug('Fetching daily schedule for staff', { staffId, targetDate });
     try {
@@ -89,9 +89,9 @@ export class QueueService {
 
   /**
    * Get booked slots for a clinic on a specific date
-   * Returns array of appointment IDs and start times for active appointments
+   * Returns array of appointment IDs and scheduled times for active appointments
    */
-  async getClinicBookedSlots(clinicId: string, date: string): Promise<Array<{ id: string; startTime: string }>> {
+  async getClinicBookedSlots(clinicId: string, date: string): Promise<Array<{ id: string; scheduledTime: string }>> {
     try {
       logger.debug('Fetching clinic booked slots', { clinicId, date });
       return await this.repository.getClinicBookedSlots(clinicId, date);
@@ -200,7 +200,6 @@ export class QueueService {
     }
 
     // Set checked_in_at when staff calls "Call Next" (patient enters consultation room)
-    // This replaces actual_start_time for simplicity
     // Use latestEntry instead of nextPatient to ensure we're working with fresh data
     const now = new Date().toISOString();
     const updatedEntry = await this.repository.updateQueueEntry(latestEntry.id, {
@@ -280,7 +279,7 @@ export class QueueService {
       markedAbsentAt: new Date().toISOString(),
     });
 
-    await this.repository.createAbsentPatient(entry.id, entry.clinicId, entry.patientId, dto.performedBy, dto.reason, entry.isGuest, entry.guestPatientId);
+    await this.repository.createAbsentPatient(entry.id, entry.clinicId, entry.patientId, dto.performedBy, dto.reason);
     await this.repository.createQueueOverride(entry.clinicId, entry.id, QueueActionType.MARK_ABSENT, dto.performedBy, dto.reason, entry.queuePosition, undefined);
 
     const gracePeriodEndsAt = new Date();
@@ -303,7 +302,7 @@ export class QueueService {
       throw new BusinessRuleError('Patient was not marked as absent or has already returned.');
     }
 
-    const newPosition = await this.repository.getNextQueuePosition(entry.clinicId, new Date(entry.startTime!));
+    const newPosition = await this.repository.getNextQueuePosition(entry.clinicId, entry.appointmentDate);
 
     const updatedEntry = await this.repository.updateQueueEntry(entry.id, {
       queuePosition: newPosition,
@@ -373,29 +372,18 @@ export class QueueService {
     logger.debug('Calculating wait time', {
       appointmentId,
       hasCheckedInAt: !!entry.checkedInAt,
-      hasScheduledTime: !!entry.startTime,
+      hasScheduledTime: !!entry.scheduledTime,
       checkedInAt: entry.checkedInAt?.toISOString(),
-      startTime: entry.startTime?.toISOString(),
+      scheduledTime: entry.scheduledTime,
     });
 
-    if (entry.checkedInAt && entry.startTime) {
+    const scheduledDateTime = this.getScheduledDateTime(entry);
+
+    if (entry.checkedInAt && scheduledDateTime) {
       // Wait time = time from scheduled start to actual entry (check-in)
-      const waitTimeMs = entry.checkedInAt.getTime() - entry.startTime.getTime();
-      actualWaitTime = Math.max(0, Math.round(waitTimeMs / 60000)); // Ensure non-negative
-      logger.info('Calculated wait time from scheduled start to check-in', { 
-        appointmentId, 
-        actualWaitTime,
-        waitTimeMs,
-        startTime: entry.startTime.toISOString(),
-        checkedInAt: entry.checkedInAt.toISOString()
-      });
-    } else if (entry.checkedInAt && entry.scheduledTime && entry.appointmentDate) {
-      // Fallback: scheduled time to check-in (for backward compatibility)
-      const dateStr = entry.appointmentDate.toISOString().split('T')[0];
-      const scheduledDateTime = new Date(`${dateStr}T${entry.scheduledTime}`);
       const waitTimeMs = entry.checkedInAt.getTime() - scheduledDateTime.getTime();
       actualWaitTime = Math.max(0, Math.round(waitTimeMs / 60000)); // Ensure non-negative
-      logger.info('Calculated wait time from scheduled time to check-in (fallback)', { 
+      logger.info('Calculated wait time from scheduled start to check-in', { 
         appointmentId, 
         actualWaitTime,
         waitTimeMs,
@@ -406,7 +394,6 @@ export class QueueService {
       logger.warn('Cannot calculate wait time - missing timing data', { 
         appointmentId,
         hasCheckedInAt: !!entry.checkedInAt,
-        hasStartTime: !!entry.startTime,
         hasScheduledTime: !!entry.scheduledTime,
         checkedInAt: entry.checkedInAt?.toISOString(),
       });
@@ -603,5 +590,17 @@ export class QueueService {
       // Return schedule without predictions on error
       return schedule;
     }
+  }
+
+  private getScheduledDateTime(entry: QueueEntry): Date | null {
+    if (!entry.scheduledTime) return null;
+
+    const dateStr = entry.appointmentDate.toISOString().split('T')[0];
+    const normalizedTime = entry.scheduledTime.length === 5
+      ? `${entry.scheduledTime}:00`
+      : entry.scheduledTime;
+
+    const scheduled = new Date(`${dateStr}T${normalizedTime}`);
+    return Number.isNaN(scheduled.getTime()) ? null : scheduled;
   }
 }
