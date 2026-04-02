@@ -27,3 +27,8 @@ dist-ssr
 .env
 server/.env
 nul
+
+# Local build/cache artifacts
+.turbo/
+supabase/.branches/
+supabase/.temp/
