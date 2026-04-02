@@ -3,7 +3,17 @@
  * Renders a time-based view of the schedule.
  */
 import { QueueEntry } from "@/services/queue";
-import { format } from 'date-fns';
+
+function formatScheduledTime(scheduledTime?: string): string {
+  if (!scheduledTime) return '';
+
+  const [hourPart, minutePart] = scheduledTime.split(':');
+  const hour = parseInt(hourPart, 10);
+  if (Number.isNaN(hour)) return scheduledTime;
+
+  const minutes = (minutePart || '00').padStart(2, '0');
+  return `${String(hour).padStart(2, '0')}:${minutes}`;
+}
 
 export function TimeGridQueueList({ patients }: { patients: QueueEntry[] }) {
   return (
@@ -13,7 +23,7 @@ export function TimeGridQueueList({ patients }: { patients: QueueEntry[] }) {
       <div className="mt-4 space-y-2 text-left">
         {patients.map(p => (
           <div key={p.id} className="bg-slate-100 p-2 rounded-md flex justify-between">
-            <span className="font-mono">{p.startTime ? format(new Date(p.startTime), 'HH:mm') : ''}</span>
+            <span className="font-mono">{formatScheduledTime(p.scheduledTime)}</span>
             <span>{p.patient?.fullName}</span>
             <span className="capitalize">{p.status}</span>
           </div>

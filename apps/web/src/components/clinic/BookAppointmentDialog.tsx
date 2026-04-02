@@ -176,10 +176,10 @@ export function BookAppointmentDialog({
       
       // Convert to HH:MM format for comparison
       const bookedTimes = bookedSlotsData
-        .filter(slot => slot.startTime)
         .map(slot => {
-          const slotDate = new Date(slot.startTime);
-          return `${String(slotDate.getHours()).padStart(2, "0")}:${String(slotDate.getMinutes()).padStart(2, "0")}`;
+          return slot.scheduledTime.length >= 5
+            ? slot.scheduledTime.slice(0, 5)
+            : slot.scheduledTime;
         });
       
       setBookedSlots(bookedTimes);
@@ -360,8 +360,6 @@ export function BookAppointmentDialog({
         clinicId,
         staffId: selectedStaffId,
         patientId: patientId!,
-        guestPatientId: null,
-        isGuest: false,
         appointmentType: appointmentType as any, // Type assertion since clinic can define custom types
         isWalkIn,
         startTime: startDateTime.toISOString(),

@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { QueueEntry, AppointmentStatus } from "@/services/queue";
 import { Clock, UserCheck, UserX, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +22,19 @@ interface OrdinalQueueListProps {
 }
 
 const getInitials = (name?: string) => !name ? "?" : name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
+const formatScheduledTime = (scheduledTime?: string) => {
+  if (!scheduledTime) return '';
+
+  const [hourPart, minutePart] = scheduledTime.split(':');
+  const hour = parseInt(hourPart, 10);
+  if (Number.isNaN(hour)) return scheduledTime;
+
+  const minutes = (minutePart || '00').padStart(2, '0');
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = ((hour + 11) % 12) + 1;
+  return `${hour12}:${minutes} ${ampm}`;
+};
 
 export function OrdinalQueueList({
   patients,
@@ -116,7 +128,7 @@ export function OrdinalQueueList({
               </div>
               <p className="text-xs text-muted-foreground truncate">
                 {patient.appointmentType || 'Appointment'}
-                {patient.startTime && ` • ${format(new Date(patient.startTime), "h:mm a")}`}
+                {patient.scheduledTime && ` • ${formatScheduledTime(patient.scheduledTime)}`}
               </p>
             </div>
 

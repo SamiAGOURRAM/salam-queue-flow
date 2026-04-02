@@ -42,52 +42,48 @@ export function SlottedQueueView({
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
+  const getAppointmentWindow = (appointment: QueueEntry): { startTime: Date; endTime: Date } | null => {
+    if (!appointment.scheduledTime) return null;
+
+    const appointmentDate = appointment.appointmentDate instanceof Date
+      ? appointment.appointmentDate
+      : new Date(appointment.appointmentDate);
+    if (Number.isNaN(appointmentDate.getTime())) return null;
+
+    const dateStr = appointmentDate.toISOString().split('T')[0];
+    const normalizedTime = appointment.scheduledTime.length === 5
+      ? `${appointment.scheduledTime}:00`
+      : appointment.scheduledTime;
+    const startTime = new Date(`${dateStr}T${normalizedTime}`);
+    if (Number.isNaN(startTime.getTime())) return null;
+
+    const durationMinutes = appointment.estimatedDurationMinutes && appointment.estimatedDurationMinutes > 0
+      ? appointment.estimatedDurationMinutes
+      : 15;
+    const endTime = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
+
+    return { startTime, endTime };
+  };
+
   // Get today's appointments
   const todayAppointments = useMemo(() => {
     return schedule
       .filter(apt => {
-        if (!apt.startTime) return false;
-        const aptDate = new Date(apt.startTime);
+        const appointmentWindow = getAppointmentWindow(apt);
+        if (!appointmentWindow) return false;
+
+        const aptDate = appointmentWindow.startTime;
         return aptDate.getDate() === today.getDate() &&
                aptDate.getMonth() === today.getMonth() &&
                aptDate.getFullYear() === today.getFullYear() &&
                apt.skipReason !== SkipReason.PATIENT_ABSENT;
       })
       .sort((a, b) => {
-        const timeA = a.startTime ? new Date(a.startTime).getTime() : Infinity;
-        const timeB = b.startTime ? new Date(b.startTime).getTime() : Infinity;
+        const timeA = getAppointmentWindow(a)?.startTime.getTime() ?? Infinity;
+        const timeB = getAppointmentWindow(b)?.startTime.getTime() ?? Infinity;
         return timeA - timeB;
       });
   }, [schedule, today]);
-
-  // Generate time slots (every 30 minutes from 9am to 6pm)
-  const timeSlots = useMemo(() => {
-    const slots = [];
-    for (let hour = 9; hour <= 18; hour++) {
-      slots.push({ hour, minute: 0 });
-      if (hour < 18) {
-        slots.push({ hour, minute: 30 });
-      }
-    }
-    return slots;
-  }, []);
-
-  // Get appointment for a specific time slot
-  const getAppointmentAtSlot = (slotHour: number, slotMinute: number) => {
-    const slotTime = new Date(today);
-    slotTime.setHours(slotHour, slotMinute, 0, 0);
-    const slotEnd = new Date(slotTime);
-    slotEnd.setMinutes(slotEnd.getMinutes() + 30);
-
-    return todayAppointments.find(apt => {
-      if (!apt.startTime || !apt.endTime) return false;
-      const aptStart = new Date(apt.startTime);
-      const aptEnd = new Date(apt.endTime);
-      
-      // Check if appointment overlaps with this 30-minute slot
-      return aptStart < slotEnd && aptEnd > slotTime;
-    });
-  };
 
   // Get status config for appointment
   const getStatusConfig = (apt: QueueEntry) => {
@@ -137,7 +133,6 @@ export function SlottedQueueView({
   };
 
   const formatTime = (date: Date) => format(date, "h:mm a");
-  const formatTimeRange = (start: Date, end: Date) => `${formatTime(start)} - ${formatTime(end)}`;
   const getInitials = (name?: string) => !name ? "?" : name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
   // Create grid items: appointments and gaps
@@ -152,8 +147,8 @@ export function SlottedQueueView({
 
     // Sort appointments by start time
     const sortedAppts = [...todayAppointments].sort((a, b) => {
-      const timeA = a.startTime ? new Date(a.startTime).getTime() : Infinity;
-      const timeB = b.startTime ? new Date(b.startTime).getTime() : Infinity;
+      const timeA = getAppointmentWindow(a)?.startTime.getTime() ?? Infinity;
+      const timeB = getAppointmentWindow(b)?.startTime.getTime() ?? Infinity;
       return timeA - timeB;
     });
 
@@ -179,8 +174,9 @@ export function SlottedQueueView({
 
     // Gap before first appointment
     const firstAppt = sortedAppts[0];
-    if (firstAppt.startTime) {
-      const firstStart = new Date(firstAppt.startTime);
+    const firstWindow = getAppointmentWindow(firstAppt);
+    if (firstWindow) {
+      const firstStart = firstWindow.startTime;
       if (firstStart > workStart) {
         const gapMinutes = (firstStart.getTime() - workStart.getTime()) / (1000 * 60);
         items.push({
@@ -195,8 +191,9 @@ export function SlottedQueueView({
     // Appointments and gaps
     for (let i = 0; i < sortedAppts.length; i++) {
       const appointment = sortedAppts[i];
-      const startTime = appointment.startTime ? new Date(appointment.startTime) : null;
-      const endTime = appointment.endTime ? new Date(appointment.endTime) : null;
+      const appointmentWindow = getAppointmentWindow(appointment);
+      const startTime = appointmentWindow?.startTime || null;
+      const endTime = appointmentWindow?.endTime || null;
       
       if (startTime && endTime) {
         const durationMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60);
@@ -211,8 +208,9 @@ export function SlottedQueueView({
         // Gap after this appointment
         if (i < sortedAppts.length - 1) {
           const nextAppt = sortedAppts[i + 1];
-          if (nextAppt.startTime) {
-            const nextStart = new Date(nextAppt.startTime);
+          const nextWindow = getAppointmentWindow(nextAppt);
+          if (nextWindow) {
+            const nextStart = nextWindow.startTime;
             if (nextStart > endTime) {
               const gapMinutes = (nextStart.getTime() - endTime.getTime()) / (1000 * 60);
               items.push({
@@ -229,8 +227,9 @@ export function SlottedQueueView({
 
     // Gap after last appointment
     const lastAppt = sortedAppts[sortedAppts.length - 1];
-    if (lastAppt.endTime) {
-      const lastEnd = new Date(lastAppt.endTime);
+    const lastWindow = getAppointmentWindow(lastAppt);
+    if (lastWindow) {
+      const lastEnd = lastWindow.endTime;
       if (lastEnd < workEnd) {
         const gapMinutes = (workEnd.getTime() - lastEnd.getTime()) / (1000 * 60);
         items.push({
