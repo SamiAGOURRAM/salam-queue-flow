@@ -7,6 +7,7 @@
 import { PatientRepository } from './repositories/PatientRepository';
 import { logger } from '../shared/logging/Logger';
 import { NotFoundError, ValidationError, DatabaseError } from '../shared/errors';
+import { PatientSource } from './models/PatientModels';
 
 export interface PatientProfile {
   id: string;
@@ -25,7 +26,7 @@ export interface WalkInPatient {
   id: string;
   phoneNumber: string;
   fullName: string;
-  source: string;
+  source: PatientSource;
   isClaimed: boolean;
   claimedBy?: string;
   createdAt: Date;
@@ -163,7 +164,7 @@ export class PatientService {
         id: patient.id,
         phoneNumber: patient.phone_number,
         fullName: patient.full_name,
-        source: patient.source,
+        source: patient.source as PatientSource,
         isClaimed: patient.is_claimed,
         claimedBy: patient.claimed_by || undefined,
         createdAt: new Date(patient.created_at),

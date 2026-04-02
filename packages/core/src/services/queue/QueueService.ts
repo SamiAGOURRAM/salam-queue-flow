@@ -5,11 +5,11 @@
 import type { QueueRepository } from '../../repositories/queue/QueueRepository';
 import type { IEventBus, DomainEvent } from '../../ports/eventBus';
 import type { ILogger } from '../../ports/logger';
-import type { 
-  QueueEntry, 
-  DailyScheduleEntry, 
+import {
   AppointmentStatus,
-  CallNextPatientDTO 
+  type QueueEntry,
+  type DailyScheduleEntry,
+  type CallNextPatientDTO,
 } from '../../types';
 import { NotFoundError, BusinessRuleError } from '../../errors';
 
@@ -158,7 +158,7 @@ export class QueueService {
         throw new NotFoundError('Appointment', appointmentId);
       }
 
-      if (existing.status !== 'scheduled') {
+      if (existing.status !== AppointmentStatus.SCHEDULED) {
         throw new BusinessRuleError(
           `Cannot check in: appointment is ${existing.status}`,
           'INVALID_STATUS_FOR_CHECKIN'

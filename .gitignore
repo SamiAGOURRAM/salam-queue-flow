@@ -32,3 +32,6 @@ nul
 .turbo/
 supabase/.branches/
 supabase/.temp/
+
+# Local assistant settings
+.claude/settings.local.json

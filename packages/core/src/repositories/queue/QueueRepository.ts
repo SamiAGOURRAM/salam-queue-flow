@@ -5,11 +5,11 @@
 import { BaseRepository } from '../base/BaseRepository';
 import type { IDatabaseClient } from '../../ports/database';
 import type { ILogger } from '../../ports/logger';
-import type { 
-  QueueEntry, 
-  DailyScheduleEntry, 
+import {
   AppointmentStatus,
-  CallNextPatientDTO 
+  type QueueEntry,
+  type DailyScheduleEntry,
+  type CallNextPatientDTO,
 } from '../../types';
 
 export class QueueRepository extends BaseRepository {
@@ -176,8 +176,8 @@ export class QueueRepository extends BaseRepository {
       .from('appointments')
       .update({ 
         status,
-        ...(status === 'in_progress' ? { start_time: new Date().toISOString() } : {}),
-        ...(status === 'completed' ? { end_time: new Date().toISOString() } : {})
+        ...(status === AppointmentStatus.IN_PROGRESS ? { start_time: new Date().toISOString() } : {}),
+        ...(status === AppointmentStatus.COMPLETED ? { end_time: new Date().toISOString() } : {})
       })
       .eq('id', appointmentId)
       .select()
@@ -199,7 +199,7 @@ export class QueueRepository extends BaseRepository {
     const { error } = await client
       .from('appointments')
       .update({ 
-        status: 'cancelled' as AppointmentStatus,
+        status: AppointmentStatus.CANCELLED,
         notes: reason ? `Cancelled: ${reason}` : 'Cancelled'
       })
       .eq('id', appointmentId);

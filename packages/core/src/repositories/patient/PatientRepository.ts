@@ -5,7 +5,7 @@
 import { BaseRepository } from '../base/BaseRepository';
 import type { IDatabaseClient } from '../../ports/database';
 import type { ILogger } from '../../ports/logger';
-import type { Patient, PatientProfile, QueueEntry } from '../../types';
+import { AppointmentStatus, type Patient, type PatientProfile, type QueueEntry } from '../../types';
 
 export class PatientRepository extends BaseRepository {
   constructor(db: IDatabaseClient, logger: ILogger) {
@@ -144,7 +144,7 @@ export class PatientRepository extends BaseRepository {
     const today = new Date().toISOString().split('T')[0];
     return this.getAppointments(patientId, {
       fromDate: today,
-      status: 'scheduled',
+      status: AppointmentStatus.SCHEDULED,
       limit
     });
   }

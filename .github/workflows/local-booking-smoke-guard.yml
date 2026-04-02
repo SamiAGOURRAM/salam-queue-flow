@@ -1,0 +1,72 @@
+name: Local Booking Smoke Guard
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  local-booking-smoke-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Detect local smoke prerequisites
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "can_run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=docker_not_installed" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! docker info >/dev/null 2>&1; then
+            echo "can_run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=docker_daemon_unavailable" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! docker ps --format '{{.Names}}' | grep -q '^supabase_db_'; then
+            echo "can_run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=supabase_local_stack_not_running" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "can_run=true" >> "$GITHUB_OUTPUT"
+          echo "reason=ready" >> "$GITHUB_OUTPUT"
+
+      - name: Skip summary
+        if: steps.detect.outputs.can_run != 'true'
+        run: |
+          echo "Skipping local smoke guard: ${{ steps.detect.outputs.reason }}"
+
+      - name: Checkout repository
+        if: steps.detect.outputs.can_run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        if: steps.detect.outputs.can_run == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Setup Node.js
+        if: steps.detect.outputs.can_run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        if: steps.detect.outputs.can_run == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Run local web booking smoke test
+        if: steps.detect.outputs.can_run == 'true'
+        run: pnpm run test:smoke:web-booking-local

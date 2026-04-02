@@ -55,7 +55,7 @@ export class WaitlistRepository {
         .select('*')
         .eq('clinic_id', clinicId)
         .eq('requested_date', date.toISOString().split('T')[0])
-        .eq('status', 'waiting')
+        .eq('status', WaitlistStatus.WAITING)
         .order('priority_score', { ascending: false })
         .order('created_at', { ascending: true });
 

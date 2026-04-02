@@ -47,13 +47,15 @@ export interface AppointmentAvailability {
 // ============================================================================
 export type QueueMode = 'fluid' | 'slotted' | null;
 
-export type AppointmentStatus = 
-  | 'scheduled' 
-  | 'checked_in' 
-  | 'in_progress' 
-  | 'completed' 
-  | 'cancelled' 
-  | 'no_show';
+export enum AppointmentStatus {
+  SCHEDULED = 'scheduled',
+  WAITING = 'waiting',
+  IN_PROGRESS = 'in_progress',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled',
+  NO_SHOW = 'no_show',
+  RESCHEDULED = 'rescheduled',
+}
 
 export interface QueueEntry {
   id: string;

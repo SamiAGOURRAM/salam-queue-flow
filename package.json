@@ -13,6 +13,7 @@
     "build:mcp": "turbo run build --filter=@queuemed/mcp-server",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "test:smoke:web-booking-local": "pnpm -C apps/web run test:smoke:booking-local",
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean && rimraf node_modules"
   },
