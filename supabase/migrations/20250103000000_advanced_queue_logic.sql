@@ -113,7 +113,7 @@ ALTER TABLE public.appointments
 -- Add index for priority-based queries
 CREATE INDEX IF NOT EXISTS idx_appointments_priority 
   ON public.appointments(clinic_id, appointment_date, priority_score DESC) 
-  WHERE status IN ('scheduled', 'waiting', 'checked_in');
+  WHERE status IN ('scheduled', 'waiting');
 
 -- =====================================================
 -- 5. COMMENTS FOR DOCUMENTATION
@@ -122,8 +122,7 @@ CREATE INDEX IF NOT EXISTS idx_appointments_priority
 COMMENT ON TABLE public.waitlist IS 
   'Remote waiting list for patients requesting appointments when clinic is full';
 
-COMMENT ON COLUMN public.waitlist.requested_time_range IS 
-  'Optional time preference as a range (e.g., ''10:00-14:00'')';
+-- Note: requested_time_range was split into requested_time_range_start/end in earlier migration
 
 COMMENT ON COLUMN public.queue_overrides.metadata IS 
   'Flexible JSONB field for action-specific data (e.g., swap details, priority reason)';

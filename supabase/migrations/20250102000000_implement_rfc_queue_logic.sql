@@ -27,19 +27,14 @@ CREATE TABLE IF NOT EXISTS waitlist (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     clinic_id UUID NOT NULL REFERENCES clinics(id) ON DELETE CASCADE,
     patient_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
-    guest_patient_id UUID REFERENCES guest_patients(id) ON DELETE SET NULL,
     requested_date DATE NOT NULL,
-    requested_time_range_start TIME, 
-    requested_time_range_end TIME,   
+    requested_time_range_start TIME,
+    requested_time_range_end TIME,
     priority_score INT DEFAULT 0,
     status TEXT DEFAULT 'waiting' CHECK (status IN ('waiting', 'notified', 'promoted', 'expired', 'cancelled')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    notes TEXT,
-    CONSTRAINT check_waitlist_patient CHECK (
-        (patient_id IS NOT NULL AND guest_patient_id IS NULL) OR 
-        (patient_id IS NULL AND guest_patient_id IS NOT NULL)
-    )
+    notes TEXT
 );
 
 -- Indexes
@@ -93,16 +88,7 @@ SET settings = jsonb_set(
 )
 WHERE settings ? 'daily_queue_modes';
 
--- Migrate 'operating_mode' column if it exists (converting to queue_mode)
--- Only update queue_mode if it hasn't been manually set yet (still default)
-UPDATE clinics
-SET queue_mode = CASE 
-    WHEN operating_mode::text = 'time_grid_fixed' THEN 'fixed'
-    WHEN operating_mode::text = 'ordinal_queue' THEN 'fluid'
-    ELSE 'fluid'
-END
-WHERE queue_mode IS NOT DISTINCT FROM 'fluid' -- Only if still default
-  AND operating_mode IS NOT NULL;
+-- Note: operating_mode column migration removed (column does not exist in base schema)
 
 
 -- ============================================================================
@@ -111,7 +97,7 @@ WHERE queue_mode IS NOT DISTINCT FROM 'fluid' -- Only if still default
 
 -- Helper: Calculate Priority Score
 CREATE OR REPLACE FUNCTION calculate_priority_score(
-    p_appointment_type TEXT,
+    p_appointment_type public.appointment_type,
     p_is_walk_in BOOLEAN,
     p_is_emergency BOOLEAN DEFAULT FALSE
 ) RETURNS INT AS $$
@@ -194,7 +180,7 @@ BEGIN
            CASE WHEN v_mode = 'fixed' THEN 0 ELSE priority_score END DESC, -- Fluid: High Score First
            
            -- Secondary Sort: Time
-           COALESCE(start_time::time, '00:00:00'::time) ASC,
+           COALESCE(scheduled_time::time, '00:00:00'::time) ASC,
            
            -- Tertiary Sort: Creation Time (FIFO)
            created_at ASC

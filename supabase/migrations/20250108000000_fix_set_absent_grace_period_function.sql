@@ -14,8 +14,9 @@ DECLARE
 BEGIN
   -- Only set grace period if marked_absent_at is being set
   IF NEW.marked_absent_at IS NOT NULL THEN
-    -- Get start_time from the related appointments table
-    SELECT start_time INTO v_appointment_start_time
+    -- Get scheduled_time from the related appointments table
+    SELECT (appointment_date || ' ' || COALESCE(scheduled_time, '00:00'))::timestamp with time zone
+    INTO v_appointment_start_time
     FROM appointments
     WHERE id = NEW.appointment_id;
     

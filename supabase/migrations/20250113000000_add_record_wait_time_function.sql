@@ -19,7 +19,7 @@ DECLARE
   v_prediction_error integer;
   v_absolute_error integer;
   v_checked_in_at timestamp with time zone;
-  v_start_time timestamp with time zone;
+  v_scheduled_time text;
 BEGIN
   -- Get appointment details
   SELECT 
@@ -27,13 +27,13 @@ BEGIN
     predicted_wait_time,
     queue_position,
     checked_in_at,
-    start_time
-  INTO 
+    scheduled_time
+  INTO
     v_clinic_id,
     v_predicted_wait_time,
     v_queue_position,
     v_checked_in_at,
-    v_start_time
+    v_scheduled_time
   FROM appointments
   WHERE id = p_appointment_id;
 
@@ -88,7 +88,7 @@ BEGIN
       v_clinic_id,
       jsonb_build_object(
         'checked_in_at', v_checked_in_at,
-        'start_time', v_start_time,
+        'scheduled_time', v_scheduled_time,
         'queue_position', v_queue_position
       ),
       p_actual_wait_time,
