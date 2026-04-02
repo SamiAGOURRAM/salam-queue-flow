@@ -7,6 +7,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { DatabaseError } from '../../shared/errors';
 import { logger } from '../../shared/logging/Logger';
+import { PatientSource, ConsentGivenBy } from '../models/PatientModels';
 
 export interface PatientProfileRow {
   id: string;
@@ -96,7 +97,7 @@ export class PatientRepository {
         id: row.id as string,
         phone_number: phoneNumber,
         full_name: row.full_name as string,
-        source: (row.source as string) ?? 'walk_in',
+        source: (row.source as string) ?? PatientSource.WALK_IN,
         is_claimed: false,
         claimed_by: null,
         created_at: new Date().toISOString(),
@@ -118,12 +119,12 @@ export class PatientRepository {
         p_full_name: fullName,
         p_phone_number: phoneNumber,
         p_email: null,
-        p_source: 'walk_in',
+        p_source: PatientSource.WALK_IN,
         p_user_id: null,
         p_created_by: null,
         p_consent_sms: false,
         p_consent_data_processing: true,
-        p_consent_given_by: 'patient_verbal',
+        p_consent_given_by: ConsentGivenBy.PATIENT_VERBAL,
       });
 
       if (error || !data) {
@@ -135,7 +136,7 @@ export class PatientRepository {
         id: data as string,
         phone_number: phoneNumber,
         full_name: fullName,
-        source: 'walk_in',
+        source: PatientSource.WALK_IN,
         is_claimed: false,
         claimed_by: null,
         created_at: new Date().toISOString(),
@@ -221,7 +222,7 @@ export class PatientRepository {
         throw new DatabaseError('Walk-in patient not found', error);
       }
 
-      if ((row.source as string | undefined) === 'app') {
+      if ((row.source as string | undefined) === PatientSource.APP) {
         logger.error('Requested patient is not a walk-in record', undefined, { patientId });
         throw new DatabaseError('Walk-in patient not found', null);
       }
@@ -230,7 +231,7 @@ export class PatientRepository {
         id: row.id as string,
         phone_number: row.phone_number as string,
         full_name: row.full_name as string,
-        source: (row.source as string) ?? 'walk_in',
+        source: (row.source as string) ?? PatientSource.WALK_IN,
         is_claimed: (row.is_claimed as boolean) ?? false,
         claimed_by: row.user_id as string | null,
         created_at: row.created_at as string,

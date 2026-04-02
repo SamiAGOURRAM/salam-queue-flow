@@ -18,6 +18,7 @@ import {
   AppointmentStatus,
   AppointmentType,
   QueueActionType,
+  QueueMode,
   SkipReason,
   type QueueEntry,
   type CreateQueueEntryDTO,
@@ -69,7 +70,7 @@ describe('QueueService', () => {
       ];
 
       mockRepository.getDailySchedule = vi.fn().mockResolvedValue({
-        queue_mode: 'slotted',
+        queue_mode: QueueMode.SLOTTED,
         schedule: mockSchedule,
       });
       mockRepository.getClinicEstimationConfigByStaffId = vi.fn().mockResolvedValue({
@@ -78,7 +79,7 @@ describe('QueueService', () => {
 
       const result = await service.getDailySchedule(staffId, targetDate);
 
-      expect(result.queue_mode).toBe('slotted');
+      expect(result.queue_mode).toBe(QueueMode.SLOTTED);
       expect(result.schedule).toHaveLength(2);
       expect(mockRepository.getDailySchedule).toHaveBeenCalledWith(staffId, targetDate);
       expect(logger.debug).toHaveBeenCalled();
@@ -276,7 +277,7 @@ describe('QueueService', () => {
       });
 
       mockRepository.getDailySchedule = vi.fn().mockResolvedValue({
-        queue_mode: 'slotted',
+        queue_mode: QueueMode.SLOTTED,
         schedule: [waitingPatient],
       });
       mockRepository.getQueueEntryById = vi.fn().mockResolvedValue(waitingPatient);
@@ -308,7 +309,7 @@ describe('QueueService', () => {
       };
 
       mockRepository.getDailySchedule = vi.fn().mockResolvedValue({
-        queue_mode: 'slotted',
+        queue_mode: QueueMode.SLOTTED,
         schedule: [],
       });
       mockRepository.getClinicEstimationConfigByStaffId = vi.fn().mockResolvedValue({

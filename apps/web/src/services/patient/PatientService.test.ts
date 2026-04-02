@@ -8,6 +8,7 @@ import { PatientService } from './PatientService';
 import { PatientRepository } from './repositories/PatientRepository';
 import { logger } from '../shared/logging/Logger';
 import { NotFoundError, DatabaseError } from '../shared/errors';
+import { PatientSource } from './models/PatientModels';
 import { createMockPatientProfile } from '../../test/utils/testHelpers';
 
 // Mock dependencies
@@ -64,7 +65,7 @@ describe('PatientService', () => {
         id: 'walkin-123',
         phone_number: phoneNumber,
         full_name: fullName,
-        source: 'walk_in',
+        source: PatientSource.WALK_IN,
         is_claimed: false,
         claimed_by: null,
         created_at: new Date().toISOString(),
@@ -88,7 +89,7 @@ describe('PatientService', () => {
         id: 'walkin-new',
         phone_number: phoneNumber,
         full_name: fullName,
-        source: 'walk_in',
+        source: PatientSource.WALK_IN,
         is_claimed: false,
         claimed_by: null,
         created_at: new Date().toISOString(),
@@ -237,7 +238,7 @@ describe('PatientService', () => {
         id: patientId,
         phone_number: '+212612345678',
         full_name: 'Walk-In Patient',
-        source: 'walk_in',
+        source: PatientSource.WALK_IN,
         is_claimed: true,
         claimed_by: 'user-123',
         created_at: new Date().toISOString(),
@@ -271,7 +272,7 @@ describe('PatientService', () => {
         id: patientId,
         phone_number: '+212612345678',
         full_name: 'Walk-In Patient',
-        source: 'walk_in',
+        source: PatientSource.WALK_IN,
         is_claimed: false,
         claimed_by: null,
         created_at: new Date().toISOString(),

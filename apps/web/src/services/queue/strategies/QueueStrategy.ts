@@ -17,7 +17,7 @@
  * 3. Walk-in (if available)
  */
 
-import { QueueEntry, QueueMode } from '../models/QueueModels';
+import { QueueEntry, QueueMode, AppointmentStatus, WaitlistStatus } from '../models/QueueModels';
 
 export interface IQueueStrategy {
   /**
@@ -59,7 +59,7 @@ export interface WaitlistEntry {
   patientId?: string;
   requestedDate: Date;
   priorityScore: number;
-  status: 'waiting' | 'notified' | 'promoted' | 'expired' | 'cancelled';
+  status: WaitlistStatus;
   createdAt: Date;
 }
 
@@ -110,7 +110,7 @@ export class SlottedQueueStrategy implements IQueueStrategy {
     // PRIORITY 2: Find first scheduled patient who IS present
     // Check sequentially: 11:00 → 11:15 → 11:30 → etc.
     const scheduledPatients = schedule
-      .filter(p => p.status === 'waiting' && !p.skipReason)
+      .filter(p => p.status === AppointmentStatus.WAITING && !p.skipReason)
       .sort((a, b) => {
         const timeA = this.getScheduledTimestamp(a);
         const timeB = this.getScheduledTimestamp(b);
@@ -144,7 +144,7 @@ export class SlottedQueueStrategy implements IQueueStrategy {
     const now = currentTime.getTime();
     
     for (const appointment of schedule) {
-      if (appointment.status === 'waiting' && !appointment.isPresent) {
+      if (appointment.status === AppointmentStatus.WAITING && !appointment.isPresent) {
         const slotTime = this.getScheduledTimestamp(appointment);
         // Slot is available if it's at or before current time and patient is not present
         if (slotTime <= now) {
@@ -191,7 +191,7 @@ export class FluidQueueStrategy implements IQueueStrategy {
     waitlist?: WaitlistEntry[]
   ): Promise<NextPatientResult | null> {
     const candidates = schedule.filter(
-      (p) => p.status === 'waiting' && p.isPresent && !p.skipReason
+      (p) => p.status === AppointmentStatus.WAITING && p.isPresent && !p.skipReason
     );
 
     if (candidates.length === 0) return null;
@@ -238,11 +238,11 @@ export class QueueStrategyFactory {
     if (mode === 'fixed' || mode === 'hybrid') {
       return new SlottedQueueStrategy();
     }
-    
+
     switch (mode) {
-      case 'slotted':
+      case QueueMode.SLOTTED:
         return new SlottedQueueStrategy();
-      case 'fluid':
+      case QueueMode.FLUID:
         return new FluidQueueStrategy();
       default:
         // Default to Fluid for backward compatibility

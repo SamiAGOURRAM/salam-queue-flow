@@ -5,6 +5,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { logger } from '../shared/logging/Logger';
+import { AppointmentStatus } from './models/QueueModels';
 
 export interface QueueSnapshot {
   clinicId: string;
@@ -38,19 +39,19 @@ export class QueueSnapshotService {
         .select('status, queue_position')
         .eq('clinic_id', clinicId)
         .eq('appointment_date', dateStr)
-        .in('status', ['scheduled', 'waiting', 'in_progress', 'completed']);
+        .in('status', [AppointmentStatus.SCHEDULED, AppointmentStatus.WAITING, AppointmentStatus.IN_PROGRESS, AppointmentStatus.COMPLETED]);
 
       if (appointmentsError) {
         logger.error('Failed to fetch appointments for snapshot', appointmentsError, { clinicId });
         return null;
       }
 
-      const waiting = appointments?.filter(a => 
-        a.status === 'waiting' || a.status === 'scheduled'
+      const waiting = appointments?.filter(a =>
+        a.status === AppointmentStatus.WAITING || a.status === AppointmentStatus.SCHEDULED
       ).length || 0;
-      
-      const inProgress = appointments?.filter(a => a.status === 'in_progress').length || 0;
-      const completed = appointments?.filter(a => a.status === 'completed').length || 0;
+
+      const inProgress = appointments?.filter(a => a.status === AppointmentStatus.IN_PROGRESS).length || 0;
+      const completed = appointments?.filter(a => a.status === AppointmentStatus.COMPLETED).length || 0;
 
       // Get active staff count
       const { count: activeStaffCount, error: staffError } = await supabase

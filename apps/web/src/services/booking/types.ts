@@ -1,15 +1,17 @@
+import { QueueMode } from '../queue/models/QueueModels';
+
 export interface BookingSlot {
     time: string;
     available: boolean;
   }
-  
+
   export interface AvailableSlotsResponse {
     available: boolean;
     reason?: string;
     slots: BookingSlot[];
     duration?: number;
     bufferTime?: number;
-    mode?: 'fluid' | 'slotted' | null;  // ← Clean Standard: Queue mode indicator
+    mode?: QueueMode | null;
   }
   
   export interface BookingRequest {
@@ -35,10 +37,8 @@ export interface BookingSlot {
     capacity: number;
   }
 
-  /**
- * Queue mode type definition (Clean Standard)
- */
-export type QueueMode = 'fluid' | 'slotted' | null;
+// QueueMode is re-exported from the canonical source for backward compatibility
+export { QueueMode } from '../queue/models/QueueModels';
 
 /**
  * Manual assignment response (for staff assigning time to free queue patients)

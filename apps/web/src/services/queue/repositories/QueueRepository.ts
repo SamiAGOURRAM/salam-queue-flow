@@ -19,6 +19,7 @@ import {
   UpdateQueueEntryDTO,
   ClinicEstimationConfig,
   EstimationMode,
+  QueueMode,
   WaitTimePredictionRecord,
   WaitTimeFeatureSnapshot,
   WaitTimeFeatureSnapshotInput,
@@ -297,7 +298,7 @@ export class QueueRepository {
         mlModelVersion,
         mlEndpointUrl,
         rawSettings: settings,
-        queueMode: (clinicData.queue_mode as 'slotted' | 'fluid' | null) ?? undefined,
+        queueMode: (clinicData.queue_mode as QueueMode | null) ?? undefined,
         allowOverflow: clinicData.allow_overflow ?? undefined,
         dailyCapacityLimit: clinicData.daily_capacity_limit ?? undefined,
         // Map new overrides
@@ -1365,7 +1366,7 @@ export class QueueRepository {
     const response = data as ClinicScheduleResponse;
 
     const mode = response.queue_mode;
-    if (mode !== 'slotted' && mode !== 'fluid') {
+    if (mode !== QueueMode.SLOTTED && mode !== QueueMode.FLUID) {
       throw new DatabaseError(`Invalid queue_mode in schedule RPC payload: ${String(mode)}`);
     }
 

@@ -1,7 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { DatabaseError } from '../../shared/errors';
 import { logger } from '../../shared/logging/Logger';
-import { WaitlistEntry } from '../models/QueueModels';
+import { WaitlistEntry, WaitlistStatus } from '../models/QueueModels';
 
 export class WaitlistRepository {
   /**
@@ -25,7 +25,7 @@ export class WaitlistRepository {
           patient_id: patientId || null,
           priority_score: priorityScore,
           notes: notes,
-          status: 'waiting'
+          status: WaitlistStatus.WAITING
         })
         .select()
         .single();

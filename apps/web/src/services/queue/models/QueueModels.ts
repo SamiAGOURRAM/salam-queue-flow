@@ -47,7 +47,18 @@ export enum QueueActionType {
   PRIORITY_BOOST = 'priority_boost',
 }
 
-export type QueueMode = 'slotted' | 'fluid';
+export enum QueueMode {
+  SLOTTED = 'slotted',
+  FLUID = 'fluid',
+}
+
+export enum WaitlistStatus {
+  WAITING = 'waiting',
+  NOTIFIED = 'notified',
+  PROMOTED = 'promoted',
+  EXPIRED = 'expired',
+  CANCELLED = 'cancelled',
+}
 
 // ============================================
 // DOMAIN ENTITIES
@@ -119,7 +130,7 @@ export interface WaitlistEntry {
   requestedTimeRangeStart?: string;
   requestedTimeRangeEnd?: string;
   priorityScore: number;
-  status: 'waiting' | 'notified' | 'promoted' | 'expired' | 'cancelled';
+  status: WaitlistStatus;
   createdAt: Date;
   updatedAt: Date;
   notes?: string;

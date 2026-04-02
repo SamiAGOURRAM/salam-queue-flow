@@ -8,6 +8,7 @@ import { ClinicService, type Clinic, type ClinicSettings } from './ClinicService
 import { ClinicRepository } from './repositories/ClinicRepository';
 import { logger } from '../shared/logging/Logger';
 import { NotFoundError, DatabaseError } from '../shared/errors';
+import { QueueMode } from '../queue/models/QueueModels';
 
 // Mock dependencies
 vi.mock('../shared/logging/Logger');
@@ -46,7 +47,7 @@ describe('ClinicService', () => {
         settings: { bufferTime: 15 },
         subscription_tier: 'premium',
         is_active: true,
-        queue_mode: 'slotted',
+        queue_mode: QueueMode.SLOTTED,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -58,7 +59,7 @@ describe('ClinicService', () => {
       expect(result.id).toBe(clinicId);
       expect(result.name).toBe('Test Clinic');
       expect(result.nameAr).toBe('عيادة تجريبية');
-      expect(result.queueMode).toBe('slotted');
+      expect(result.queueMode).toBe(QueueMode.SLOTTED);
       expect(mockRepository.getClinic).toHaveBeenCalledWith(clinicId);
     });
 
@@ -90,7 +91,7 @@ describe('ClinicService', () => {
         settings: {},
         subscription_tier: 'basic',
         is_active: true,
-        queue_mode: 'fluid',
+        queue_mode: QueueMode.FLUID,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -219,7 +220,7 @@ describe('ClinicService', () => {
         settings: {},
         subscription_tier: 'basic',
         is_active: true,
-        queue_mode: 'slotted',
+        queue_mode: QueueMode.SLOTTED,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };

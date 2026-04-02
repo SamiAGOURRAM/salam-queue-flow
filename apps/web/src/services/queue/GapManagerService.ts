@@ -2,7 +2,7 @@ import { QueueRepository } from './repositories/QueueRepository';
 import { WaitlistService } from './WaitlistService';
 import { QueueService } from './QueueService';
 import { logger } from '../shared/logging/Logger';
-import { Disruption, QueueEntry } from './models/QueueModels';
+import { AppointmentStatus, Disruption, QueueEntry } from './models/QueueModels';
 
 /**
  * Gap Manager Service
@@ -32,7 +32,7 @@ export class GapManagerService {
     const todaysSchedule = await this.queueRepository.getDailySchedule(staffId, gapStartTime.toISOString().split('T')[0]);
     
     const earlyBirds = todaysSchedule.schedule.filter(appt => 
-      appt.status === 'waiting' && 
+      appt.status === AppointmentStatus.WAITING &&
       appt.isPresent && 
       this.getScheduledDateTime(appt) !== null &&
       this.getScheduledDateTime(appt)! > gapStartTime // Scheduled for later
