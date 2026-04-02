@@ -26,7 +26,7 @@ export class BookingRepository {
       throw new Error('Failed to check appointment availability');
     }
 
-    return data as AppointmentAvailability;
+    return data as unknown as AppointmentAvailability;
   }
 
   /**
@@ -48,7 +48,7 @@ export class BookingRepository {
       throw new Error('Failed to fetch available time slots');
     }
 
-    return data as AvailableSlotsResponse;
+    return data as unknown as AvailableSlotsResponse;
   }
 
   /**
@@ -69,7 +69,7 @@ export class BookingRepository {
       throw error;
     }
 
-    return data as BookingResponse;
+    return data as unknown as BookingResponse;
   }
 
   /**
@@ -91,43 +91,35 @@ export class BookingRepository {
    */
   async getAppointmentTypes(clinicId: string) {
     try {
-      // First check if the table exists and try to get custom types
-      const { data: customTypes, error } = await supabase
-        .from('clinic_appointment_types' as any) // Type assertion to bypass type checking
-        .select('name, label, duration')
-        .eq('clinic_id', clinicId)
-        .eq('is_active', true);
+      const { data: clinic, error } = await supabase
+        .from('clinics')
+        .select('settings')
+        .eq('id', clinicId)
+        .single();
 
-      // If we get a 404 or no data, use clinic settings or defaults
-      if (error?.code === 'PGRST116' || error?.message?.includes('404') || !customTypes?.length) {
-        // Try to get from clinic settings
-        const { data: clinic } = await supabase
-          .from('clinics')
-          .select('settings')
-          .eq('id', clinicId)
-          .single();
-
-        if (clinic?.settings?.appointment_types) {
-          return clinic.settings.appointment_types;
-        }
-
-        // Return default types
-        return [
-          { name: 'consultation', label: 'Consultation', duration: 15 },
-          { name: 'follow_up', label: 'Follow-up', duration: 10 },
-          { name: 'checkup', label: 'Checkup', duration: 15 },
-          { name: 'procedure', label: 'Procedure', duration: 30 }
-        ];
+      if (error) {
+        throw error;
       }
 
-      return customTypes;
+      const settings = clinic?.settings;
+      if (settings && typeof settings === 'object' && !Array.isArray(settings)) {
+        const appointmentTypes = (settings as Record<string, unknown>).appointment_types;
+        if (Array.isArray(appointmentTypes)) {
+          return appointmentTypes;
+        }
+      }
+
+      return [
+        { name: 'consultation', label: 'Consultation', duration: 15 },
+        { name: 'follow_up', label: 'Follow-up', duration: 10 },
+        { name: 'procedure', label: 'Procedure', duration: 30 },
+      ];
     } catch (error) {
       console.warn('Failed to fetch appointment types, using defaults', error);
       // Return default types on any error
       return [
         { name: 'consultation', label: 'Consultation', duration: 15 },
         { name: 'follow_up', label: 'Follow-up', duration: 10 },
-        { name: 'checkup', label: 'Checkup', duration: 15 },
         { name: 'procedure', label: 'Procedure', duration: 30 }
       ];
     }
@@ -233,8 +225,13 @@ export class BookingRepository {
       throw new Error('Failed to fetch available time slots');
     }
 
+    const responsePayload =
+      data && typeof data === 'object' && !Array.isArray(data)
+        ? (data as Record<string, unknown>)
+        : {};
+
     return {
-      ...data,
+      ...responsePayload,
       mode: mode || 'slotted' // Use the detected mode (slotted)
     } as AvailableSlotsResponse;
   }
@@ -267,10 +264,15 @@ export class BookingRepository {
       throw error;
     }
 
+    const responsePayload =
+      data && typeof data === 'object' && !Array.isArray(data)
+        ? (data as Record<string, unknown>)
+        : {};
+
     return {
       success: true,
-      appointmentId: data?.appointment_id,
-      queuePosition: data?.queue_position
+      appointmentId: responsePayload.appointment_id as string | undefined,
+      queuePosition: responsePayload.queue_position as number | undefined
     };
   }
 

@@ -11,12 +11,11 @@ export class WaitlistRepository {
     clinicId: string,
     date: Date,
     patientId?: string,
-    guestPatientId?: string,
     priorityScore: number = 0,
     notes?: string
   ): Promise<WaitlistEntry> {
     try {
-      logger.debug('Adding to waitlist', { clinicId, date, patientId, guestPatientId });
+      logger.debug('Adding to waitlist', { clinicId, date, patientId });
 
       const { data, error } = await supabase
         .from('waitlist')
@@ -24,7 +23,6 @@ export class WaitlistRepository {
           clinic_id: clinicId,
           requested_date: date.toISOString().split('T')[0],
           patient_id: patientId || null,
-          guest_patient_id: guestPatientId || null,
           priority_score: priorityScore,
           notes: notes,
           status: 'waiting'
@@ -99,8 +97,7 @@ export class WaitlistRepository {
     return {
       id: row.id,
       clinicId: row.clinic_id,
-      patientId: row.patient_id,
-      guestPatientId: row.guest_patient_id,
+      patientId: row.patient_id || undefined,
       requestedDate: new Date(row.requested_date),
       requestedTimeRangeStart: row.requested_time_range_start,
       requestedTimeRangeEnd: row.requested_time_range_end,

@@ -18,7 +18,6 @@ import {
   AlertCircle
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { format } from "date-fns";
 import { logger } from "@/services/shared/logging/Logger";
 import { cn } from "@/lib/utils";
 
@@ -34,12 +33,6 @@ interface QueueInfo {
   checked_in_at: string | null;
 }
 
-type QueueInfoRecord = Omit<QueueInfo, "clinic_name"> & {
-  clinics: {
-    name: string;
-  } | null;
-};
-
 export default function MyQueue() {
   const { appointmentId } = useParams();
   const { user, loading } = useAuth();
@@ -52,17 +45,19 @@ export default function MyQueue() {
 
   const fetchQueueInfo = useCallback(async () => {
     if (!appointmentId) return;
+
     try {
       const entry = await queueService.getQueueEntry(appointmentId);
+      const clinicInfo = (entry as unknown as { clinic?: { name?: string } }).clinic;
 
       setQueueInfo({
         id: entry.id,
-        clinic_name: entry.clinic?.name || 'Unknown Clinic',
+        clinic_name: clinicInfo?.name || 'Unknown Clinic',
         queue_position: entry.queuePosition || 0,
         predicted_start_time: entry.predictedStartTime?.toISOString() || null,
         predicted_wait_time: entry.estimatedWaitTime || null,
         status: entry.status,
-        scheduled_time: entry.startTime ? format(entry.startTime, 'HH:mm') : null,
+        scheduled_time: entry.scheduledTime || null,
         appointment_type: entry.appointmentType,
         checked_in_at: entry.checkedInAt?.toISOString() || null
       });
@@ -78,12 +73,12 @@ export default function MyQueue() {
     }
   }, [appointmentId]);
 
-  const checkDisruption = useCallback(async (appointmentId: string) => {
+  const checkDisruption = useCallback(async (targetAppointmentId: string) => {
     try {
-      const disruptionInfo = await disruptionDetector.checkDisruption(appointmentId);
+      const disruptionInfo = await disruptionDetector.checkDisruption(targetAppointmentId);
       setHasDisruption(disruptionInfo.hasDisruption);
     } catch (error) {
-      logger.error("Error checking disruption", error instanceof Error ? error : new Error(String(error)), { appointmentId });
+      logger.error("Error checking disruption", error instanceof Error ? error : new Error(String(error)), { appointmentId: targetAppointmentId });
       setHasDisruption(false);
     }
   }, [disruptionDetector]);

@@ -107,7 +107,27 @@ export default function StaffSignup() {
     try {
       // 1. Fetch invitation details to get clinic_id
       logger.debug("Fetching invitation with token", { invitationToken });
-      const { data: invitationData, error: inviteError } = await supabase
+      const invitationsDb = supabase as unknown as {
+        from: (table: string) => {
+          select: (columns: string) => {
+            eq: (column: string, value: string) => {
+              eq: (column: string, value: string) => {
+                single: () => Promise<{
+                  data: {
+                    id: string;
+                    clinic_id: string;
+                    status: string;
+                    expires_at: string;
+                  } | null;
+                  error: Error | null;
+                }>;
+              };
+            };
+          };
+        };
+      };
+
+      const { data: invitationData, error: inviteError } = await invitationsDb
         .from("staff_invitations")
         .select("id, clinic_id, status, expires_at")
         .eq("invitation_token", invitationToken)

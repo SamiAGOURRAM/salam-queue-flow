@@ -32,12 +32,12 @@ export class ManualOverridesService {
       const state1 = {
         queuePosition: appt1.queuePosition,
         priorityScore: appt1.priorityScore,
-        startTime: appt1.startTime,
+        scheduledTime: appt1.scheduledTime,
       };
       const state2 = {
         queuePosition: appt2.queuePosition,
         priorityScore: appt2.priorityScore,
-        startTime: appt2.startTime,
+        scheduledTime: appt2.scheduledTime,
       };
 
       // Perform Swap
@@ -46,13 +46,13 @@ export class ManualOverridesService {
       
       await this.repository.updateQueueEntry(appt1.id, {
         priorityScore: state2.priorityScore,
-        startTime: state2.startTime ? state2.startTime.toISOString() : undefined,
+        scheduledTime: state2.scheduledTime,
         // We don't manually set queuePosition because recalculate trigger will do it
       });
 
       await this.repository.updateQueueEntry(appt2.id, {
         priorityScore: state1.priorityScore,
-        startTime: state1.startTime ? state1.startTime.toISOString() : undefined,
+        scheduledTime: state1.scheduledTime,
       });
 
       // Log Overrides

@@ -23,9 +23,7 @@ export interface Clinic {
   settings: ClinicSettings;
   subscriptionTier: string;
   isActive: boolean;
-  operatingMode: string;
-  estimationMode: string;
-  mlEnabled: boolean;
+  queueMode?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -197,9 +195,7 @@ export class ClinicService {
       settings: (clinic.settings as ClinicSettings) || {},
       subscriptionTier: clinic.subscription_tier,
       isActive: clinic.is_active,
-      operatingMode: clinic.operating_mode,
-      estimationMode: clinic.estimation_mode,
-      mlEnabled: clinic.ml_enabled || false,
+      queueMode: clinic.queue_mode,
       createdAt: new Date(clinic.created_at),
       updatedAt: new Date(clinic.updated_at),
     };

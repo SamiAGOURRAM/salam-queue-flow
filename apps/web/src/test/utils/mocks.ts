@@ -20,14 +20,14 @@ export function createMockQueueRepository(): Partial<QueueRepository> {
     getQueueEntryById: vi.fn(),
     createQueueEntryViaRpc: vi.fn(),
     updateQueueEntry: vi.fn(),
-    markAbsent: vi.fn(),
-    markReturned: vi.fn(),
-    callNextPatient: vi.fn(),
-    recalculateQueuePositions: vi.fn(),
-    getClinicEstimationConfig: vi.fn(),
+    checkInPatient: vi.fn(),
+    createAbsentPatient: vi.fn(),
+    markPatientReturned: vi.fn(),
+    createQueueOverride: vi.fn(),
+    getNextQueuePosition: vi.fn(),
+    getClinicEstimationConfigByStaffId: vi.fn(),
     recordActualWaitTime: vi.fn(),
-    recordQueueSnapshot: vi.fn(),
-    getQueueSummary: vi.fn(),
+    recordWaitTimePredictions: vi.fn(),
   };
 }
 
@@ -41,7 +41,7 @@ export function createMockPatientRepository(): Partial<PatientRepository> {
     createGuestPatient: vi.fn(),
     getPatientProfile: vi.fn(),
     updatePatientProfile: vi.fn(),
-    getPatientHistory: vi.fn(),
+    getGuestPatient: vi.fn(),
   };
 }
 
@@ -50,10 +50,11 @@ export function createMockPatientRepository(): Partial<PatientRepository> {
  */
 export function createMockClinicRepository(): Partial<ClinicRepository> {
   return {
-    getClinicById: vi.fn(),
-    searchClinics: vi.fn(),
+    getClinic: vi.fn(),
+    getClinicByOwner: vi.fn(),
     getClinicSettings: vi.fn(),
     updateClinicSettings: vi.fn(),
+    updateClinic: vi.fn(),
   };
 }
 
@@ -63,11 +64,12 @@ export function createMockClinicRepository(): Partial<ClinicRepository> {
 export function createMockStaffRepository(): Partial<StaffRepository> {
   return {
     getStaffById: vi.fn(),
-    getStaffByUserId: vi.fn(),
+    getStaffByUser: vi.fn(),
     getStaffByClinic: vi.fn(),
-    createStaff: vi.fn(),
+    getStaffByClinicAndUser: vi.fn(),
+    addStaff: vi.fn(),
     updateStaff: vi.fn(),
-    deleteStaff: vi.fn(),
+    removeStaff: vi.fn(),
   };
 }
 

@@ -136,9 +136,9 @@ export function useAuth() {
                             error.message?.includes('Not Acceptable');
           
           if (is406Error) {
-            logger.error("RLS policy blocking user_roles access", { userId, error: error.message, errorCode: error.code });
+            logger.error("RLS policy blocking user_roles access", new Error(error.message), { userId, errorCode: error.code });
           } else {
-            logger.error("Error fetching user roles", { userId, error: error.message, errorCode: error.code, fullError: error });
+            logger.error("Error fetching user roles", new Error(error.message), { userId, errorCode: error.code, fullError: error });
           }
           
           // Cache empty result to prevent repeated failed fetches

@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import type { Database, Json } from '@/integrations/supabase/types';
 import { logger } from '../shared/logging/Logger';
 import { DatabaseError, ExternalServiceError, ValidationError } from '../shared/errors';
 import {
@@ -14,35 +15,10 @@ import {
   SendNotificationDTO,
 } from './models/NotificationModels';
 
-type NotificationInsertPayload = {
-  clinic_id: string;
-  patient_id: string;
-  appointment_id?: string | null;
-  channel: NotificationChannel;
-  type: NotificationType;
-  phone_number?: string | null;
-  email?: string | null;
-  message: string;
-  status: NotificationStatus;
-  metadata?: Record<string, unknown> | null;
-};
-
-type NotificationUpdatePayload = {
-  status?: NotificationStatus;
-  sent_at?: string | null;
-  delivered_at?: string | null;
-  failure_reason?: string | null;
-  metadata?: Record<string, unknown> | null;
-};
-
-type NotificationRow = NotificationInsertPayload & {
-  id: string;
-  sent_at?: string | null;
-  delivered_at?: string | null;
-  failure_reason?: string | null;
-  created_at: string;
-  updated_at: string;
-};
+type NotificationInsertPayload = Database['public']['Tables']['notifications']['Insert'];
+type NotificationUpdatePayload = Database['public']['Tables']['notifications']['Update'];
+type NotificationRow = Database['public']['Tables']['notifications']['Row'];
+type DbNotificationType = Database['public']['Enums']['notification_type'];
 
 export class NotificationService {
   /**
@@ -62,6 +38,9 @@ export class NotificationService {
       }
       if (dto.channel === NotificationChannel.EMAIL && !dto.email) {
         throw new ValidationError('Email required for email notifications');
+      }
+      if (dto.channel === NotificationChannel.WHATSAPP && !dto.phoneNumber) {
+        throw new ValidationError('Phone number required for WhatsApp notifications');
       }
 
       // Get template and render message
@@ -106,14 +85,17 @@ export class NotificationService {
   private async sendSMS(dto: SendNotificationDTO, message: string): Promise<Notification> {
     try {
       // Create notification record
+      const recipient = this.resolveRecipient(dto);
       const insertPayload: NotificationInsertPayload = {
         clinic_id: dto.clinicId,
         patient_id: dto.patientId,
         appointment_id: dto.appointmentId ?? null,
         channel: dto.channel,
-        type: dto.type,
-        phone_number: dto.phoneNumber ?? null,
-        message,
+        type: this.toDbNotificationType(dto.type),
+        recipient,
+        message_template: dto.type,
+        rendered_message: message,
+        message_variables: this.toJson(dto.templateVariables ?? null),
         status: NotificationStatus.PENDING,
       };
 
@@ -145,7 +127,8 @@ export class NotificationService {
         const updatePayload: NotificationUpdatePayload = {
           status: NotificationStatus.SENT,
           sent_at: new Date().toISOString(),
-          metadata: (data as Record<string, unknown> | null) ?? null,
+          rendered_message: message,
+          message_variables: this.toJson((data as Record<string, unknown> | null) ?? null),
         };
 
         const { data: updated, error: updateError } = await supabase
@@ -167,7 +150,7 @@ export class NotificationService {
         // Update status to failed
         const failurePayload: NotificationUpdatePayload = {
           status: NotificationStatus.FAILED,
-          failure_reason: errorMessage,
+          error_message: errorMessage,
         };
 
         await supabase
@@ -191,14 +174,17 @@ export class NotificationService {
     logger.warn('Email sending not implemented yet', { email: dto.email });
     
     // Create notification record as pending
+    const recipient = this.resolveRecipient(dto);
     const insertPayload: NotificationInsertPayload = {
       clinic_id: dto.clinicId,
       patient_id: dto.patientId,
       appointment_id: dto.appointmentId ?? null,
       channel: dto.channel,
-      type: dto.type,
-      email: dto.email ?? null,
-      message,
+      type: this.toDbNotificationType(dto.type),
+      recipient,
+      message_template: dto.type,
+      rendered_message: message,
+      message_variables: this.toJson(dto.templateVariables ?? null),
       status: NotificationStatus.PENDING,
     };
 
@@ -221,14 +207,17 @@ export class NotificationService {
   private async sendWhatsApp(dto: SendNotificationDTO, message: string): Promise<Notification> {
     logger.warn('WhatsApp sending not implemented yet', { phoneNumber: dto.phoneNumber });
     
+    const recipient = this.resolveRecipient(dto);
     const insertPayload: NotificationInsertPayload = {
       clinic_id: dto.clinicId,
       patient_id: dto.patientId,
       appointment_id: dto.appointmentId ?? null,
       channel: dto.channel,
-      type: dto.type,
-      phone_number: dto.phoneNumber ?? null,
-      message,
+      type: this.toDbNotificationType(dto.type),
+      recipient,
+      message_template: dto.type,
+      rendered_message: message,
+      message_variables: this.toJson(dto.templateVariables ?? null),
       status: NotificationStatus.PENDING,
     };
 
@@ -251,13 +240,17 @@ export class NotificationService {
   private async sendPush(dto: SendNotificationDTO, message: string): Promise<Notification> {
     logger.warn('Push notifications not implemented yet');
     
+    const recipient = this.resolveRecipient(dto);
     const insertPayload: NotificationInsertPayload = {
       clinic_id: dto.clinicId,
       patient_id: dto.patientId,
       appointment_id: dto.appointmentId ?? null,
       channel: dto.channel,
-      type: dto.type,
-      message,
+      type: this.toDbNotificationType(dto.type),
+      recipient,
+      message_template: dto.type,
+      rendered_message: message,
+      message_variables: this.toJson(dto.templateVariables ?? null),
       status: NotificationStatus.PENDING,
     };
 
@@ -314,6 +307,30 @@ export class NotificationService {
     }
   }
 
+  private resolveRecipient(dto: SendNotificationDTO): string {
+    if (dto.channel === NotificationChannel.EMAIL) {
+      return dto.email ?? dto.patientId;
+    }
+    if (dto.channel === NotificationChannel.SMS || dto.channel === NotificationChannel.WHATSAPP) {
+      return dto.phoneNumber ?? dto.patientId;
+    }
+    return dto.patientId;
+  }
+
+  private toJson(value: Record<string, unknown> | null): Json | null {
+    return value as Json | null;
+  }
+
+  private toDbNotificationType(type: NotificationType): DbNotificationType {
+    switch (type) {
+      case NotificationType.PATIENT_ABSENT:
+      case NotificationType.GRACE_PERIOD_ENDING:
+        return NotificationType.POSITION_UPDATE;
+      default:
+        return type as DbNotificationType;
+    }
+  }
+
   /**
    * Default notification templates (Arabic)
    */
@@ -336,23 +353,32 @@ export class NotificationService {
    * Map database row to Notification model
    */
   private mapToNotification(data: NotificationRow): Notification {
+    const createdAt = data.created_at ? new Date(data.created_at) : new Date();
+    const updatedAt = new Date(data.delivered_at ?? data.sent_at ?? data.created_at ?? new Date().toISOString());
+    const isPhoneChannel = data.channel === NotificationChannel.SMS || data.channel === NotificationChannel.WHATSAPP;
+    const isEmailChannel = data.channel === NotificationChannel.EMAIL;
+    const metadata = data.message_variables;
+
     return {
       id: data.id,
       clinicId: data.clinic_id,
       patientId: data.patient_id,
-      appointmentId: data.appointment_id,
+      appointmentId: data.appointment_id ?? undefined,
       channel: data.channel as NotificationChannel,
       type: data.type as NotificationType,
-      phoneNumber: data.phone_number,
-      email: data.email,
-      message: data.message,
-      status: data.status as NotificationStatus,
+      phoneNumber: isPhoneChannel ? data.recipient : undefined,
+      email: isEmailChannel ? data.recipient : undefined,
+      message: data.rendered_message ?? data.message_template,
+      status: (data.status as NotificationStatus) ?? NotificationStatus.PENDING,
       sentAt: data.sent_at ? new Date(data.sent_at) : undefined,
       deliveredAt: data.delivered_at ? new Date(data.delivered_at) : undefined,
-      failureReason: data.failure_reason,
-      metadata: data.metadata ?? undefined,
-      createdAt: new Date(data.created_at),
-      updatedAt: new Date(data.updated_at),
+      failureReason: data.error_message ?? undefined,
+      metadata:
+        metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+          ? (metadata as Record<string, unknown>)
+          : undefined,
+      createdAt,
+      updatedAt,
     };
   }
 }

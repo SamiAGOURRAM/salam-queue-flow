@@ -28,15 +28,7 @@ export default function AcceptInvitation() {
       const invitationData = await invitationService.getInvitationByToken(token);
       
       logger.debug("Fetched invitation data", { invitationId: invitationData.id, role: invitationData.role, clinicId: invitationData.clinicId });
-      
-      // Map to the component's expected format
-      setInvitation({
-        ...invitationData,
-        clinic_id: invitationData.clinicId,
-        full_name: invitationData.fullName,
-        phone_number: invitationData.phoneNumber,
-        clinics: invitationData.clinic,
-      } as Invitation & { clinic_id: string; full_name: string; phone_number?: string; clinics?: { name: string; specialty: string } });
+      setInvitation(invitationData);
     } catch (error: unknown) {
       const description = error instanceof Error ? error.message : "Invitation not found";
       toast({
@@ -61,14 +53,14 @@ export default function AcceptInvitation() {
       // Check if user is logged in
       if (!user) {
         // Redirect to staff signup with email, name, and invitation token
-        navigate(`/auth/staff-signup?email=${encodeURIComponent(invitation.email)}&name=${encodeURIComponent(invitation.full_name)}&token=${token}`);
+        navigate(`/auth/staff-signup?email=${encodeURIComponent(invitation.email || '')}&name=${encodeURIComponent(invitation.fullName)}&token=${token}`);
         return;
       }
 
       // Check if logged-in user's email matches the invitation
       const profile = await patientService.getPatientProfile(user.id);
 
-      const invitationContact = invitation.email || invitation.phone_number;
+      const invitationContact = invitation.email || invitation.phoneNumber;
       const profileContact = profile.email || profile.phoneNumber;
 
       if (profile && invitationContact && profileContact && profileContact !== invitationContact) {
@@ -82,19 +74,19 @@ export default function AcceptInvitation() {
       }
 
       // Check if user is already staff at this clinic
-      const existingStaff = await staffService.getStaffByClinicAndUser(invitation.clinic_id, user.id);
+      const existingStaff = await staffService.getStaffByClinicAndUser(invitation.clinicId, user.id);
 
       if (!existingStaff) {
         // Use StaffService to create staff record
-        logger.debug("Creating new staff record", { role: invitation.role, userId: user.id, clinicId: invitation.clinic_id });
+        logger.debug("Creating new staff record", { role: invitation.role, userId: user.id, clinicId: invitation.clinicId });
         await staffService.addStaff({
-          clinicId: invitation.clinic_id,
+          clinicId: invitation.clinicId,
           userId: user.id,
           role: invitation.role,
         });
-        logger.info("Staff record created successfully", { userId: user.id, clinicId: invitation.clinic_id, role: invitation.role });
+        logger.info("Staff record created successfully", { userId: user.id, clinicId: invitation.clinicId, role: invitation.role });
       } else {
-        logger.debug("User is already staff at this clinic", { userId: user.id, clinicId: invitation.clinic_id });
+        logger.debug("User is already staff at this clinic", { userId: user.id, clinicId: invitation.clinicId });
       }
 
       // Check if user role already exists
@@ -102,32 +94,32 @@ export default function AcceptInvitation() {
         .from("user_roles")
         .select("id")
         .eq("user_id", user.id)
-        .eq("clinic_id", invitation.clinic_id)
+        .eq("clinic_id", invitation.clinicId)
         .maybeSingle();
 
       // Ignore "not found" errors, only throw on real errors
       if (checkRoleError && checkRoleError.code !== 'PGRST116') {
-        logger.error("Error checking existing role", checkRoleError, { userId: user.id, clinicId: invitation.clinic_id });
+        logger.error("Error checking existing role", checkRoleError, { userId: user.id, clinicId: invitation.clinicId });
         throw checkRoleError;
       }
 
       if (!existingRole) {
         // Create user role only if doesn't exist
-        logger.debug("Creating new user role", { userId: user.id, clinicId: invitation.clinic_id, role: "staff" });
+        logger.debug("Creating new user role", { userId: user.id, clinicId: invitation.clinicId, role: "staff" });
         const { error: roleError } = await supabase
           .from("user_roles")
           .insert({
             user_id: user.id,
             role: "staff",
-            clinic_id: invitation.clinic_id,
+            clinic_id: invitation.clinicId,
           });
 
         if (roleError) {
-          logger.error("Error creating user role", roleError, { userId: user.id, clinicId: invitation.clinic_id });
+          logger.error("Error creating user role", roleError, { userId: user.id, clinicId: invitation.clinicId });
           throw roleError;
         }
       } else {
-        logger.debug("User role already exists", { userId: user.id, clinicId: invitation.clinic_id });
+        logger.debug("User role already exists", { userId: user.id, clinicId: invitation.clinicId });
       }
 
       // Update invitation status
@@ -135,7 +127,7 @@ export default function AcceptInvitation() {
 
       toast({
         title: "Welcome to the team!",
-        description: `You've joined ${invitation.clinics.name}`,
+        description: `You've joined ${invitation.clinic?.name || 'the clinic'}`,
       });
 
       navigate("/clinic/queue");
@@ -196,18 +188,18 @@ export default function AcceptInvitation() {
           </div>
           <CardTitle>You're Invited!</CardTitle>
           <CardDescription>
-            Join <strong>{invitation.clinics.name}</strong> as a <strong className="capitalize">{invitation.role.replace(/_/g, ' ')}</strong>
+            Join <strong>{invitation.clinic?.name || 'this clinic'}</strong> as a <strong className="capitalize">{invitation.role.replace(/_/g, ' ')}</strong>
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="p-4 bg-accent rounded-lg space-y-2">
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Clinic</span>
-              <span className="font-medium">{invitation.clinics.name}</span>
+              <span className="font-medium">{invitation.clinic?.name || 'N/A'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Specialty</span>
-              <span className="font-medium">{invitation.clinics.specialty}</span>
+              <span className="font-medium">{invitation.clinic?.specialty || 'N/A'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Your Role</span>
@@ -215,7 +207,7 @@ export default function AcceptInvitation() {
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Your Name</span>
-              <span className="font-medium">{invitation.full_name}</span>
+              <span className="font-medium">{invitation.fullName}</span>
             </div>
           </div>
 

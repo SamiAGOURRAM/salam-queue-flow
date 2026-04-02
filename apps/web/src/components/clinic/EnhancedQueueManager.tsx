@@ -53,7 +53,7 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
   const [activeTab, setActiveTab] = useState<'schedule' | 'absents'>('schedule');
 
   const { 
-    isLoading, error, schedule, queueMode, refreshQueue, callNextPatient, 
+    isLoading, error, schedule, queueMode, refreshSchedule, callNextPatient, 
     markPatientAbsent, completeAppointment, checkInPatient,
     markPatientPresent, markPatientNotPresent, resolveAbsentAppointment
   } = useQueueService({
@@ -100,7 +100,9 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
           setClinicConfig({ gracePeriodMinutes: 15, allowWaitlist: false, workingDay: null });
         }
       } catch (error) {
-        logger.warn('Failed to fetch clinic config', error as Error);
+        logger.warn('Failed to fetch clinic config', {
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
         setClinicConfig({ gracePeriodMinutes: 15, allowWaitlist: false, workingDay: null });
       }
     };
@@ -160,8 +162,9 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
           clinicId: clinicId,
           staffId: staffId,
         });
-        if (nextPatient) {
-          setNonPresentDialog({ open: true, patient: nextPatient });
+        const candidate = nextPatient?.patient;
+        if (candidate && 'appointmentDate' in candidate && 'queuePosition' in candidate) {
+          setNonPresentDialog({ open: true, patient: candidate });
         } else {
           logger.error("Failed to call next patient", err, { clinicId, staffId });
         }
@@ -178,7 +181,7 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
     handleAction(markPatientAbsent({ appointmentId, performedBy: userId, reason: 'Patient not present' }));
   };
   const handleCompleteAppointment = () => { if (currentPatient) handleAction(completeAppointment(currentPatient.id, userId)); };
-  const handleCheckIn = (appointmentId: string) => handleAction(checkInPatient(appointmentId, userId));
+  const handleCheckIn = (appointmentId: string) => handleAction(checkInPatient(appointmentId));
   const handleMarkPresent = (appointmentId: string) => {
     setNonPresentDialog({ open: false, patient: null });
     handleAction(markPatientPresent(appointmentId, userId));
@@ -199,12 +202,11 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
   const handleAddToWaitlist = async (patient: QueueEntry) => {
     setActionLoading(true);
     try {
-      const targetDate = patient.startTime ? new Date(patient.startTime) : new Date();
+      const targetDate = new Date(patient.appointmentDate);
       await waitlistService.addToWaitlist(
         clinicId,
         targetDate,
         patient.patientId || undefined,
-        patient.guestPatientId || undefined,
         100,
         `Late return for ${patient.patient?.fullName || 'patient'}`
       );
@@ -242,7 +244,7 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
       <div className="border border-destructive/30 bg-destructive/5 rounded-lg p-6 text-center">
         <AlertCircle className="h-5 w-5 text-destructive mx-auto mb-2" />
         <p className="text-sm text-destructive font-medium mb-3">{error.message}</p>
-        <Button onClick={refreshQueue} size="sm" variant="outline">Retry</Button>
+        <Button onClick={refreshSchedule} size="sm" variant="outline">Retry</Button>
       </div>
     );
   }
@@ -313,7 +315,16 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
               disabled={
                 actionLoading ||
                 (isSlottedMode
-                  ? waitingPatients.filter(p => p.isPresent || (p.startTime && new Date(p.startTime) <= new Date())).length === 0
+                  ? waitingPatients.filter(p => {
+                      if (p.isPresent) return true;
+                      if (!p.scheduledTime) return false;
+                      const dateStr = p.appointmentDate.toISOString().split('T')[0];
+                      const normalizedTime = p.scheduledTime.length === 5
+                        ? `${p.scheduledTime}:00`
+                        : p.scheduledTime;
+                      const scheduledDateTime = new Date(`${dateStr}T${normalizedTime}`);
+                      return !Number.isNaN(scheduledDateTime.getTime()) && scheduledDateTime <= new Date();
+                    }).length === 0
                   : waitingPatients.filter(p => p.isPresent).length === 0)
               }
               size="sm"
@@ -513,7 +524,7 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
           onOpenChange={(open) => setRebookDialog(prev => ({ open, patient: open ? prev.patient : null }))}
           clinicId={clinicId}
           onSuccess={handleRebookSuccess}
-          preselectedDate={rebookDialog.patient.startTime ? new Date(rebookDialog.patient.startTime) : new Date()}
+          preselectedDate={new Date(rebookDialog.patient.appointmentDate)}
           prefillPatient={{
             patientId: rebookDialog.patient.patientId || undefined,
             fullName: rebookDialog.patient.patient?.fullName,

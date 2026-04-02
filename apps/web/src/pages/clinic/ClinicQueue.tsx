@@ -63,7 +63,7 @@ export default function ClinicQueue() {
 
       if (!clinicId) {
         const errorMsg = "Could not determine the clinic for your account.";
-        logger.error("Could not determine clinic", { userId: user.id, isClinicOwner, isStaff });
+        logger.error("Could not determine clinic", undefined, { userId: user.id, isClinicOwner, isStaff });
         throw new Error(errorMsg);
       }
       

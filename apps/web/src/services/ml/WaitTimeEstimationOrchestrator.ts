@@ -28,36 +28,12 @@ import { QueueConfig } from '@/config/QueueConfig';
 import {
   Disruption,
   DisruptionType,
-  EstimationContext,
   AppointmentStatus,
 } from '../queue/models/QueueModels';
 
-/**
- * Disruption types that trigger recalculation
- */
-export enum DisruptionType {
-  LATE_ARRIVAL = 'late_arrival',
-  NO_SHOW = 'no_show',
-  PATIENT_RETURNED = 'patient_returned',
-  LONGER_THAN_EXPECTED = 'longer_than_expected',
-  SHORTER_THAN_EXPECTED = 'shorter_than_expected',
-  QUEUE_OVERRIDE = 'queue_override',
-  EMERGENCY_INSERTED = 'emergency_inserted',
-  DOCTOR_LATE = 'doctor_late',
-  MULTIPLE_NO_SHOWS = 'multiple_no_shows',
-  APPOINTMENT_RUNNING_OVER = 'appointment_running_over',
-}
-
-interface Disruption {
-  type: DisruptionType;
-  appointmentId: string;
-  clinicId: string;
-  reason: string;
-  timestamp: Date;
-}
-
 export class WaitTimeEstimationOrchestrator {
   private repository: QueueRepository;
+  private isInitialized = false;
   private disruptionBuffer: Map<string, Disruption[]> = new Map(); // clinicId -> disruptions
   private recalculationDebounce: Map<string, NodeJS.Timeout> = new Map(); // clinicId -> timeout
   private unsubscribeFunctions: (() => void)[] = [];
@@ -145,8 +121,9 @@ export class WaitTimeEstimationOrchestrator {
    */
   private async scheduleRecalculation(clinicId: string): Promise<void> {
     // Clear any existing debounce timeout for this clinic
-    if (this.recalculationDebounce.has(clinicId)) {
-      clearTimeout(this.recalculationDebounce.get(clinicId));
+    const existingTimeout = this.recalculationDebounce.get(clinicId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
     }
 
     // Set new timeout
@@ -156,21 +133,6 @@ export class WaitTimeEstimationOrchestrator {
     }, QueueConfig.SYSTEM.RECALCULATION_DEBOUNCE_MS);
 
     this.recalculationDebounce.set(clinicId, timeout);
-  }
-
-  /**
-   * Performs the actual wait time recalculation for a clinic.
-   * This method is called by the debounced scheduler.
-   * @param clinicId The ID of the clinic.
-   */
-  private async recalculateForClinic(clinicId: string): Promise<void> {
-    logger.info(`Recalculating wait times for clinic ${clinicId}`);
-    // Implement the actual recalculation logic here
-    // This would involve fetching queue data, applying estimation logic,
-    // and updating estimated wait times for patients.
-    // For now, it's a placeholder.
-    // await waitTimeEstimationService.calculateAndPublishWaitTimes(clinicId, this.disruptionBuffer.get(clinicId) || []);
-    this.disruptionBuffer.delete(clinicId); // Clear disruptions after recalculation
   }
 
   /**
@@ -433,16 +395,13 @@ export class WaitTimeEstimationOrchestrator {
   /**
    * Check for appointments that are running over their scheduled time
    */
-  /**
-   * Check for appointments that are running over their scheduled time
-   */
   private async checkRunningOverAppointments(): Promise<void> {
     try {
       const now = new Date();
       const inProgressAppointments = await this.repository.getInProgressAppointments(now);
 
       for (const appointment of inProgressAppointments) {
-        if (!appointment.checkedInAt || !appointment.startTime) continue;
+        if (!appointment.checkedInAt || !appointment.scheduledTime || !appointment.appointmentDate) continue;
 
         const checkedInDateTime = appointment.checkedInAt;
         const estimatedDuration = appointment.estimatedDurationMinutes || 30;

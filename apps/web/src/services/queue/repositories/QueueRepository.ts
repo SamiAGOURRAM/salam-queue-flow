@@ -5,6 +5,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import {
   QueueEntry,
   AbsentPatient,
@@ -12,6 +13,7 @@ import {
   QueueFilters,
   AppointmentStatus,
   AppointmentType,
+  SkipReason,
   QueueActionType,
   CreateQueueEntryDTO,
   UpdateQueueEntryDTO,
@@ -312,6 +314,12 @@ export class QueueRepository {
   async recordWaitTimePredictions(predictions: WaitTimePredictionRecord[]): Promise<void> {
     if (!predictions.length) return;
     try {
+      const mlTables = supabase as unknown as {
+        from: (table: string) => {
+          insert: (payload: unknown) => Promise<{ error: { code?: string; message?: string } | null }>;
+        };
+      };
+
       // Map estimation mode to database enum values
       // Database enum likely accepts: 'basic', 'ml', 'hybrid'
       // Estimator modes: 'ml', 'rule-based', 'historical-average', 'fallback'
@@ -341,10 +349,10 @@ export class QueueRepository {
         features: prediction.features ?? null,
       }));
 
-      const { error } = await supabase.from('wait_time_predictions').insert(payload);
+      const { error } = await mlTables.from('wait_time_predictions').insert(payload);
       if (error) {
         // Log but don't throw - this is non-critical
-        logger.warn('Failed to record wait time predictions (table may not exist)', error, {
+        logger.warn('Failed to record wait time predictions (table may not exist)', {
           count: predictions.length,
           errorCode: error.code,
           errorMessage: error.message
@@ -352,7 +360,9 @@ export class QueueRepository {
       }
     } catch (error) {
       // Log but don't throw - this is non-critical for core functionality
-      logger.warn('Unexpected error recording wait time predictions (table may not exist)', error as Error);
+      logger.warn('Unexpected error recording wait time predictions (table may not exist)', {
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -401,7 +411,19 @@ export class QueueRepository {
     limit = 200
   ): Promise<WaitTimeFeatureSnapshot[]> {
     try {
-      const { data, error } = await supabase
+      const mlTables = supabase as unknown as {
+        from: (table: string) => {
+          select: (columns: string) => {
+            eq: (column: string, value: string) => {
+              order: (orderColumn: string, options: { ascending: boolean }) => {
+                limit: (value: number) => Promise<{ data: unknown[] | null; error: Error | null }>;
+              };
+            };
+          };
+        };
+      };
+
+      const { data, error } = await mlTables
         .from('wait_time_feature_snapshots')
         .select('*')
         .eq('clinic_id', clinicId)
@@ -413,7 +435,7 @@ export class QueueRepository {
         return [];
       }
 
-      return (data || []).map(snapshot => ({
+      return (data || []).map((snapshot: any) => ({
         clinicId: snapshot.clinic_id,
         hashedAppointmentId: snapshot.hashed_appointment_id,
         hashedPatientId: snapshot.hashed_patient_id ?? undefined,
@@ -437,6 +459,12 @@ export class QueueRepository {
   async insertFeatureSnapshots(snapshots: WaitTimeFeatureSnapshotInput[]): Promise<void> {
     if (!snapshots.length) return;
     try {
+      const mlTables = supabase as unknown as {
+        from: (table: string) => {
+          insert: (payload: unknown) => Promise<{ error: Error | null }>;
+        };
+      };
+
       const payload = snapshots.map(snapshot => ({
         clinic_id: snapshot.clinicId,
         hashed_appointment_id: snapshot.hashedAppointmentId,
@@ -452,7 +480,7 @@ export class QueueRepository {
         processing_purpose: snapshot.processingPurpose ?? 'wait_time_optimization',
       }));
 
-      const { error } = await supabase
+      const { error } = await mlTables
         .from('wait_time_feature_snapshots')
         .insert(payload);
 
@@ -549,7 +577,11 @@ export class QueueRepository {
     try {
       logger.debug('Fetching booked slots', { clinicId, date });
 
-      const activeStatuses = ['scheduled', 'waiting', 'in_progress'];
+      const activeStatuses: AppointmentStatus[] = [
+        AppointmentStatus.SCHEDULED,
+        AppointmentStatus.WAITING,
+        AppointmentStatus.IN_PROGRESS,
+      ];
 
       const { data, error } = await supabase
         .from('appointments')
@@ -599,10 +631,7 @@ export class QueueRepository {
     try {
       logger.debug('Creating queue entry via RPC', { dto });
 
-      // Convert AppointmentType enum to string value
-      const appointmentTypeString = typeof dto.appointmentType === 'string'
-        ? dto.appointmentType
-        : dto.appointmentType.toString();
+      const appointmentTypeString = String(dto.appointmentType);
 
       const { data, error } = await supabase.rpc('create_queue_entry', {
         p_clinic_id: dto.clinicId,
@@ -622,7 +651,7 @@ export class QueueRepository {
       }
 
       // The RPC function returns a single JSON object representing the new appointment row
-      return this.mapToQueueEntry(data as RawAppointmentRow);
+      return this.mapToQueueEntry(data as unknown as RawAppointmentRow);
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error creating queue entry via RPC', error as Error, { dto });
@@ -679,7 +708,7 @@ export class QueueRepository {
                           updateError.message?.includes('application/vnd.pgrst.object');
         
         if (is406Error) {
-          logger.error('Update blocked by RLS policy or format mismatch (406 error)', { id, dto, error: updateError });
+          logger.error('Update blocked by RLS policy or format mismatch (406 error)', updateError, { id, dto });
           throw new DatabaseError('No rows updated. You may not have permission to update this appointment, or the request format was invalid.', updateError);
         }
         logger.error('Failed to update queue entry', updateError, { id, dto });
@@ -704,7 +733,7 @@ export class QueueRepository {
 
       if (!data) {
         // If we can't fetch the record after update, it means the update was blocked by RLS
-        logger.error('No rows updated - RLS policy may be blocking (cannot fetch after update)', { id, dto });
+        logger.error('No rows updated - RLS policy may be blocking (cannot fetch after update)', undefined, { id, dto });
         throw new DatabaseError('No rows updated. You may not have permission to update this appointment.', null);
       }
 
@@ -869,7 +898,7 @@ export class QueueRepository {
         throw new Error('Patient ID is required to mark an absence');
       }
 
-      const insertData: Record<string, unknown> = {
+      const insertData = {
         appointment_id: appointmentId,
         clinic_id: clinicId,
         patient_id: patientId,
@@ -1105,7 +1134,7 @@ export class QueueRepository {
 
       // Ensure validPerformedBy is not null/undefined before inserting
       if (!validPerformedBy) {
-        logger.error('Cannot create queue override: performed_by is required but not found', {
+        logger.error('Cannot create queue override: performed_by is required but not found', undefined, {
           clinicId,
           appointmentId,
           action,
@@ -1164,8 +1193,8 @@ export class QueueRepository {
         previousPosition: data.previous_position,
         newPosition: data.new_position,
         createdAt: new Date(data.created_at),
-        previousState: data.previous_state || undefined,
-        newState: data.new_state || undefined,
+        previousState: this.toObjectRecord(data.previous_state),
+        newState: this.toObjectRecord(data.new_state),
       };
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
@@ -1330,19 +1359,21 @@ export class QueueRepository {
   // MAPPING FUNCTIONS
   // ============================================
 
-  private mapScheduleResponse(data: ClinicScheduleResponse | RawAppointmentRow[] | null): { queue_mode: string; schedule: QueueEntry[] } {
-    if (Array.isArray(data)) {
+  private mapScheduleResponse(data: unknown): { queue_mode: string; schedule: QueueEntry[] } {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
       throw new DatabaseError('Invalid schedule RPC payload: expected object with queue_mode and schedule');
     }
 
-    const mode = data?.queue_mode;
+    const response = data as ClinicScheduleResponse;
+
+    const mode = response.queue_mode;
     if (mode !== 'slotted' && mode !== 'fluid') {
       throw new DatabaseError(`Invalid queue_mode in schedule RPC payload: ${String(mode)}`);
     }
 
     return {
       queue_mode: mode,
-      schedule: this.mapToQueueEntries(data?.schedule || []),
+      schedule: this.mapToQueueEntries(Array.isArray(response.schedule) ? response.schedule : []),
     };
   }
 
@@ -1350,6 +1381,11 @@ export class QueueRepository {
     if (!dateValue || !timeValue) return null;
     const normalizedTime = timeValue.length === 5 ? `${timeValue}:00` : timeValue;
     return `${dateValue}T${normalizedTime}`;
+  }
+
+  private toObjectRecord(value: Json | null | undefined): Record<string, any> | undefined {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+    return value as Record<string, any>;
   }
 
   private mapToQueueEntry(data: RawAppointmentRow): QueueEntry {
@@ -1391,7 +1427,7 @@ export class QueueRepository {
       patient: patientInfo,
       originalQueuePosition: data.original_queue_position,
       skipCount: data.skip_count || 0,
-      skipReason: data.skip_reason,
+      skipReason: data.skip_reason as SkipReason | undefined,
       overrideBy: data.override_by,
       priorityScore: data.priority_score ?? 100,
       isGapFiller: data.is_gap_filler || false,

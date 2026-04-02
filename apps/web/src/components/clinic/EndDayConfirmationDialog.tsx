@@ -67,6 +67,9 @@ export function EndDayConfirmationDialog({
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
   const [understood, setUnderstood] = useState(false);
+  const rpcClient = supabase as unknown as {
+    rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: Error | null }>;
+  };
 
   // Load preview data when dialog opens
   const handleOpenChange = async (isOpen: boolean) => {
@@ -79,14 +82,14 @@ export function EndDayConfirmationDialog({
       
       // Fetch preview from RPC
       try {
-        const { data, error } = await supabase.rpc<ClosurePreview>('get_day_closure_preview', {
+        const { data, error } = await rpcClient.rpc('get_day_closure_preview', {
           p_staff_id: staffId,
           p_clinic_id: clinicId,
           p_closure_date: new Date().toISOString().split('T')[0],
         });
 
         if (error) throw error;
-        setPreview(data ?? null);
+        setPreview((data as unknown as ClosurePreview) ?? null);
       } catch (error) {
         logger.error('Failed to load preview', error instanceof Error ? error : new Error(String(error)), { clinicId, staffId });
         toast({
@@ -113,7 +116,7 @@ export function EndDayConfirmationDialog({
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc<EndDaySummaryResult>('end_day_for_staff', {
+      const { data, error } = await rpcClient.rpc('end_day_for_staff', {
         p_staff_id: staffId,
         p_clinic_id: clinicId,
         p_closure_date: new Date().toISOString().split('T')[0],
@@ -124,7 +127,7 @@ export function EndDayConfirmationDialog({
 
       if (error) throw error;
 
-      const result = data ?? {};
+  const result = (data as EndDaySummaryResult | null) ?? {};
       toast({
         title: "✅ Day Closed Successfully",
         description: `${result?.summary?.markedNoShow || 0} marked no-show, ${result?.summary?.markedCompleted || 0} completed`,

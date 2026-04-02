@@ -46,9 +46,7 @@ describe('ClinicService', () => {
         settings: { bufferTime: 15 },
         subscription_tier: 'premium',
         is_active: true,
-        operating_mode: 'clinic_wide',
-        estimation_mode: 'ml',
-        ml_enabled: true,
+        queue_mode: 'slotted',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -60,7 +58,7 @@ describe('ClinicService', () => {
       expect(result.id).toBe(clinicId);
       expect(result.name).toBe('Test Clinic');
       expect(result.nameAr).toBe('عيادة تجريبية');
-      expect(result.mlEnabled).toBe(true);
+      expect(result.queueMode).toBe('slotted');
       expect(mockRepository.getClinic).toHaveBeenCalledWith(clinicId);
     });
 
@@ -92,9 +90,7 @@ describe('ClinicService', () => {
         settings: {},
         subscription_tier: 'basic',
         is_active: true,
-        operating_mode: 'staff_specific',
-        estimation_mode: 'simple',
-        ml_enabled: false,
+        queue_mode: 'fluid',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -223,9 +219,7 @@ describe('ClinicService', () => {
         settings: {},
         subscription_tier: 'basic',
         is_active: true,
-        operating_mode: 'clinic_wide',
-        estimation_mode: 'simple',
-        ml_enabled: false,
+        queue_mode: 'slotted',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };

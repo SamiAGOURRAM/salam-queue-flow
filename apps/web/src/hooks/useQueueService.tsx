@@ -20,7 +20,6 @@ import { useToast } from './use-toast';
 import { QueueEntry, CreateQueueEntryDTO, MarkAbsentDTO, ReorderQueueDTO, CallNextPatientDTO } from '../services/queue';
 
 export interface ScheduleData {
-  operatingMode: string;
   queueMode: string; // 'fluid' | 'slotted'
   schedule: QueueEntry[];
 }
@@ -34,7 +33,7 @@ interface UseQueueServiceOptions {
 export function useQueueService(options: UseQueueServiceOptions) {
   const { staffId, autoRefresh = true, refreshInterval } = options;
 
-  const [scheduleData, setScheduleData] = useState<ScheduleData>({ operatingMode: 'none', queueMode: 'fluid', schedule: [] });
+  const [scheduleData, setScheduleData] = useState<ScheduleData>({ queueMode: 'fluid', schedule: [] });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
   
@@ -53,7 +52,7 @@ export function useQueueService(options: UseQueueServiceOptions) {
   const refreshSchedule = useCallback(async () => {
     if (!staffId) {
       setIsLoading(false);
-      setScheduleData({ operatingMode: 'none', queueMode: 'fluid', schedule: [] });
+      setScheduleData({ queueMode: 'fluid', schedule: [] });
       return;
     }
     setIsLoading(true);
@@ -71,18 +70,16 @@ export function useQueueService(options: UseQueueServiceOptions) {
         date: today,
         count: data.schedule?.length || 0,
         queueMode: data.queue_mode,
-        operatingMode: data.operating_mode,
         appointments: data.schedule?.map(apt => ({
           id: apt.id,
-          patient: apt.patient?.fullName || apt.guestPatient?.fullName || 'Unknown',
+          patient: apt.patient?.fullName || 'Unknown',
           status: apt.status,
           appointmentDate: apt.appointmentDate,
-          startTime: apt.startTime,
+          scheduledTime: apt.scheduledTime,
         })) || []
       });
       
       setScheduleData({
-        operatingMode: data.operating_mode || 'none',
         queueMode: data.queue_mode || 'fluid',
         schedule: data.schedule || [],
       });
@@ -182,8 +179,8 @@ export function useQueueService(options: UseQueueServiceOptions) {
     { success: 'Queue Reordered', error: 'Failed to Reorder' }
   );
 
-    const checkInPatient = (appointmentId: string, performedBy: string) => performAction(
-    queueService.checkInPatient(appointmentId, performedBy),
+    const checkInPatient = (appointmentId: string) => performAction(
+    queueService.checkInPatient(appointmentId),
     { success: 'Patient Checked In', error: 'Failed to Check In' }
   );
 
@@ -201,7 +198,6 @@ export function useQueueService(options: UseQueueServiceOptions) {
   return {
     isLoading,
     error,
-    operatingMode: scheduleData.operatingMode,
     queueMode: scheduleData.queueMode,
     schedule: scheduleData.schedule,
     refreshSchedule,

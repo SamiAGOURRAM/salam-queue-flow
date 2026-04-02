@@ -16,10 +16,7 @@ export function createMockQueueEntry(overrides?: Partial<QueueEntry>): QueueEntr
     id: 'appointment-123',
     clinicId: 'clinic-123',
     patientId: 'patient-123',
-    guestPatientId: undefined,
     staffId: 'staff-123',
-    startTime: now,
-    endTime: new Date(now.getTime() + 30 * 60 * 1000),
     appointmentDate: now,
     scheduledTime: now.toISOString().split('T')[1].substring(0, 5), // HH:mm format
     queuePosition: 1,
@@ -43,7 +40,6 @@ export function createMockQueueEntry(overrides?: Partial<QueueEntry>): QueueEntr
     etaUpdatedAt: undefined,
     createdAt: now,
     updatedAt: now,
-    isGuest: false,
     ...overrides,
   };
 }

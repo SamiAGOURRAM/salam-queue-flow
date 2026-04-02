@@ -92,6 +92,8 @@ export class RatingService {
           patient_id: userId,
           rating,
           review_text: reviewText || null,
+        }, {
+          onConflict: 'clinic_id,patient_id',
         })
         .select()
         .single();

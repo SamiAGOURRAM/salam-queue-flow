@@ -86,7 +86,7 @@ export class AnalyticsRepository {
         
         const { data: batchAppointments, error: appointmentDetailsError } = await supabase
           .from('appointments')
-          .select('id, clinic_id, appointment_type, start_time')
+          .select('id, clinic_id, appointment_type, scheduled_time')
           .in('id', batch)
           .eq('clinic_id', clinicId);
         
@@ -153,9 +153,8 @@ export class AnalyticsRepository {
         
         const slotMetrics = finalMetrics.filter((m: any) => {
           const appt = m.appointments;
-          if (!appt || !appt.start_time) return false;
-          const apptDate = new Date(appt.start_time);
-          const apptHour = apptDate.getHours();
+          if (!appt || !appt.scheduled_time) return false;
+          const apptHour = parseInt(String(appt.scheduled_time).split(':')[0] || '0', 10);
           const apptSlot = apptHour < 12 ? 'morning' : apptHour < 17 ? 'afternoon' : 'evening';
           return apptSlot === timeSlot;
         });

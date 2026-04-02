@@ -182,7 +182,7 @@ export class QueueService {
 
     // Validate that nextPatient has an id (should always be a QueueEntry)
     if (!nextPatient.id) {
-      logger.error('Strategy returned patient without id', { nextPatient, nextPatientResult });
+      logger.error('Strategy returned patient without id', undefined, { nextPatient, nextPatientResult });
       throw new DatabaseError('Invalid patient data returned from queue strategy - missing id');
     }
 

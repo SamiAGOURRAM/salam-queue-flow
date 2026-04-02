@@ -79,7 +79,7 @@ export class DisruptionDetector {
       // This information is then propagated via events and stored in the appointment record.
 
       const hasDisruption = reasons.length > 0;
-      const shouldShowEstimation = hasDisruption && appointment.predictedWaitTime !== null;
+      const shouldShowEstimation = hasDisruption && appointment.estimatedWaitTime !== undefined;
 
       return {
         hasDisruption,

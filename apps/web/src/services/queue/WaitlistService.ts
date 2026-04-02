@@ -19,11 +19,10 @@ export class WaitlistService {
     clinicId: string,
     date: Date,
     patientId?: string,
-    guestPatientId?: string,
     priorityScore: number = 0,
     notes?: string
   ): Promise<WaitlistEntry> {
-    return this.repository.addToWaitlist(clinicId, date, patientId, guestPatientId, priorityScore, notes);
+    return this.repository.addToWaitlist(clinicId, date, patientId, priorityScore, notes);
   }
 
   /**

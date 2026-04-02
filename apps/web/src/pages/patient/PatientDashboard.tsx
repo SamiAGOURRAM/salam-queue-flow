@@ -42,7 +42,7 @@ interface Appointment {
   id: string;
   clinic_id: string;
   appointment_date: string;
-  start_time: string | null;
+  scheduled_time: string | null;
   appointment_type: string;
   status: string;
   queue_position: number | null;
@@ -54,6 +54,19 @@ interface Appointment {
 }
 
 type FilterType = 'all' | 'upcoming' | 'completed' | 'cancelled' | null;
+
+function formatScheduledTime(scheduledTime: string | null): string {
+  if (!scheduledTime) return 'N/A';
+
+  const [hourPart, minutePart] = scheduledTime.split(':');
+  const hour = parseInt(hourPart, 10);
+  if (Number.isNaN(hour)) return scheduledTime;
+
+  const minutes = (minutePart || '00').padStart(2, '0');
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = ((hour + 11) % 12) + 1;
+  return `${hour12}:${minutes} ${ampm}`;
+}
 
 export default function PatientDashboard() {
   const { user, loading } = useAuth();
@@ -99,24 +112,34 @@ export default function PatientDashboard() {
       const queueEntries = await queueService.getPatientAppointments(user.id);
 
       // Map QueueEntry to Appointment interface for backward compatibility
-      const appointments: Appointment[] = queueEntries.map(entry => ({
-        id: entry.id,
-        clinic_id: entry.clinicId,
-        appointment_date: entry.appointmentDate.toISOString().split('T')[0],
-        start_time: entry.startTime?.toISOString() || null,
-        appointment_type: entry.appointmentType,
-        status: entry.status,
-        queue_position: entry.queuePosition,
-        clinic: entry.clinic ? {
-          name: entry.clinic.name || 'Unknown Clinic',
-          specialty: entry.clinic.specialty || '',
-          city: entry.clinic.city || '',
-        } : {
-          name: 'Unknown Clinic',
-          specialty: '',
-          city: '',
-        },
-      }));
+      const appointments: Appointment[] = queueEntries.map(entry => {
+        const clinicInfo = (entry as unknown as {
+          clinic?: {
+            name?: string;
+            specialty?: string;
+            city?: string;
+          };
+        }).clinic;
+
+        return {
+          id: entry.id,
+          clinic_id: entry.clinicId,
+          appointment_date: entry.appointmentDate.toISOString().split('T')[0],
+          scheduled_time: entry.scheduledTime || null,
+          appointment_type: entry.appointmentType,
+          status: entry.status,
+          queue_position: entry.queuePosition,
+          clinic: clinicInfo ? {
+            name: clinicInfo.name || 'Unknown Clinic',
+            specialty: clinicInfo.specialty || '',
+            city: clinicInfo.city || '',
+          } : {
+            name: 'Unknown Clinic',
+            specialty: '',
+            city: '',
+          },
+        };
+      });
 
       setAppointments(appointments);
     } catch (error) {
@@ -423,10 +446,10 @@ export default function PatientDashboard() {
                       <Calendar className="w-5 h-5 text-foreground" />
                       <span className="font-medium">{format(new Date(apt.appointment_date), 'EEE, MMM d')}</span>
                     </div>
-                    {apt.start_time && (
+                    {apt.scheduled_time && (
                       <div className="flex items-center gap-2">
                         <Clock className="w-5 h-5 text-foreground" />
-                        <span className="font-medium">{format(new Date(apt.start_time), 'h:mm a')}</span>
+                        <span className="font-medium">{formatScheduledTime(apt.scheduled_time)}</span>
                       </div>
                     )}
                   </div>
@@ -456,7 +479,7 @@ export default function PatientDashboard() {
                           apt.id, 
                           apt.clinic.name,
                           format(new Date(apt.appointment_date), 'MMM d, yyyy'),
-                          apt.start_time ? format(new Date(apt.start_time), 'h:mm a') : 'N/A',
+                          formatScheduledTime(apt.scheduled_time),
                           e
                         )}
                         className="text-sm text-muted-foreground hover:text-destructive transition-colors"

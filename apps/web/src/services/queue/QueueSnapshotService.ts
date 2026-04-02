@@ -35,7 +35,7 @@ export class QueueSnapshotService {
       // Get current queue state
       const { data: appointments, error: appointmentsError } = await supabase
         .from('appointments')
-        .select('status, queue_position, actual_start_time')
+        .select('status, queue_position')
         .eq('clinic_id', clinicId)
         .eq('appointment_date', dateStr)
         .in('status', ['scheduled', 'waiting', 'in_progress', 'completed']);

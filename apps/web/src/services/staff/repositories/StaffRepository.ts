@@ -5,6 +5,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import { DatabaseError } from '../../shared/errors';
 import { logger } from '../../shared/logging/Logger';
 
@@ -15,7 +16,7 @@ export interface StaffRow {
   role: string;
   specialization?: string | null;
   license_number?: string | null;
-  working_hours?: Record<string, unknown> | null;
+  working_hours?: Json | null;
   average_consultation_duration?: number | null;
   patients_per_day_avg?: number | null;
   is_active: boolean;
@@ -29,7 +30,7 @@ export interface CreateStaffRow {
   role: string;
   specialization?: string | null;
   license_number?: string | null;
-  working_hours?: Record<string, unknown> | null;
+  working_hours?: Json | null;
   is_active?: boolean;
 }
 
@@ -191,7 +192,7 @@ export class StaffRepository {
       if (data.role) updateData.role = data.role;
       if (data.specialization !== undefined) updateData.specialization = data.specialization;
       if (data.license_number !== undefined) updateData.license_number = data.license_number;
-      if (data.working_hours) updateData.working_hours = data.working_hours;
+      if (data.working_hours !== undefined) updateData.working_hours = data.working_hours;
       if (data.average_consultation_duration !== undefined) updateData.average_consultation_duration = data.average_consultation_duration;
       if (data.is_active !== undefined) updateData.is_active = data.is_active;
 

@@ -93,7 +93,7 @@ export default function TeamManagement() {
             logger.error("Staff fetch error", staffError, { clinicId: clinicData.id });
           } else if (staffData) {
             logger.debug("Fetched staff data", { clinicId: clinicData.id, staffCount: staffData.length });
-            const typedStaff = Array.isArray(staffData) ? (staffData as StaffMember[]) : [];
+            const typedStaff = Array.isArray(staffData) ? (staffData as unknown as StaffMember[]) : [];
             setStaff(typedStaff);
           }
         }

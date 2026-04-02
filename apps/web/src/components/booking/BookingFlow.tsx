@@ -47,9 +47,7 @@ const BookingFlow = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Get staff ID for queue service (will be set when we fetch staff)
-  const [staffId, setStaffId] = useState<string | undefined>(undefined);
-  const { createAppointment } = useQueueService({ staffId });
+  const { createAppointment } = useQueueService({});
 
   // UI State
   const [step, setStep] = useState(1);
@@ -101,10 +99,11 @@ const BookingFlow = () => {
 
       const bookedSlotsData = await queueService.getClinicBookedSlots(clinicId, dateStr);
 
-      // Extract time from start_time (timestamp) to UI format (HH:MM)
+      // Use canonical scheduled time (HH:mm) from booked slots
       const slots = bookedSlotsData.map(slot => {
-        // Extract time from timestamp: "2025-11-27T10:00:00+01:00" -> "10:00"
-        const timeStr = format(new Date(slot.startTime), "HH:mm");
+        const timeStr = slot.scheduledTime.length >= 5
+          ? slot.scheduledTime.slice(0, 5)
+          : slot.scheduledTime;
         return timeStr;
       });
 
@@ -174,16 +173,12 @@ const BookingFlow = () => {
       // Get all booked slots for the date
       const bookedSlotsData = await queueService.getClinicBookedSlots(clinicId, dateStr);
 
-      // Build the full datetime string for the selected time
-      const fullDateTime = `${dateStr}T${timeWithSeconds}`;
-      const selectedTime = new Date(fullDateTime).getTime();
-
-      // Check if any booked slot overlaps with the selected time
+      // Check if selected HH:mm slot is already booked
       const isBooked = bookedSlotsData.some(slot => {
-        const slotTime = new Date(slot.startTime).getTime();
-        const oneMinuteLater = slotTime + 60000; // Add 1 minute
-        // Check if selected time falls within the slot's time range
-        return selectedTime >= slotTime && selectedTime < oneMinuteLater;
+        const slotTime = slot.scheduledTime.length >= 5
+          ? slot.scheduledTime.slice(0, 5)
+          : slot.scheduledTime;
+        return slotTime === time;
       });
 
       const isAvailable = !isBooked;
@@ -323,23 +318,6 @@ const BookingFlow = () => {
       // Convert time to database format (HH:MM:SS)
       const timeForDB = selectedTime.length === 5 ? `${selectedTime}:00` : selectedTime;
 
-      // Get clinic staff (using RPC for now, could be refactored to StaffService later)
-      const { data: staffData, error: staffError } = await supabase
-        .rpc('get_clinic_staff_for_booking', { p_clinic_id: clinicId });
-
-      if (staffError || !staffData || staffData.length === 0) {
-        logger.error("Could not find clinic staff", staffError, { clinicId });
-        toast({
-          title: "Configuration Error",
-          description: "Could not find clinic staff. Please contact the clinic.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const currentStaffId = staffData[0].staff_id;
-      setStaffId(currentStaffId); // Update for queue service
-
       // Final availability check (in case someone else just booked)
       const isSlotAvailable = await checkSlotAvailability(selectedDate!, selectedTime);
 
@@ -388,10 +366,7 @@ const BookingFlow = () => {
       // Use QueueService to create appointment
       const newAppointment = await createAppointment({
         clinicId: clinicId!,
-        staffId: currentStaffId,
         patientId: userId,
-        guestPatientId: null,
-        isGuest: false,
         appointmentType: validatedAppointmentType as any, // Cast to enum type
         isWalkIn: false,
         startTime: startDateTime.toISOString(),
@@ -406,7 +381,7 @@ const BookingFlow = () => {
       logger.info("Booking successful", {
         appointmentId: newAppointment.id,
         clinicId,
-        userId,
+        userId: user?.id,
         queuePosition: newAppointment.queuePosition
       });
 
@@ -430,7 +405,12 @@ const BookingFlow = () => {
       });
 
     } catch (error: unknown) {
-      logger.error("Booking failed", error instanceof Error ? error : new Error(String(error)), { clinicId, userId, date: format(selectedDate!, "yyyy-MM-dd"), time: selectedTime });
+      logger.error("Booking failed", error instanceof Error ? error : new Error(String(error)), {
+        clinicId,
+        userId: user?.id,
+        date: format(selectedDate!, "yyyy-MM-dd"),
+        time: selectedTime,
+      });
       const description =
         error instanceof Error
           ? error.message

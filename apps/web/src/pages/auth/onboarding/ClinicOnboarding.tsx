@@ -80,10 +80,9 @@ export default function ClinicOnboarding() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    let currentUser = user;
     setLoading(true);
     try {
-      let currentUser = user;
-
       // If no user exists, create account first (from stored signup data)
       if (!currentUser && signupData) {
         logger.debug("Creating account with clinic setup", { email: signupData.email, phone: signupData.phone, fullName: signupData.fullName });
@@ -182,7 +181,11 @@ export default function ClinicOnboarding() {
         });
         logger.info("Staff entry created successfully", { clinicId: clinic.id, userId: currentUser.id });
       } catch (staffError) {
-        logger.warn("Staff creation error (might already exist from trigger)", staffError instanceof Error ? staffError : new Error(String(staffError)), { clinicId: clinic.id, userId: currentUser.id });
+        logger.warn("Staff creation error (might already exist from trigger)", {
+          clinicId: clinic.id,
+          userId: currentUser.id,
+          errorMessage: staffError instanceof Error ? staffError.message : String(staffError),
+        });
         // Continue - this is not a critical error
       }
 
@@ -194,7 +197,12 @@ export default function ClinicOnboarding() {
         .eq("role", "clinic_owner");
 
       if (roleError) {
-        logger.warn("Role update error (might already be set from trigger)", roleError, { userId: currentUser.id, clinicId: clinic.id });
+        logger.warn("Role update error (might already be set from trigger)", {
+          userId: currentUser.id,
+          clinicId: clinic.id,
+          errorMessage: roleError.message,
+          errorCode: roleError.code,
+        });
       }
 
       toast({
@@ -256,7 +264,9 @@ export default function ClinicOnboarding() {
                 <Label htmlFor="practice_type">Practice Type</Label>
                 <Select
                   value={clinicData.practice_type}
-                  onValueChange={(value) => setClinicData({ ...clinicData, practice_type: value })}
+                  onValueChange={(value) =>
+                    setClinicData({ ...clinicData, practice_type: value as ClinicFormData['practice_type'] })
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue />

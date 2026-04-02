@@ -34,8 +34,8 @@ export class GapManagerService {
     const earlyBirds = todaysSchedule.schedule.filter(appt => 
       appt.status === 'waiting' && 
       appt.isPresent && 
-      appt.startTime && 
-      new Date(appt.startTime) > gapStartTime // Scheduled for later
+      this.getScheduledDateTime(appt) !== null &&
+      this.getScheduledDateTime(appt)! > gapStartTime // Scheduled for later
     );
 
     if (earlyBirds.length > 0) {
@@ -74,12 +74,24 @@ export class GapManagerService {
     // Update the appointment to the new earlier time
     // This effectively "fills" the gap
     await this.queueRepository.updateQueueEntry(appointment.id, {
-        startTime: newStartTime.toISOString(),
+        scheduledTime: newStartTime.toISOString().substring(11, 16),
         isGapFiller: true,
         priorityScore: (appointment.priorityScore || 0) + 20 // Bonus for being a gap filler
     });
     
     logger.info('Filled gap with existing appointment', { appointmentId: appointment.id, newTime: newStartTime });
+  }
+
+  private getScheduledDateTime(entry: QueueEntry): Date | null {
+    if (!entry.scheduledTime) return null;
+
+    const dateStr = entry.appointmentDate.toISOString().split('T')[0];
+    const normalizedTime = entry.scheduledTime.length === 5
+      ? `${entry.scheduledTime}:00`
+      : entry.scheduledTime;
+    const parsed = new Date(`${dateStr}T${normalizedTime}`);
+
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 }
 

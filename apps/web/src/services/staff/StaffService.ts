@@ -5,6 +5,7 @@
  */
 
 import { StaffRepository } from './repositories/StaffRepository';
+import type { Json } from '@/integrations/supabase/types';
 import { logger } from '../shared/logging/Logger';
 import { NotFoundError, ValidationError, DatabaseError } from '../shared/errors';
 
@@ -111,7 +112,7 @@ export class StaffService {
         role: dto.role,
         specialization: dto.specialization,
         license_number: dto.licenseNumber,
-        working_hours: dto.workingHours,
+        working_hours: (dto.workingHours as Json | undefined) ?? null,
         is_active: true,
       });
 
@@ -153,7 +154,7 @@ export class StaffService {
       if (data.role) updateData.role = data.role;
       if (data.specialization !== undefined) updateData.specialization = data.specialization;
       if (data.licenseNumber !== undefined) updateData.license_number = data.licenseNumber;
-      if (data.workingHours) updateData.working_hours = data.workingHours;
+      if (data.workingHours !== undefined) updateData.working_hours = data.workingHours as Json;
       if (data.averageConsultationDuration !== undefined) updateData.average_consultation_duration = data.averageConsultationDuration;
       if (data.isActive !== undefined) updateData.is_active = data.isActive;
 

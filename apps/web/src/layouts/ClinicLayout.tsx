@@ -84,7 +84,7 @@ export default function ClinicLayout() {
                             staffError.message?.includes('application/vnd.pgrst.object');
 
           if (is406Error) {
-            logger.error("RLS policy blocking clinic_staff access or format mismatch", { userId: user?.id, error: staffError });
+            logger.error("RLS policy blocking clinic_staff access or format mismatch", staffError, { userId: user?.id });
             return;
           }
           logger.error("Error fetching clinic_staff", staffError, { userId: user?.id });
@@ -108,7 +108,7 @@ export default function ClinicLayout() {
                           error.message?.includes('application/vnd.pgrst.object');
 
         if (is406Error) {
-          logger.error("RLS policy blocking clinic access or format mismatch", { userId: user?.id, isClinicOwner, isStaff, error });
+          logger.error("RLS policy blocking clinic access or format mismatch", error, { userId: user?.id, isClinicOwner, isStaff });
         } else {
           logger.error("Error fetching clinic", error, { userId: user?.id, isClinicOwner });
         }

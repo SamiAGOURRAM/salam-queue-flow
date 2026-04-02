@@ -57,7 +57,6 @@ export interface WaitlistEntry {
   id: string;
   clinicId: string;
   patientId?: string;
-  guestPatientId?: string;
   requestedDate: Date;
   priorityScore: number;
   status: 'waiting' | 'notified' | 'promoted' | 'expired' | 'cancelled';
@@ -113,8 +112,8 @@ export class SlottedQueueStrategy implements IQueueStrategy {
     const scheduledPatients = schedule
       .filter(p => p.status === 'waiting' && !p.skipReason)
       .sort((a, b) => {
-        const timeA = a.startTime ? new Date(a.startTime).getTime() : Infinity;
-        const timeB = b.startTime ? new Date(b.startTime).getTime() : Infinity;
+        const timeA = this.getScheduledTimestamp(a);
+        const timeB = this.getScheduledTimestamp(b);
         return timeA - timeB;
       });
     
@@ -146,7 +145,7 @@ export class SlottedQueueStrategy implements IQueueStrategy {
     
     for (const appointment of schedule) {
       if (appointment.status === 'waiting' && !appointment.isPresent) {
-        const slotTime = appointment.startTime ? new Date(appointment.startTime).getTime() : Infinity;
+        const slotTime = this.getScheduledTimestamp(appointment);
         // Slot is available if it's at or before current time and patient is not present
         if (slotTime <= now) {
           return appointment;
@@ -156,6 +155,18 @@ export class SlottedQueueStrategy implements IQueueStrategy {
     
     return null;
   }
+
+      private getScheduledTimestamp(entry: QueueEntry): number {
+        if (!entry.scheduledTime) return Infinity;
+
+        const dateStr = entry.appointmentDate.toISOString().split('T')[0];
+        const normalizedTime = entry.scheduledTime.length === 5
+          ? `${entry.scheduledTime}:00`
+          : entry.scheduledTime;
+
+        const parsed = new Date(`${dateStr}T${normalizedTime}`);
+        return Number.isNaN(parsed.getTime()) ? Infinity : parsed.getTime();
+      }
 
   async handleLateArrival(appointment: QueueEntry, schedule: QueueEntry[]): Promise<QueueAction> {
     // Slotted Mode: Late arrivals can use original slot if available

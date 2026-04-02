@@ -5,6 +5,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import { DatabaseError } from '../../shared/errors';
 import { logger } from '../../shared/logging/Logger';
 
@@ -23,9 +24,10 @@ export interface ClinicRow {
   settings: Record<string, unknown> | null;
   subscription_tier: string;
   is_active: boolean;
-  operating_mode: string;
-  estimation_mode: string;
-  ml_enabled?: boolean | null;
+  queue_mode?: string | null;
+  grace_period_minutes?: number | null;
+  allow_overflow?: boolean | null;
+  daily_capacity_limit?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -110,7 +112,7 @@ export class ClinicRepository {
     try {
       const { error } = await supabase
         .from('clinics')
-        .update({ settings })
+        .update({ settings: settings as Json })
         .eq('id', clinicId);
 
       if (error) {

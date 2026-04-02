@@ -26,13 +26,27 @@ import { QueueService } from "@/services/queue/QueueService";
 import { staffService } from "@/services/staff/StaffService";
 import { clinicService } from "@/services/clinic/ClinicService";
 import { cn } from "@/lib/utils";
-import type { Database } from "@/integrations/supabase/types";
 
-type ClinicRow = Database["public"]["Tables"]["clinics"]["Row"];
+type ClinicCalendarState = {
+  id: string;
+  settings: Record<string, unknown> | null;
+};
+
+function getScheduledDateTime(appointment: QueueEntry): Date | null {
+  if (!appointment.scheduledTime) return null;
+
+  const dateStr = appointment.appointmentDate.toISOString().split('T')[0];
+  const normalizedTime = appointment.scheduledTime.length === 5
+    ? `${appointment.scheduledTime}:00`
+    : appointment.scheduledTime;
+
+  const parsed = new Date(`${dateStr}T${normalizedTime}`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
 
 export default function ClinicCalendar() {
   const { user } = useAuth();
-  const [clinic, setClinic] = useState<ClinicRow | null>(null);
+  const [clinic, setClinic] = useState<ClinicCalendarState | null>(null);
   const [staffId, setStaffId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [appointments, setAppointments] = useState<QueueEntry[]>([]);
@@ -57,10 +71,10 @@ export default function ClinicCalendar() {
           if (clinicData) {
             setClinic({
               id: clinicData.id,
-              name: clinicData.name,
-              practice_type: clinicData.practiceType,
-              specialty: clinicData.specialty,
-              city: clinicData.city,
+              settings:
+                clinicData.settings && typeof clinicData.settings === 'object' && !Array.isArray(clinicData.settings)
+                  ? (clinicData.settings as Record<string, unknown>)
+                  : null,
             });
           }
         }
@@ -92,16 +106,9 @@ export default function ClinicCalendar() {
       
       const scheduleData = await queueService.getDailySchedule(staffId, dateStr);
       const sortedAppointments = (scheduleData.schedule || []).sort((a, b) => {
-        // ✅ Use startTime if available, fall back to scheduledTime
-        const getTime = (apt: any) => {
-          if (apt.startTime) {
-            return new Date(apt.startTime).getTime();
-          }
-          if (apt.scheduledTime && apt.appointmentDate) {
-            // Combine date + time for proper sorting
-            return new Date(`${apt.appointmentDate}T${apt.scheduledTime}`).getTime();
-          }
-          return 0;
+        const getTime = (apt: QueueEntry) => {
+          const scheduledDateTime = getScheduledDateTime(apt);
+          return scheduledDateTime ? scheduledDateTime.getTime() : 0;
         };
         
         return getTime(a) - getTime(b);
@@ -112,10 +119,10 @@ export default function ClinicCalendar() {
         count: sortedAppointments.length,
         appointments: sortedAppointments.map(apt => ({
           id: apt.id,
-          patient: apt.patient?.fullName || apt.guestPatient?.fullName || 'Unknown',
+          patient: apt.patient?.fullName || 'Unknown',
           status: apt.status,
           appointmentDate: apt.appointmentDate,
-          startTime: apt.startTime,
+          scheduledTime: apt.scheduledTime,
         }))
       });
       
@@ -190,9 +197,13 @@ export default function ClinicCalendar() {
   };
 
   const workingHours = useMemo(() => {
-    if (!clinic?.settings?.working_hours) return null;
+    const settings = clinic?.settings;
+    const workingHoursRaw = settings?.working_hours;
+    if (!workingHoursRaw || typeof workingHoursRaw !== 'object' || Array.isArray(workingHoursRaw)) return null;
+
+    const workingHours = workingHoursRaw as Record<string, { open?: string; close?: string; closed?: boolean }>;
     const dayName = format(selectedDate, 'EEEE').toLowerCase();
-    return clinic.settings.working_hours[dayName];
+    return workingHours[dayName];
   }, [clinic, selectedDate]);
 
   const isClosed = workingHours?.closed;
@@ -348,9 +359,7 @@ export default function ClinicCalendar() {
                 {appointments.map((apt) => {
                   const statusStyle = getStatusStyle(apt);
                   const timeDisplay = (() => {
-                    if (apt.startTime) {
-                      return format(new Date(apt.startTime), 'h:mm a');
-                    } else if (apt.scheduledTime) {
+                    if (apt.scheduledTime) {
                       const [h, m] = apt.scheduledTime.split(':');
                       const hour = parseInt(h);
                       const ampm = hour >= 12 ? 'PM' : 'AM';
@@ -417,7 +426,6 @@ export default function ClinicCalendar() {
         open={showBookAppointment}
         onOpenChange={setShowBookAppointment}
         clinicId={clinic?.id || ""}
-        staffId={staffId || ""}
         onSuccess={() => {
           fetchAppointments();
           setShowBookAppointment(false);

@@ -78,6 +78,7 @@ export interface QueueEntry {
   originalQueuePosition?: number;
   status: AppointmentStatus;
   appointmentType: AppointmentType;
+  isWalkIn?: boolean;
   isPresent: boolean;
   markedAbsentAt?: Date;
   returnedAt?: Date;
@@ -86,8 +87,6 @@ export interface QueueEntry {
   overrideBy?: string;
   checkedInAt?: Date; // Set when staff calls "Call Next" (patient enters consultation room)
   actualEndTime?: Date; // Set when staff completes appointment
-  startTime?: Date;
-  endTime?: Date;
   estimatedDurationMinutes?: number;
   estimatedWaitTime?: number;
   predictionMode?: EstimationMode;
@@ -105,10 +104,6 @@ export interface QueueEntry {
   lateArrivalConverted?: boolean;
   originalSlotTime?: Date;
 
-  // Guest patient support
-  isGuest?: boolean;
-  guestPatientId?: string;
-
   // Relations (optional - populated on demand)
   patient?: Patient;
 }
@@ -120,7 +115,6 @@ export interface WaitlistEntry {
   id: string;
   clinicId: string;
   patientId?: string;
-  guestPatientId?: string;
   requestedDate: Date;
   requestedTimeRangeStart?: string;
   requestedTimeRangeEnd?: string;
@@ -205,7 +199,13 @@ export interface QueueSummary {
 // ESTIMATION & CONFIGURATION MODELS
 // ============================================
 
-export type EstimationMode = 'basic' | 'ml' | 'hybrid';
+export type EstimationMode =
+  | 'basic'
+  | 'ml'
+  | 'hybrid'
+  | 'rule-based'
+  | 'historical-average'
+  | 'fallback';
 
 export interface ClinicEstimationConfig {
   clinicId: string;
@@ -315,15 +315,12 @@ export interface CreateQueueEntryDTO {
   clinicId: string;
   patientId: string;
   staffId?: string;
-  appointmentDate?: Date; // Optional - can be derived from startTime
-  scheduledTime?: string; // Optional - can be derived from startTime
+  appointmentDate?: Date;
+  scheduledTime?: string;
   appointmentType: AppointmentType;
   autoAssignPosition?: boolean;
-  // New fields for RPC function
-  startTime?: string; // ISO string timestamp
-  endTime?: string; // ISO string timestamp
-  guestPatientId?: string | null;
-  isGuest?: boolean;
+  startTime?: string; // ISO string timestamp - used by createQueueEntryViaRpc
+  endTime?: string; // ISO string timestamp - used by createQueueEntryViaRpc
   isWalkIn?: boolean;
   reasonForVisit?: string;
 }

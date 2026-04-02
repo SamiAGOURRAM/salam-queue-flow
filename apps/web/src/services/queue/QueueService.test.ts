@@ -16,6 +16,7 @@ import {
 } from '../shared/errors';
 import {
   AppointmentStatus,
+  AppointmentType,
   QueueActionType,
   SkipReason,
   type QueueEntry,
@@ -47,7 +48,6 @@ describe('QueueService', () => {
       createQueueEntryViaRpc: vi.fn(),
       updateQueueEntry: vi.fn(),
       checkInPatient: vi.fn(),
-      markAbsent: vi.fn(),
       markPatientReturned: vi.fn(),
       createAbsentPatient: vi.fn(),
       createQueueOverride: vi.fn(),
@@ -126,7 +126,7 @@ describe('QueueService', () => {
         staffId: 'staff-123',
         startTime: new Date(Date.now() + 3600000).toISOString(), // 1 hour from now
         endTime: new Date(Date.now() + 3900000).toISOString(), // 1h 5min from now
-        appointmentType: 'consultation',
+        appointmentType: AppointmentType.CONSULTATION,
         isWalkIn: false,
       };
 
@@ -154,7 +154,7 @@ describe('QueueService', () => {
         patientId: 'patient-123',
         startTime: '',
         endTime: new Date().toISOString(),
-        appointmentType: 'consultation',
+        appointmentType: AppointmentType.CONSULTATION,
       };
 
       await expect(service.createAppointment(dto)).rejects.toThrow(ValidationError);
@@ -167,7 +167,7 @@ describe('QueueService', () => {
         patientId: 'patient-123',
         startTime: new Date().toISOString(),
         endTime: '',
-        appointmentType: 'consultation',
+        appointmentType: AppointmentType.CONSULTATION,
       };
 
       await expect(service.createAppointment(dto)).rejects.toThrow(ValidationError);
@@ -180,7 +180,7 @@ describe('QueueService', () => {
         patientId: 'patient-123',
         startTime: pastDate.toISOString(),
         endTime: new Date(pastDate.getTime() + 1800000).toISOString(),
-        appointmentType: 'consultation',
+        appointmentType: AppointmentType.CONSULTATION,
         isWalkIn: true,
       };
 
@@ -201,7 +201,7 @@ describe('QueueService', () => {
         patientId: 'patient-123',
         startTime: pastDate.toISOString(),
         endTime: new Date(pastDate.getTime() + 1800000).toISOString(),
-        appointmentType: 'consultation',
+        appointmentType: AppointmentType.CONSULTATION,
         isWalkIn: false,
       };
 
@@ -263,7 +263,7 @@ describe('QueueService', () => {
       const dto: CallNextPatientDTO = {
         staffId: 'staff-123',
         clinicId: 'clinic-123',
-        date: new Date().toISOString(),
+        date: new Date(),
         performedBy: 'user-123',
       };
 
@@ -303,7 +303,7 @@ describe('QueueService', () => {
       const dto: CallNextPatientDTO = {
         staffId: 'staff-123',
         clinicId: 'clinic-123',
-        date: new Date().toISOString(),
+        date: new Date(),
         performedBy: 'user-123',
       };
 
@@ -516,6 +516,7 @@ describe('QueueService', () => {
         appointmentId: 'app-123',
         newPosition: 0,
         performedBy: 'user-123',
+        reason: 'Invalid test case',
       };
 
       const mockEntry = createMockQueueEntry({ id: dto.appointmentId });
@@ -530,6 +531,7 @@ describe('QueueService', () => {
         appointmentId: 'app-123',
         newPosition: 5,
         performedBy: 'user-123',
+        reason: 'No-op reorder',
       };
 
       const mockEntry = createMockQueueEntry({

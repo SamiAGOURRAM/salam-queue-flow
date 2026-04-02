@@ -111,7 +111,23 @@ const ClinicDetailView = () => {
         .single();
 
       if (clinicError) throw clinicError;
-      setClinic(clinicData);
+      const normalizedSettings =
+        clinicData.settings && typeof clinicData.settings === 'object' && !Array.isArray(clinicData.settings)
+          ? (clinicData.settings as ClinicSettings)
+          : null;
+
+      setClinic({
+        id: clinicData.id,
+        name: clinicData.name,
+        name_ar: clinicData.name_ar,
+        specialty: clinicData.specialty,
+        city: clinicData.city,
+        address: clinicData.address,
+        phone: clinicData.phone,
+        email: clinicData.email,
+        logo_url: clinicData.logo_url,
+        settings: normalizedSettings,
+      });
 
       const { data: staffData, error: staffError } = await supabase
         .from("clinic_staff")

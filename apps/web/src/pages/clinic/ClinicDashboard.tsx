@@ -44,6 +44,28 @@ interface StaffProfile {
 
 type ChartFilter = "7d" | "30d" | "90d" | "1y";
 
+function getScheduledDateTime(appointmentDate: Date, scheduledTime?: string) {
+  if (!scheduledTime) return null;
+
+  const dateStr = appointmentDate.toISOString().split('T')[0];
+  const normalizedTime = scheduledTime.length === 5 ? `${scheduledTime}:00` : scheduledTime;
+  const parsed = new Date(`${dateStr}T${normalizedTime}`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatScheduledTime(scheduledTime?: string) {
+  if (!scheduledTime) return '-';
+
+  const [hourPart, minutePart] = scheduledTime.split(':');
+  const hour = parseInt(hourPart, 10);
+  if (Number.isNaN(hour)) return scheduledTime;
+
+  const minutes = (minutePart || '00').padStart(2, '0');
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = ((hour + 11) % 12) + 1;
+  return `${hour12}:${minutes} ${ampm}`;
+}
+
 export default function ClinicDashboard() {
   // ===== ALL HOOKS PRESERVED IN EXACT ORDER =====
   const { user } = useAuth();
@@ -108,10 +130,13 @@ export default function ClinicDashboard() {
     const completed = schedule.filter(p => p.status === AppointmentStatus.COMPLETED).length;
 
     const completedWithTimes = schedule.filter(e =>
-      e.status === AppointmentStatus.COMPLETED && e.checkedInAt && e.startTime
+      e.status === AppointmentStatus.COMPLETED && e.checkedInAt && getScheduledDateTime(e.appointmentDate, e.scheduledTime)
     );
     const totalWaitMinutes = completedWithTimes.reduce((sum, entry) => {
-      const waitTime = (new Date(entry.checkedInAt!).getTime() - new Date(entry.startTime!).getTime()) / (1000 * 60);
+      const scheduledDateTime = getScheduledDateTime(entry.appointmentDate, entry.scheduledTime);
+      if (!scheduledDateTime || !entry.checkedInAt) return sum;
+
+      const waitTime = (entry.checkedInAt.getTime() - scheduledDateTime.getTime()) / (1000 * 60);
       return sum + waitTime;
     }, 0);
     const averageWaitTime = completedWithTimes.length > 0 ? Math.round(totalWaitMinutes / completedWithTimes.length) : 0;
@@ -159,7 +184,7 @@ export default function ClinicDashboard() {
       date.setDate(date.getDate() - i);
 
       const daySchedule = schedule?.filter(apt => {
-        const aptDate = new Date(apt.startTime || apt.createdAt);
+        const aptDate = getScheduledDateTime(apt.appointmentDate, apt.scheduledTime) || new Date(apt.createdAt);
         return aptDate.toDateString() === date.toDateString();
       }) || [];
 
@@ -539,9 +564,7 @@ export default function ClinicDashboard() {
                       </td>
                       <td className="py-3 px-4">
                         <span className="text-sm text-muted-foreground">
-                          {patient.startTime
-                            ? new Date(patient.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                            : '-'}
+                          {formatScheduledTime(patient.scheduledTime)}
                         </span>
                       </td>
                       <td className="py-3 px-4">
