@@ -23,12 +23,17 @@ export interface PatientProfileRow {
   updated_at: string;
 }
 
-export interface GuestPatientRow {
+/**
+ * Walk-in patient row (patients with source != 'app' and user_id IS NULL).
+ * Uses the unified patients table - no separate guest_patients table.
+ */
+export interface WalkInPatientRow {
   id: string;
   phone_number: string;
   full_name: string;
+  source: string;
+  is_claimed: boolean;
   claimed_by?: string | null;
-  claimed_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -69,17 +74,17 @@ export class PatientRepository {
   }
 
   /**
-   * Find guest patient by phone number (not claimed)
+   * Find walk-in patient by phone number (not claimed, no user_id)
    */
-  async findGuestPatientByPhone(phoneNumber: string): Promise<GuestPatientRow | null> {
+  async findWalkInPatientByPhone(phoneNumber: string): Promise<WalkInPatientRow | null> {
     try {
       const { data, error } = await supabase.rpc('find_patient_by_phone', {
         p_phone_number: phoneNumber,
       });
 
       if (error) {
-        logger.error('Failed to find guest patient by phone', error, { phoneNumber });
-        throw new DatabaseError('Failed to find guest patient by phone', error);
+        logger.error('Failed to find walk-in patient by phone', error, { phoneNumber });
+        throw new DatabaseError('Failed to find walk-in patient by phone', error);
       }
 
       const row = Array.isArray(data) ? data[0] : null;
@@ -91,22 +96,23 @@ export class PatientRepository {
         id: row.id as string,
         phone_number: phoneNumber,
         full_name: row.full_name as string,
+        source: (row.source as string) ?? 'walk_in',
+        is_claimed: false,
         claimed_by: null,
-        claimed_at: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
-      logger.error('Unexpected error finding guest patient by phone', error as Error, { phoneNumber });
-      throw new DatabaseError('Unexpected error finding guest patient by phone', error as Error);
+      logger.error('Unexpected error finding walk-in patient by phone', error as Error, { phoneNumber });
+      throw new DatabaseError('Unexpected error finding walk-in patient by phone', error as Error);
     }
   }
 
   /**
-   * Create guest patient
+   * Create walk-in patient (no app account, receptionist-entered)
    */
-  async createGuestPatient(fullName: string, phoneNumber: string): Promise<GuestPatientRow> {
+  async createWalkInPatient(fullName: string, phoneNumber: string): Promise<WalkInPatientRow> {
     try {
       const { data, error } = await supabase.rpc('create_patient', {
         p_full_name: fullName,
@@ -121,23 +127,24 @@ export class PatientRepository {
       });
 
       if (error || !data) {
-        logger.error('Failed to create guest patient', error, { fullName, phoneNumber });
-        throw new DatabaseError('Failed to create guest patient', error);
+        logger.error('Failed to create walk-in patient', error, { fullName, phoneNumber });
+        throw new DatabaseError('Failed to create walk-in patient', error);
       }
 
       return {
         id: data as string,
         phone_number: phoneNumber,
         full_name: fullName,
+        source: 'walk_in',
+        is_claimed: false,
         claimed_by: null,
-        claimed_at: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
-      logger.error('Unexpected error creating guest patient', error as Error, { fullName, phoneNumber });
-      throw new DatabaseError('Unexpected error creating guest patient', error as Error);
+      logger.error('Unexpected error creating walk-in patient', error as Error, { fullName, phoneNumber });
+      throw new DatabaseError('Unexpected error creating walk-in patient', error as Error);
     }
   }
 
@@ -199,39 +206,40 @@ export class PatientRepository {
   }
 
   /**
-   * Get guest patient by ID
+   * Get walk-in patient by ID (decrypts PII via RPC)
    */
-  async getGuestPatient(guestPatientId: string): Promise<GuestPatientRow> {
+  async getWalkInPatient(patientId: string): Promise<WalkInPatientRow> {
     try {
       const { data, error } = await supabase.rpc('get_patient_decrypted', {
-        p_patient_id: guestPatientId,
+        p_patient_id: patientId,
       });
 
       const row = Array.isArray(data) ? data[0] : null;
 
       if (error || !row) {
-        logger.error('Guest patient not found', error, { guestPatientId });
-        throw new DatabaseError('Guest patient not found', error);
+        logger.error('Walk-in patient not found', error, { patientId });
+        throw new DatabaseError('Walk-in patient not found', error);
       }
 
       if ((row.source as string | undefined) === 'app') {
-        logger.error('Requested patient is not a guest record', undefined, { guestPatientId });
-        throw new DatabaseError('Guest patient not found', null);
+        logger.error('Requested patient is not a walk-in record', undefined, { patientId });
+        throw new DatabaseError('Walk-in patient not found', null);
       }
 
       return {
         id: row.id as string,
         phone_number: row.phone_number as string,
         full_name: row.full_name as string,
+        source: (row.source as string) ?? 'walk_in',
+        is_claimed: (row.is_claimed as boolean) ?? false,
         claimed_by: row.user_id as string | null,
-        claimed_at: null,
         created_at: row.created_at as string,
         updated_at: row.created_at as string,
       };
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
-      logger.error('Unexpected error getting guest patient', error as Error, { guestPatientId });
-      throw new DatabaseError('Unexpected error getting guest patient', error as Error);
+      logger.error('Unexpected error getting walk-in patient', error as Error, { patientId });
+      throw new DatabaseError('Unexpected error getting walk-in patient', error as Error);
     }
   }
 }

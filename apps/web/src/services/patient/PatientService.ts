@@ -21,12 +21,13 @@ export interface PatientProfile {
   updatedAt: Date;
 }
 
-export interface GuestPatient {
+export interface WalkInPatient {
   id: string;
   phoneNumber: string;
   fullName: string;
+  source: string;
+  isClaimed: boolean;
   claimedBy?: string;
-  claimedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -63,23 +64,23 @@ export class PatientService {
         };
       }
 
-      // Step 2: Check for existing guest patient (via repository)
-      const existingGuest = await this.repository.findGuestPatientByPhone(phoneNumber);
+      // Step 2: Check for existing walk-in patient (via repository)
+      const existingWalkIn = await this.repository.findWalkInPatientByPhone(phoneNumber);
 
-      if (existingGuest) {
-        logger.info('Found existing guest patient', { guestPatientId: existingGuest.id, phoneNumber });
+      if (existingWalkIn) {
+        logger.info('Found existing walk-in patient', { patientId: existingWalkIn.id, phoneNumber });
         return {
-          patientId: existingGuest.id,
+          patientId: existingWalkIn.id,
           isNew: false,
         };
       }
 
-      // Step 3: Create new guest patient (via repository)
-      const newGuest = await this.repository.createGuestPatient(fullName, phoneNumber);
+      // Step 3: Create new walk-in patient (via repository)
+      const newWalkIn = await this.repository.createWalkInPatient(fullName, phoneNumber);
 
-      logger.info('Created new guest patient', { guestPatientId: newGuest.id, phoneNumber, fullName });
+      logger.info('Created new walk-in patient', { patientId: newWalkIn.id, phoneNumber, fullName });
       return {
-        patientId: newGuest.id,
+        patientId: newWalkIn.id,
         isNew: true,
       };
     } catch (error) {
@@ -150,32 +151,33 @@ export class PatientService {
   }
 
   /**
-   * Get guest patient by ID
+   * Get walk-in patient by ID (decrypts PII)
    */
-  async getGuestPatient(guestPatientId: string): Promise<GuestPatient> {
+  async getWalkInPatient(patientId: string): Promise<WalkInPatient> {
     try {
-      logger.debug('Fetching guest patient', { guestPatientId });
+      logger.debug('Fetching walk-in patient', { patientId });
 
-      const guest = await this.repository.getGuestPatient(guestPatientId);
+      const patient = await this.repository.getWalkInPatient(patientId);
 
       return {
-        id: guest.id,
-        phoneNumber: guest.phone_number,
-        fullName: guest.full_name,
-        claimedBy: guest.claimed_by || undefined,
-        claimedAt: guest.claimed_at ? new Date(guest.claimed_at) : undefined,
-        createdAt: new Date(guest.created_at),
-        updatedAt: new Date(guest.updated_at),
+        id: patient.id,
+        phoneNumber: patient.phone_number,
+        fullName: patient.full_name,
+        source: patient.source,
+        isClaimed: patient.is_claimed,
+        claimedBy: patient.claimed_by || undefined,
+        createdAt: new Date(patient.created_at),
+        updatedAt: new Date(patient.updated_at),
       };
     } catch (error) {
       if (error instanceof DatabaseError) {
         if (error.message.includes('not found')) {
-          throw new NotFoundError('Guest patient not found');
+          throw new NotFoundError('Walk-in patient not found');
         }
         throw error;
       }
-      logger.error('Unexpected error fetching guest patient', error as Error, { guestPatientId });
-      throw new DatabaseError('Unexpected error fetching guest patient', error as Error);
+      logger.error('Unexpected error fetching walk-in patient', error as Error, { patientId });
+      throw new DatabaseError('Unexpected error fetching walk-in patient', error as Error);
     }
   }
 }

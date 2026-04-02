@@ -21,11 +21,11 @@ describe('PatientService', () => {
     vi.clearAllMocks();
     mockRepository = {
       findPatientByPhone: vi.fn(),
-      findGuestPatientByPhone: vi.fn(),
-      createGuestPatient: vi.fn(),
+      findWalkInPatientByPhone: vi.fn(),
+      createWalkInPatient: vi.fn(),
       getPatientProfile: vi.fn(),
       updatePatientProfile: vi.fn(),
-      getGuestPatient: vi.fn(),
+      getWalkInPatient: vi.fn(),
     };
     service = new PatientService(mockRepository as PatientRepository);
   });
@@ -47,61 +47,63 @@ describe('PatientService', () => {
       };
 
       mockRepository.findPatientByPhone = vi.fn().mockResolvedValue(mockPatient);
-      mockRepository.findGuestPatientByPhone = vi.fn().mockResolvedValue(null);
+      mockRepository.findWalkInPatientByPhone = vi.fn().mockResolvedValue(null);
 
       const result = await service.findOrCreatePatient(phoneNumber, fullName);
 
       expect(result.patientId).toBe('patient-123');
       expect(result.isNew).toBe(false);
       expect(mockRepository.findPatientByPhone).toHaveBeenCalledWith(phoneNumber);
-      expect(mockRepository.findGuestPatientByPhone).not.toHaveBeenCalled();
+      expect(mockRepository.findWalkInPatientByPhone).not.toHaveBeenCalled();
     });
 
-    it('should return existing guest patient', async () => {
+    it('should return existing walk-in patient', async () => {
       const phoneNumber = '+212612345678';
-      const fullName = 'Guest Patient';
-      const mockGuest = {
-        id: 'guest-123',
+      const fullName = 'Walk-In Patient';
+      const mockWalkIn = {
+        id: 'walkin-123',
         phone_number: phoneNumber,
         full_name: fullName,
+        source: 'walk_in',
+        is_claimed: false,
         claimed_by: null,
-        claimed_at: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
       mockRepository.findPatientByPhone = vi.fn().mockResolvedValue(null);
-      mockRepository.findGuestPatientByPhone = vi.fn().mockResolvedValue(mockGuest);
+      mockRepository.findWalkInPatientByPhone = vi.fn().mockResolvedValue(mockWalkIn);
 
       const result = await service.findOrCreatePatient(phoneNumber, fullName);
 
-      expect(result.patientId).toBe('guest-123');
+      expect(result.patientId).toBe('walkin-123');
       expect(result.isNew).toBe(false);
-      expect(mockRepository.findGuestPatientByPhone).toHaveBeenCalledWith(phoneNumber);
+      expect(mockRepository.findWalkInPatientByPhone).toHaveBeenCalledWith(phoneNumber);
     });
 
-    it('should create new guest patient when none exists', async () => {
+    it('should create new walk-in patient when none exists', async () => {
       const phoneNumber = '+212612345678';
-      const fullName = 'New Guest';
-      const mockGuest = {
-        id: 'guest-new',
+      const fullName = 'New Walk-In';
+      const mockWalkIn = {
+        id: 'walkin-new',
         phone_number: phoneNumber,
         full_name: fullName,
+        source: 'walk_in',
+        is_claimed: false,
         claimed_by: null,
-        claimed_at: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
       mockRepository.findPatientByPhone = vi.fn().mockResolvedValue(null);
-      mockRepository.findGuestPatientByPhone = vi.fn().mockResolvedValue(null);
-      mockRepository.createGuestPatient = vi.fn().mockResolvedValue(mockGuest);
+      mockRepository.findWalkInPatientByPhone = vi.fn().mockResolvedValue(null);
+      mockRepository.createWalkInPatient = vi.fn().mockResolvedValue(mockWalkIn);
 
       const result = await service.findOrCreatePatient(phoneNumber, fullName);
 
-      expect(result.patientId).toBe('guest-new');
+      expect(result.patientId).toBe('walkin-new');
       expect(result.isNew).toBe(true);
-      expect(mockRepository.createGuestPatient).toHaveBeenCalledWith(fullName, phoneNumber);
+      expect(mockRepository.createWalkInPatient).toHaveBeenCalledWith(fullName, phoneNumber);
     });
 
     it('should throw DatabaseError on unexpected errors', async () => {
@@ -228,57 +230,60 @@ describe('PatientService', () => {
     });
   });
 
-  describe('getGuestPatient', () => {
-    it('should return guest patient successfully', async () => {
-      const guestPatientId = 'guest-123';
-      const mockGuest = {
-        id: guestPatientId,
+  describe('getWalkInPatient', () => {
+    it('should return walk-in patient successfully', async () => {
+      const patientId = 'walkin-123';
+      const mockWalkIn = {
+        id: patientId,
         phone_number: '+212612345678',
-        full_name: 'Guest Patient',
+        full_name: 'Walk-In Patient',
+        source: 'walk_in',
+        is_claimed: true,
         claimed_by: 'user-123',
-        claimed_at: new Date().toISOString(),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
-      mockRepository.getGuestPatient = vi.fn().mockResolvedValue(mockGuest);
+      mockRepository.getWalkInPatient = vi.fn().mockResolvedValue(mockWalkIn);
 
-      const result = await service.getGuestPatient(guestPatientId);
+      const result = await service.getWalkInPatient(patientId);
 
-      expect(result.id).toBe(guestPatientId);
+      expect(result.id).toBe(patientId);
       expect(result.phoneNumber).toBe('+212612345678');
-      expect(result.fullName).toBe('Guest Patient');
+      expect(result.fullName).toBe('Walk-In Patient');
+      expect(result.isClaimed).toBe(true);
       expect(result.claimedBy).toBe('user-123');
-      expect(mockRepository.getGuestPatient).toHaveBeenCalledWith(guestPatientId);
+      expect(mockRepository.getWalkInPatient).toHaveBeenCalledWith(patientId);
     });
 
-    it('should throw NotFoundError when guest patient not found', async () => {
-      const guestPatientId = 'guest-123';
-      const error = new DatabaseError('Guest patient not found');
+    it('should throw NotFoundError when walk-in patient not found', async () => {
+      const patientId = 'walkin-123';
+      const error = new DatabaseError('Walk-in patient not found');
 
-      mockRepository.getGuestPatient = vi.fn().mockRejectedValue(error);
+      mockRepository.getWalkInPatient = vi.fn().mockRejectedValue(error);
 
-      await expect(service.getGuestPatient(guestPatientId)).rejects.toThrow(NotFoundError);
+      await expect(service.getWalkInPatient(patientId)).rejects.toThrow(NotFoundError);
     });
 
-    it('should handle unclaimed guest patient', async () => {
-      const guestPatientId = 'guest-123';
-      const mockGuest = {
-        id: guestPatientId,
+    it('should handle unclaimed walk-in patient', async () => {
+      const patientId = 'walkin-123';
+      const mockWalkIn = {
+        id: patientId,
         phone_number: '+212612345678',
-        full_name: 'Guest Patient',
+        full_name: 'Walk-In Patient',
+        source: 'walk_in',
+        is_claimed: false,
         claimed_by: null,
-        claimed_at: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
-      mockRepository.getGuestPatient = vi.fn().mockResolvedValue(mockGuest);
+      mockRepository.getWalkInPatient = vi.fn().mockResolvedValue(mockWalkIn);
 
-      const result = await service.getGuestPatient(guestPatientId);
+      const result = await service.getWalkInPatient(patientId);
 
+      expect(result.isClaimed).toBe(false);
       expect(result.claimedBy).toBeUndefined();
-      expect(result.claimedAt).toBeUndefined();
     });
   });
 });

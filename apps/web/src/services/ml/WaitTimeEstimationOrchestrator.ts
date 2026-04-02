@@ -476,7 +476,6 @@ export class WaitTimeEstimationOrchestrator {
             id: appt.id,
             predicted_wait_time: estimation.waitTimeMinutes,
             predicted_start_time: estimatedStartTime.toISOString(),
-            prediction_mode: estimation.mode,
             prediction_confidence: estimation.confidence,
             last_prediction_update: new Date().toISOString(),
           });

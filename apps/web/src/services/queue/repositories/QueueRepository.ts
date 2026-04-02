@@ -635,11 +635,9 @@ export class QueueRepository {
 
       const { data, error } = await supabase.rpc('create_queue_entry', {
         p_clinic_id: dto.clinicId,
-        p_staff_id: dto.staffId,
+        p_staff_id: dto.staffId || null,
         p_patient_id: dto.patientId,
-        p_guest_patient_id: null,
-        p_is_guest: false,
-        p_appointment_type: appointmentTypeString, // Ensure it's a string
+        p_appointment_type: appointmentTypeString,
         p_is_walk_in: dto.isWalkIn || false,
         p_start_time: dto.startTime || null,
         p_end_time: dto.endTime || null,
