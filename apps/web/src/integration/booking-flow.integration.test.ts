@@ -296,6 +296,4 @@ describe('Web Booking Flow Integration Smoke', () => {
 
     expect((staffRoles.data || []).length).toBeGreaterThan(0);
   }, 120000);
-
-  it.todo('clinic application submission and admin approval require backend contract (clinic_applications table/RPC not present)');
 });

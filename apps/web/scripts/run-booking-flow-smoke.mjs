@@ -15,6 +15,15 @@ const smokeConfig = {
   staffPhone: process.env.VITE_SMOKE_STAFF_PHONE || '+212600009301',
 };
 
+function assertLocalSupabaseUrl(url) {
+  const isLocal = /^https?:\/\/(127\.0\.0\.1|localhost|host\.docker\.internal)(:\d+)?/i.test(url);
+  if (!isLocal) {
+    throw new Error(
+      `Local smoke test must target local Supabase. Received VITE_SUPABASE_URL=${url}`
+    );
+  }
+}
+
 const pnpmBinary = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
 function runOrThrow(command, args, options = {}) {
@@ -159,6 +168,8 @@ function runIntegrationTest() {
 let containerName = '';
 
 try {
+  assertLocalSupabaseUrl(smokeConfig.supabaseUrl);
+
   containerName = detectSupabaseDbContainer();
   console.log(`Using Supabase DB container: ${containerName}`);
 
