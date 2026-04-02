@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
-  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -97,6 +92,13 @@ export type Database = {
             referencedRelation: "clinics"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "absent_patients_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
         ]
       }
       appointment_metrics: {
@@ -126,7 +128,7 @@ export type Database = {
           clinic_id: string
           confidence_score?: number | null
           current_delay_minutes?: number | null
-          features: Json
+          features?: Json
           id?: string
           model_version?: string | null
           predicted_wait_time?: number | null
@@ -175,7 +177,6 @@ export type Database = {
         Row: {
           actual_duration: number | null
           actual_end_time: string | null
-          actual_start_time: string | null
           appointment_date: string
           appointment_type: Database["public"]["Enums"]["appointment_type"]
           booked_by: string | null
@@ -183,31 +184,33 @@ export type Database = {
           cancellation_reason: string | null
           checked_in_at: string | null
           clinic_id: string
-          complexity_score: number | null
           created_at: string | null
           day_of_week: number | null
           estimated_duration: number | null
           id: string
           is_first_visit: boolean | null
+          is_gap_filler: boolean | null
           is_holiday: boolean | null
           is_present: boolean | null
           is_walk_in: boolean | null
           last_notification_sent_at: string | null
           last_prediction_update: string | null
+          late_arrival_converted: boolean | null
           late_by_minutes: number | null
           marked_absent_at: string | null
           notes: string | null
           notification_count: number | null
           original_queue_position: number | null
+          original_slot_time: string | null
           override_by: string | null
-          patient_arrival_time: string | null
           patient_id: string
           predicted_start_time: string | null
           predicted_wait_time: number | null
           prediction_confidence: number | null
+          priority_score: number | null
+          promoted_from_waitlist: boolean | null
           queue_position: number | null
           reason_for_visit: string | null
-          requires_preparation: boolean | null
           returned_at: string | null
           scheduled_time: string | null
           skip_count: number | null
@@ -220,39 +223,40 @@ export type Database = {
         Insert: {
           actual_duration?: number | null
           actual_end_time?: string | null
-          actual_start_time?: string | null
           appointment_date: string
-          appointment_type: Database["public"]["Enums"]["appointment_type"]
+          appointment_type?: Database["public"]["Enums"]["appointment_type"]
           booked_by?: string | null
           booking_method?: string | null
           cancellation_reason?: string | null
           checked_in_at?: string | null
           clinic_id: string
-          complexity_score?: number | null
           created_at?: string | null
           day_of_week?: number | null
           estimated_duration?: number | null
           id?: string
           is_first_visit?: boolean | null
+          is_gap_filler?: boolean | null
           is_holiday?: boolean | null
           is_present?: boolean | null
           is_walk_in?: boolean | null
           last_notification_sent_at?: string | null
           last_prediction_update?: string | null
+          late_arrival_converted?: boolean | null
           late_by_minutes?: number | null
           marked_absent_at?: string | null
           notes?: string | null
           notification_count?: number | null
           original_queue_position?: number | null
+          original_slot_time?: string | null
           override_by?: string | null
-          patient_arrival_time?: string | null
           patient_id: string
           predicted_start_time?: string | null
           predicted_wait_time?: number | null
           prediction_confidence?: number | null
+          priority_score?: number | null
+          promoted_from_waitlist?: boolean | null
           queue_position?: number | null
           reason_for_visit?: string | null
-          requires_preparation?: boolean | null
           returned_at?: string | null
           scheduled_time?: string | null
           skip_count?: number | null
@@ -265,7 +269,6 @@ export type Database = {
         Update: {
           actual_duration?: number | null
           actual_end_time?: string | null
-          actual_start_time?: string | null
           appointment_date?: string
           appointment_type?: Database["public"]["Enums"]["appointment_type"]
           booked_by?: string | null
@@ -273,31 +276,33 @@ export type Database = {
           cancellation_reason?: string | null
           checked_in_at?: string | null
           clinic_id?: string
-          complexity_score?: number | null
           created_at?: string | null
           day_of_week?: number | null
           estimated_duration?: number | null
           id?: string
           is_first_visit?: boolean | null
+          is_gap_filler?: boolean | null
           is_holiday?: boolean | null
           is_present?: boolean | null
           is_walk_in?: boolean | null
           last_notification_sent_at?: string | null
           last_prediction_update?: string | null
+          late_arrival_converted?: boolean | null
           late_by_minutes?: number | null
           marked_absent_at?: string | null
           notes?: string | null
           notification_count?: number | null
           original_queue_position?: number | null
+          original_slot_time?: string | null
           override_by?: string | null
-          patient_arrival_time?: string | null
           patient_id?: string
           predicted_start_time?: string | null
           predicted_wait_time?: number | null
           prediction_confidence?: number | null
+          priority_score?: number | null
+          promoted_from_waitlist?: boolean | null
           queue_position?: number | null
           reason_for_visit?: string | null
-          requires_preparation?: boolean | null
           returned_at?: string | null
           scheduled_time?: string | null
           skip_count?: number | null
@@ -313,6 +318,13 @@ export type Database = {
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
             referencedColumns: ["id"]
           },
           {
@@ -333,7 +345,7 @@ export type Database = {
           entity_id: string | null
           entity_type: string
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           user_agent: string | null
           user_id: string | null
         }
@@ -345,7 +357,7 @@ export type Database = {
           entity_id?: string | null
           entity_type: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           user_agent?: string | null
           user_id?: string | null
         }
@@ -357,7 +369,7 @@ export type Database = {
           entity_id?: string | null
           entity_type?: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           user_agent?: string | null
           user_id?: string | null
         }
@@ -418,6 +430,44 @@ export type Database = {
           },
         ]
       }
+      clinic_ratings: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          id: string
+          patient_id: string
+          rating: number
+          review_text: string | null
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          id?: string
+          patient_id: string
+          rating: number
+          review_text?: string | null
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          patient_id?: string
+          rating?: number
+          review_text?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_ratings_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinic_staff: {
         Row: {
           average_consultation_duration: number | null
@@ -441,7 +491,7 @@ export type Database = {
           is_active?: boolean | null
           license_number?: string | null
           patients_per_day_avg?: number | null
-          role: string
+          role?: string
           specialization?: string | null
           updated_at?: string | null
           user_id: string
@@ -474,17 +524,22 @@ export type Database = {
       clinics: {
         Row: {
           address: string
+          allow_overflow: boolean | null
           city: string
           created_at: string | null
+          daily_capacity_limit: number | null
           email: string | null
+          grace_period_minutes: number | null
           id: string
           is_active: boolean | null
+          late_arrival_policy: string | null
           logo_url: string | null
           name: string
           name_ar: string | null
           owner_id: string
           phone: string
-          practice_type: Database["public"]["Enums"]["practice_type"]
+          practice_type: Database["public"]["Enums"]["practice_type"] | null
+          queue_mode: string | null
           settings: Json | null
           specialty: string
           subscription_tier: string | null
@@ -492,17 +547,22 @@ export type Database = {
         }
         Insert: {
           address: string
+          allow_overflow?: boolean | null
           city: string
           created_at?: string | null
+          daily_capacity_limit?: number | null
           email?: string | null
+          grace_period_minutes?: number | null
           id?: string
           is_active?: boolean | null
+          late_arrival_policy?: string | null
           logo_url?: string | null
           name: string
           name_ar?: string | null
           owner_id: string
           phone: string
-          practice_type?: Database["public"]["Enums"]["practice_type"]
+          practice_type?: Database["public"]["Enums"]["practice_type"] | null
+          queue_mode?: string | null
           settings?: Json | null
           specialty: string
           subscription_tier?: string | null
@@ -510,17 +570,22 @@ export type Database = {
         }
         Update: {
           address?: string
+          allow_overflow?: boolean | null
           city?: string
           created_at?: string | null
+          daily_capacity_limit?: number | null
           email?: string | null
+          grace_period_minutes?: number | null
           id?: string
           is_active?: boolean | null
+          late_arrival_policy?: string | null
           logo_url?: string | null
           name?: string
           name_ar?: string | null
           owner_id?: string
           phone?: string
-          practice_type?: Database["public"]["Enums"]["practice_type"]
+          practice_type?: Database["public"]["Enums"]["practice_type"] | null
+          queue_mode?: string | null
           settings?: Json | null
           specialty?: string
           subscription_tier?: string | null
@@ -551,7 +616,7 @@ export type Database = {
           id?: string
           notification_id?: string | null
           type: Database["public"]["Enums"]["notification_type"]
-          was_delivered: boolean
+          was_delivered?: boolean
         }
         Update: {
           channel?: Database["public"]["Enums"]["notification_channel"]
@@ -601,7 +666,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_custom?: boolean | null
-          language: string
+          language?: string
           template_key: string
           template_text: string
           updated_at?: string | null
@@ -714,6 +779,13 @@ export type Database = {
             referencedRelation: "clinics"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "notifications_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
         ]
       }
       patient_clinic_history: {
@@ -787,6 +859,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "patient_clinic_history_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "patient_clinic_history_preferred_staff_id_fkey"
             columns: ["preferred_staff_id"]
             isOneToOne: false
@@ -795,8 +874,107 @@ export type Database = {
           },
         ]
       }
+      patient_favorites: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          id: string
+          patient_id: string
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          id?: string
+          patient_id: string
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          patient_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_favorites_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      patients: {
+        Row: {
+          consent_data_processing: boolean
+          consent_data_processing_at: string | null
+          consent_given_by: string | null
+          consent_sms: boolean
+          consent_sms_at: string | null
+          created_at: string | null
+          created_by: string | null
+          data_retention_until: string | null
+          display_name: string
+          email_encrypted: string | null
+          full_name_encrypted: string
+          id: string
+          is_anonymized: boolean
+          is_claimed: boolean
+          phone_number_encrypted: string
+          phone_number_hash: string
+          source: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          consent_data_processing?: boolean
+          consent_data_processing_at?: string | null
+          consent_given_by?: string | null
+          consent_sms?: boolean
+          consent_sms_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          data_retention_until?: string | null
+          display_name: string
+          email_encrypted?: string | null
+          full_name_encrypted: string
+          id?: string
+          is_anonymized?: boolean
+          is_claimed?: boolean
+          phone_number_encrypted: string
+          phone_number_hash: string
+          source?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          consent_data_processing?: boolean
+          consent_data_processing_at?: string | null
+          consent_given_by?: string | null
+          consent_sms?: boolean
+          consent_sms_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          data_retention_until?: string | null
+          display_name?: string
+          email_encrypted?: string | null
+          full_name_encrypted?: string
+          id?: string
+          is_anonymized?: boolean
+          is_claimed?: boolean
+          phone_number_encrypted?: string
+          phone_number_hash?: string
+          source?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
+          city: string | null
           created_at: string | null
           email: string | null
           full_name: string
@@ -807,6 +985,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          city?: string | null
           created_at?: string | null
           email?: string | null
           full_name: string
@@ -817,6 +996,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          city?: string | null
           created_at?: string | null
           email?: string | null
           full_name?: string
@@ -831,37 +1011,49 @@ export type Database = {
       queue_overrides: {
         Row: {
           action_type: string
+          affected_appointments: string[] | null
           appointment_id: string
           clinic_id: string
           created_at: string | null
           id: string
+          metadata: Json | null
           new_position: number | null
+          new_state: Json | null
           performed_by: string
           previous_position: number | null
+          previous_state: Json | null
           reason: string | null
           skipped_patient_ids: string[] | null
         }
         Insert: {
           action_type: string
+          affected_appointments?: string[] | null
           appointment_id: string
           clinic_id: string
           created_at?: string | null
           id?: string
+          metadata?: Json | null
           new_position?: number | null
+          new_state?: Json | null
           performed_by: string
           previous_position?: number | null
+          previous_state?: Json | null
           reason?: string | null
           skipped_patient_ids?: string[] | null
         }
         Update: {
           action_type?: string
+          affected_appointments?: string[] | null
           appointment_id?: string
           clinic_id?: string
           created_at?: string | null
           id?: string
+          metadata?: Json | null
           new_position?: number | null
+          new_state?: Json | null
           performed_by?: string
           previous_position?: number | null
+          previous_state?: Json | null
           reason?: string | null
           skipped_patient_ids?: string[] | null
         }
@@ -943,42 +1135,42 @@ export type Database = {
           accepted_at: string | null
           clinic_id: string
           created_at: string | null
-          expires_at: string
+          expires_at: string | null
           full_name: string
           id: string
           invitation_token: string
           invited_by: string
           phone_number: string
-          role: string
-          status: string
+          role: string | null
+          status: string | null
           updated_at: string | null
         }
         Insert: {
           accepted_at?: string | null
           clinic_id: string
           created_at?: string | null
-          expires_at?: string
+          expires_at?: string | null
           full_name: string
           id?: string
           invitation_token: string
           invited_by: string
           phone_number: string
-          role?: string
-          status?: string
+          role?: string | null
+          status?: string | null
           updated_at?: string | null
         }
         Update: {
           accepted_at?: string | null
           clinic_id?: string
           created_at?: string | null
-          expires_at?: string
+          expires_at?: string | null
           full_name?: string
           id?: string
           invitation_token?: string
           invited_by?: string
           phone_number?: string
-          role?: string
-          status?: string
+          role?: string | null
+          status?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1021,13 +1213,274 @@ export type Database = {
             referencedRelation: "clinics"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "user_roles_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waitlist: {
+        Row: {
+          clinic_id: string
+          created_at: string | null
+          id: string
+          notes: string | null
+          patient_id: string | null
+          priority_score: number | null
+          requested_date: string
+          requested_time_range_end: string | null
+          requested_time_range_start: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          patient_id?: string | null
+          priority_score?: number | null
+          requested_date: string
+          requested_time_range_end?: string | null
+          requested_time_range_start?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          patient_id?: string | null
+          priority_score?: number | null
+          requested_date?: string
+          requested_time_range_end?: string | null
+          requested_time_range_start?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waitlist_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waitlist_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
     Views: {
-      [_ in never]: never
+      clinic_favorite_stats: {
+        Row: {
+          clinic_id: string | null
+          total_favorites: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_favorites_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clinic_rating_stats: {
+        Row: {
+          average_rating: number | null
+          clinic_id: string | null
+          five_star_count: number | null
+          four_star_count: number | null
+          one_star_count: number | null
+          three_star_count: number | null
+          total_ratings: number | null
+          two_star_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_ratings_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      _appointment_to_queue_json: {
+        Args: { p_appointment_id: string }
+        Returns: Json
+      }
+      _default_appointment_duration: {
+        Args: {
+          p_appointment_type: Database["public"]["Enums"]["appointment_type"]
+        }
+        Returns: number
+      }
+      _resolve_patient_record_id: {
+        Args: { p_patient_or_user_id: string }
+        Returns: string
+      }
+      _user_can_manage_clinic: {
+        Args: { p_clinic_id: string; p_user_id?: string }
+        Returns: boolean
+      }
+      anonymize_patient: { Args: { p_patient_id: string }; Returns: undefined }
+      calculate_priority_score: {
+        Args: {
+          p_appointment_type: Database["public"]["Enums"]["appointment_type"]
+          p_is_emergency?: boolean
+          p_is_walk_in: boolean
+        }
+        Returns: number
+      }
+      cancel_appointment: {
+        Args: {
+          p_appointment_id: string
+          p_cancelled_by: string
+          p_reason?: string
+        }
+        Returns: Json
+      }
+      check_appointment_availability: {
+        Args: {
+          p_appointment_date: string
+          p_clinic_id: string
+          p_scheduled_time: string
+        }
+        Returns: Json
+      }
+      claim_patient_account: {
+        Args: { p_email?: string; p_phone_number?: string; p_user_id: string }
+        Returns: string
+      }
+      create_appointment_for_mode: {
+        Args: {
+          p_appointment_date?: string
+          p_appointment_type?: string
+          p_clinic_id: string
+          p_patient_id: string
+          p_reason_for_visit?: string
+          p_scheduled_time?: string
+          p_staff_id?: string
+        }
+        Returns: Json
+      }
+      create_appointment_with_validation: {
+        Args: {
+          p_appointment_date: string
+          p_appointment_type: string
+          p_clinic_id: string
+          p_patient_id: string
+          p_reason?: string
+          p_scheduled_time: string
+        }
+        Returns: Json
+      }
+      create_patient: {
+        Args: {
+          p_consent_data_processing?: boolean
+          p_consent_given_by?: string
+          p_consent_sms?: boolean
+          p_created_by?: string
+          p_email?: string
+          p_full_name: string
+          p_phone_number: string
+          p_source?: string
+          p_user_id?: string
+        }
+        Returns: string
+      }
+      create_queue_entry: {
+        Args: {
+          p_appointment_type?: string
+          p_clinic_id: string
+          p_end_time?: string
+          p_guest_patient_id?: string
+          p_is_guest?: boolean
+          p_is_walk_in?: boolean
+          p_patient_id?: string
+          p_staff_id?: string
+          p_start_time?: string
+        }
+        Returns: Json
+      }
+      decrypt_patient_pii: { Args: { ciphertext: string }; Returns: string }
+      encrypt_patient_pii: { Args: { plaintext: string }; Returns: string }
+      find_patient_by_phone: {
+        Args: { p_phone_number: string }
+        Returns: {
+          display_name: string
+          full_name: string
+          id: string
+          is_claimed: boolean
+          source: string
+        }[]
+      }
+      get_available_slots: {
+        Args: {
+          p_appointment_date: string
+          p_appointment_type?: string
+          p_clinic_id: string
+        }
+        Returns: Json
+      }
+      get_available_slots_for_mode: {
+        Args: {
+          p_appointment_date: string
+          p_appointment_type?: string
+          p_clinic_id: string
+        }
+        Returns: Json
+      }
+      get_clinic_realtime_metrics: {
+        Args: { p_clinic_id: string }
+        Returns: Json
+      }
+      get_daily_schedule_for_clinic: {
+        Args: { p_clinic_id: string; p_target_date: string }
+        Returns: Json
+      }
+      get_daily_schedule_for_staff: {
+        Args: { p_staff_id: string; p_target_date: string }
+        Returns: Json
+      }
+      get_effective_queue_mode: {
+        Args: { p_clinic_id: string; p_date: string }
+        Returns: string
+      }
+      get_patient_decrypted: {
+        Args: { p_patient_id: string }
+        Returns: {
+          consent_data_processing: boolean
+          consent_sms: boolean
+          created_at: string
+          display_name: string
+          email: string
+          full_name: string
+          id: string
+          is_claimed: boolean
+          phone_number: string
+          source: string
+          user_id: string
+        }[]
+      }
+      get_queue_mode_for_date: {
+        Args: { p_clinic_id: string; p_date: string }
+        Returns: string
+      }
       has_clinic_role: {
         Args: {
           _clinic_id: string
@@ -1042,6 +1495,44 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      hash_phone_number: { Args: { phone: string }; Returns: string }
+      make_display_name: { Args: { full_name: string }; Returns: string }
+      manually_assign_time_slot: {
+        Args: {
+          p_appointment_id: string
+          p_assigned_by: string
+          p_scheduled_time: string
+        }
+        Returns: Json
+      }
+      recalculate_queue_positions: {
+        Args: { p_appointment_date: string; p_clinic_id: string }
+        Returns: undefined
+      }
+      record_actual_wait_time: {
+        Args: {
+          p_actual_service_duration?: number
+          p_actual_wait_time: number
+          p_appointment_id: string
+        }
+        Returns: undefined
+      }
+      record_queue_snapshot: {
+        Args: {
+          p_active_staff_count?: number
+          p_average_wait_time?: number
+          p_clinic_id: string
+          p_current_delay_minutes?: number
+          p_longest_wait_time?: number
+          p_snapshot_date: string
+          p_snapshot_time: string
+          p_staff_utilization?: number
+          p_total_completed_today: number
+          p_total_in_progress: number
+          p_total_waiting: number
+        }
+        Returns: undefined
       }
     }
     Enums: {
@@ -1250,3 +1741,8 @@ export const Constants = {
     },
   },
 } as const
+
+export type PatientFavorite = Tables<"patient_favorites">
+export type ClinicRating = Tables<"clinic_ratings">
+export type ClinicRatingStats = Tables<"clinic_rating_stats">
+

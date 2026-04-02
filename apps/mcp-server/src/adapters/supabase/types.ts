@@ -24,9 +24,10 @@ export interface ClinicRow {
   settings: ClinicSettings | null;
   subscription_tier: string;
   is_active: boolean;
-  operating_mode: string;
-  estimation_mode: string;
-  ml_enabled: boolean | null;
+  queue_mode: string | null;
+  grace_period_minutes: number | null;
+  allow_overflow: boolean | null;
+  daily_capacity_limit: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -70,58 +71,74 @@ export interface AppointmentRow {
   id: string;
   clinic_id: string;
   patient_id: string | null;
-  guest_patient_id: string | null;
   staff_id: string | null;
   appointment_date: string;
-  start_time: string;
-  end_time: string | null;
+  scheduled_time: string | null;
+  time_slot: string | null;
   queue_position: number | null;
   status: AppointmentStatus;
   appointment_type: string | null;
   reason_for_visit: string | null;
   checked_in_at: string | null;
   actual_end_time: string | null;
+  actual_duration: number | null;
+  estimated_duration: number | null;
   predicted_wait_time: number | null;
   predicted_start_time: string | null;
-  prediction_mode: string | null;
+  prediction_confidence: number | null;
+  last_prediction_update: string | null;
   is_walk_in: boolean;
   is_present: boolean;
+  priority_score: number | null;
+  is_gap_filler: boolean | null;
+  promoted_from_waitlist: boolean | null;
+  late_arrival_converted: boolean | null;
+  original_slot_time: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export type AppointmentStatus = 
+export type AppointmentStatus =
   | "scheduled"
   | "waiting"
   | "in_progress"
   | "completed"
   | "cancelled"
   | "no_show"
-  | "absent";
+  | "rescheduled";
 
 // ============================================
 // PATIENT TYPES
 // ============================================
 
-export interface PatientProfileRow {
+/**
+ * Patient row (from patients table with encrypted PII).
+ * Direct SELECT returns encrypted blobs; use get_patient_decrypted RPC for readable data.
+ */
+export interface PatientRow {
   id: string;
-  phone_number: string;
-  full_name: string;
-  email: string | null;
-  city: string | null;
-  preferred_language: string | null;
-  notification_preferences: Record<string, unknown> | null;
-  no_show_count: number | null;
+  user_id: string | null;
+  display_name: string;
+  phone_number_hash: string;
+  source: 'app' | 'walk_in' | 'phone';
+  is_claimed: boolean;
+  is_anonymized: boolean;
+  consent_sms: boolean;
+  consent_data_processing: boolean;
   created_at: string;
   updated_at: string;
 }
 
-export interface GuestPatientRow {
+/**
+ * Profile row (from profiles table - auth metadata, not PII).
+ */
+export interface ProfileRow {
   id: string;
-  phone_number: string;
-  full_name: string;
-  claimed_by: string | null;
-  claimed_at: string | null;
+  full_name: string | null;
+  phone_number: string | null;
+  email: string | null;
+  city: string | null;
+  preferred_language: string | null;
   created_at: string;
   updated_at: string;
 }
