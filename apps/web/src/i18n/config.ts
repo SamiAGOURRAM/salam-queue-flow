@@ -28,7 +28,7 @@ i18n
   // Initialize i18next
   .init({
     resources,
-    fallbackLng: 'en', // Default language
+    fallbackLng: false,
     debug: false, // Set to true for development debugging
     
     // Language detection options

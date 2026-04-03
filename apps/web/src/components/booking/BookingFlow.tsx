@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useQueueService } from "@/hooks/useQueueService";
 import { clinicService } from "@/services/clinic";
-import { queueService } from "@/services/queue";
+import { staffService } from "@/services/staff";
+import { bookingService } from "@/services/booking/BookingService";
+import { QueueMode } from "@/services/queue/models/QueueModels";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -12,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Info, Users, ArrowRight, ArrowLeft } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Info, Users, ArrowRight, ArrowLeft, User } from "lucide-react";
 import { format, startOfDay } from "date-fns";
 import AuthModal from "@/components/auth/AuthModal";
 import { logger } from "@/services/shared/logging/Logger";
@@ -39,15 +40,21 @@ interface Clinic {
   };
 }
 
-const ACTIVE_STATUSES = ["scheduled", "waiting", "in_progress"] as const;
+interface DoctorOption {
+  id: string;
+  userId: string;
+  fullName: string;
+  role: string;
+  specialization?: string;
+}
 
 const BookingFlow = () => {
   const { clinicId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { toast } = useToast();
-
-  const { createAppointment } = useQueueService({});
+  const preselectedStaffId = searchParams.get("staffId") || "";
 
   // UI State
   const [step, setStep] = useState(1);
@@ -55,7 +62,11 @@ const BookingFlow = () => {
 
   // Data State
   const [clinic, setClinic] = useState<Clinic | null>(null);
-  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
+  const [doctors, setDoctors] = useState<DoctorOption[]>([]);
+  const [selectedStaffId, setSelectedStaffId] = useState("");
+  const [queueMode, setQueueMode] = useState<QueueMode | null>(null);
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [totalSlotCount, setTotalSlotCount] = useState(0);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
 
   // Booking Form State
@@ -66,7 +77,6 @@ const BookingFlow = () => {
 
   // Result State
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
-  const [totalInQueue, setTotalInQueue] = useState<number | null>(null);
 
   const fetchClinic = useCallback(async () => {
     if (!clinicId) return;
@@ -90,30 +100,85 @@ const BookingFlow = () => {
     }
   }, [clinicId, toast]);
 
-  const fetchBookedSlots = useCallback(async (date: Date) => {
+  const fetchDoctors = useCallback(async () => {
     if (!clinicId) return;
+
+    try {
+      const clinicStaff = await staffService.getStaffByClinic(clinicId);
+
+      const doctorOptions = await Promise.all(
+        clinicStaff.map(async (member, index) => {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("id", member.userId)
+            .maybeSingle();
+
+          const fallbackName = member.specialization
+            ? `${member.specialization} Specialist`
+            : `Doctor ${index + 1}`;
+
+          return {
+            id: member.id,
+            userId: member.userId,
+            fullName: profile?.full_name || fallbackName,
+            role: member.role,
+            specialization: member.specialization,
+          } as DoctorOption;
+        })
+      );
+
+      setDoctors(doctorOptions);
+
+      setSelectedStaffId((currentStaffId) => {
+        if (preselectedStaffId && doctorOptions.some((doctor) => doctor.id === preselectedStaffId)) {
+          return preselectedStaffId;
+        }
+
+        if (currentStaffId && doctorOptions.some((doctor) => doctor.id === currentStaffId)) {
+          return currentStaffId;
+        }
+
+        return doctorOptions[0]?.id || "";
+      });
+    } catch (error) {
+      logger.error("Error fetching clinic doctors", error instanceof Error ? error : new Error(String(error)), { clinicId });
+      setDoctors([]);
+      setSelectedStaffId("");
+      toast({
+        title: "Error",
+        description: "Failed to load doctors for this clinic.",
+        variant: "destructive",
+      });
+    }
+  }, [clinicId, preselectedStaffId, toast]);
+
+  const fetchAvailableSlots = useCallback(async (date: Date, type: string, staffId: string) => {
+    if (!clinicId || !type || !staffId) {
+      setQueueMode(null);
+      setAvailableSlots([]);
+      setTotalSlotCount(0);
+      return;
+    }
 
     setIsLoadingSlots(true);
     try {
       const dateStr = format(date, "yyyy-MM-dd");
+      const slotsResponse = await bookingService.getAvailableSlotsForMode(clinicId, dateStr, type, staffId);
+      setQueueMode(slotsResponse.mode ?? null);
+      const slots = Array.isArray(slotsResponse.slots) ? slotsResponse.slots : [];
 
-      const bookedSlotsData = await queueService.getClinicBookedSlots(clinicId, dateStr);
+      const normalizedAvailable = slots
+        .filter((slot) => slot.available)
+        .map((slot) => (slot.time.length >= 5 ? slot.time.slice(0, 5) : slot.time));
 
-      // Use canonical scheduled time (HH:mm) from booked slots
-      const slots = bookedSlotsData.map(slot => {
-        const timeStr = slot.scheduledTime.length >= 5
-          ? slot.scheduledTime.slice(0, 5)
-          : slot.scheduledTime;
-        return timeStr;
-      });
-
-      // Remove duplicates (in case multiple appointments at same time)
-      const uniqueSlots = [...new Set(slots)];
-
-      setBookedSlots(uniqueSlots);
+      setAvailableSlots([...new Set(normalizedAvailable)]);
+      setTotalSlotCount(slots.length);
     } catch (error) {
-      logger.error("Error fetching booked slots", error as Error, { clinicId, date });
-      setBookedSlots([]);
+      logger.error("Error fetching available slots", error as Error, { clinicId, date, appointmentType: type, staffId });
+      setQueueMode(null);
+      setAvailableSlots([]);
+      setTotalSlotCount(0);
     } finally {
       setIsLoadingSlots(false);
     }
@@ -122,21 +187,27 @@ const BookingFlow = () => {
   useEffect(() => {
     if (clinicId) {
       fetchClinic();
+      fetchDoctors();
     }
-  }, [clinicId, fetchClinic]);
+  }, [clinicId, fetchClinic, fetchDoctors]);
 
   useEffect(() => {
-    if (selectedDate && clinicId) {
-      fetchBookedSlots(selectedDate);
+    if (selectedDate && clinicId && appointmentType && selectedStaffId) {
+      fetchAvailableSlots(selectedDate, appointmentType, selectedStaffId);
+      return;
     }
-  }, [selectedDate, clinicId, fetchBookedSlots]);
+
+    setQueueMode(null);
+    setAvailableSlots([]);
+    setTotalSlotCount(0);
+  }, [selectedDate, clinicId, appointmentType, selectedStaffId, fetchAvailableSlots]);
 
   useEffect(() => {
     setSelectedTime("");
-  }, [selectedDate, appointmentType]);
+  }, [selectedDate, appointmentType, selectedStaffId]);
 
   useEffect(() => {
-    if (!clinicId || !selectedDate) return;
+    if (!clinicId || !selectedDate || !appointmentType || !selectedStaffId) return;
 
     const channel = supabase
       .channel(`appointments-${clinicId}-${format(selectedDate, "yyyy-MM-dd")}`)
@@ -150,7 +221,7 @@ const BookingFlow = () => {
         },
         (payload) => {
           logger.debug("Real-time appointment change", { event: payload.eventType, clinicId });
-          fetchBookedSlots(selectedDate);
+          fetchAvailableSlots(selectedDate, appointmentType, selectedStaffId);
         }
       )
       .subscribe();
@@ -158,43 +229,7 @@ const BookingFlow = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [clinicId, selectedDate, fetchBookedSlots]);
-
-  const checkSlotAvailability = async (date: Date, time: string): Promise<boolean> => {
-    if (!clinicId) return false;
-
-    try {
-      const dateStr = format(date, "yyyy-MM-dd");
-      // Convert UI time (HH:MM) to database format (HH:MM:SS)
-      const timeWithSeconds = time.length === 5 ? `${time}:00` : time;
-
-      logger.debug("Checking slot availability", { clinicId, date: dateStr, time, timeWithSeconds });
-
-      // Get all booked slots for the date
-      const bookedSlotsData = await queueService.getClinicBookedSlots(clinicId, dateStr);
-
-      // Check if selected HH:mm slot is already booked
-      const isBooked = bookedSlotsData.some(slot => {
-        const slotTime = slot.scheduledTime.length >= 5
-          ? slot.scheduledTime.slice(0, 5)
-          : slot.scheduledTime;
-        return slotTime === time;
-      });
-
-      const isAvailable = !isBooked;
-
-      if (!isAvailable) {
-        logger.debug("Slot taken", { clinicId, date: dateStr, time });
-      } else {
-        logger.debug("Slot available", { clinicId, date: dateStr, time });
-      }
-
-      return isAvailable;
-    } catch (error) {
-      logger.error("Error checking slot availability", error instanceof Error ? error : new Error(String(error)), { clinicId, date: format(date, "yyyy-MM-dd"), time });
-      return false;
-    }
-  };
+  }, [clinicId, selectedDate, appointmentType, selectedStaffId, fetchAvailableSlots]);
 
   // ==================== HELPER FUNCTIONS ====================
 
@@ -208,79 +243,27 @@ const BookingFlow = () => {
     return daySchedule?.closed === true;
   };
 
-  const generateTimeSlots = (): string[] => {
-    if (!clinic?.settings?.working_hours || !selectedDate) return [];
-
-    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const dayName = days[selectedDate.getDay()];
-    const daySchedule = clinic.settings.working_hours[dayName];
-
-    if (!daySchedule || daySchedule.closed) return [];
-
-    const openTime = daySchedule.open || "09:00";
-    const closeTime = daySchedule.close || "18:00";
-
-    const selectedTypeData = clinic.settings.appointment_types?.find(t => t.name === appointmentType);
-    const duration = selectedTypeData?.duration || clinic.settings.average_appointment_duration || 15;
-    const bufferTime = clinic.settings.buffer_time || 0;
-    const slotInterval = duration + bufferTime;
-
-    const slots: string[] = [];
-    const [openHour, openMinute] = openTime.split(":").map(Number);
-    const [closeHour, closeMinute] = closeTime.split(":").map(Number);
-
-    let currentHour = openHour;
-    let currentMinute = openMinute;
-
-    while (currentHour < closeHour || (currentHour === closeHour && currentMinute < closeMinute)) {
-      const timeString = `${String(currentHour).padStart(2, "0")}:${String(currentMinute).padStart(2, "0")}`;
-      slots.push(timeString);
-
-      currentMinute += slotInterval;
-      if (currentMinute >= 60) {
-        currentHour += Math.floor(currentMinute / 60);
-        currentMinute = currentMinute % 60;
-      }
-    }
-
-    // Filter out past time slots if today
-    const now = new Date();
-    const isToday = selectedDate.toDateString() === now.toDateString();
-
-    if (isToday) {
-      const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes();
-
-      return slots.filter(timeSlot => {
-        const [slotHour, slotMinute] = timeSlot.split(":").map(Number);
-        const slotTimeInMinutes = slotHour * 60 + slotMinute;
-        return slotTimeInMinutes > currentTimeInMinutes + 15;
-      });
-    }
-
-    return slots;
-  };
-
   const getAppointmentTypes = () => {
-    if (!clinic?.settings?.appointment_types || clinic.settings.appointment_types.length === 0) {
-      // Use only valid database enum values
-      return [
-        { name: "consultation", label: "Consultation", duration: 15 },
-        { name: "follow_up", label: "Follow-up", duration: 10 },
-        { name: "procedure", label: "Procedure", duration: 30 },
-        { name: "emergency", label: "Emergency", duration: 20 },
-      ];
-    }
-    return clinic.settings.appointment_types;
+    return clinic?.settings?.appointment_types ?? [];
   };
+
+  const appointmentTypes = getAppointmentTypes();
+  const selectedAppointmentType = appointmentTypes.find((type) => type.name === appointmentType);
+  const selectedDoctor = doctors.find((doctor) => doctor.id === selectedStaffId) || null;
+  const isFluidMode = queueMode === QueueMode.FLUID;
+  const requiresTimeSlot = !isFluidMode;
+  const availableTimeSlots = availableSlots;
 
   // ==================== EVENT HANDLERS ====================
 
   const handleNextStep = () => {
     if (step === 1) {
-      if (!selectedDate || !selectedTime || !appointmentType) {
+      if (!selectedStaffId || !selectedDate || !appointmentType || (requiresTimeSlot && !selectedTime)) {
         toast({
           title: "Missing Information",
-          description: "Please fill in all appointment details.",
+          description: requiresTimeSlot
+            ? "Please fill in all appointment details."
+            : "Please select an appointment type and date.",
           variant: "destructive",
         });
         return;
@@ -299,104 +282,81 @@ const BookingFlow = () => {
   const handleSubmitBooking = async () => {
     try {
       const userId = user?.id;
-      if (!userId) {
+      if (!userId || !selectedStaffId || !selectedDate || !appointmentType || (requiresTimeSlot && !selectedTime)) {
         toast({
-          title: "Authentication Required",
-          description: "Please sign in to book an appointment.",
+          title: "Missing Information",
+          description: "Please complete all booking details before confirming.",
           variant: "destructive",
         });
         return;
       }
 
-      logger.debug("Starting booking process", {
-        date: format(selectedDate!, "yyyy-MM-dd"),
-        time: selectedTime,
-        appointmentType,
-        clinicId
-      });
-
-      // Convert time to database format (HH:MM:SS)
-      const timeForDB = selectedTime.length === 5 ? `${selectedTime}:00` : selectedTime;
-
-      // Final availability check (in case someone else just booked)
-      const isSlotAvailable = await checkSlotAvailability(selectedDate!, selectedTime);
-
-      if (!isSlotAvailable) {
-        logger.warn("Slot was taken between selection and booking", { clinicId, date: format(selectedDate!, "yyyy-MM-dd"), time: selectedTime });
+      if (requiresTimeSlot && !availableSlots.includes(selectedTime)) {
         toast({
           title: "Time Slot No Longer Available",
-          description: "This time slot was just booked by another patient. Please select a different time.",
+          description: "This slot is no longer available. Please select another time.",
           variant: "destructive",
         });
-        // Refresh the booked slots
-        await fetchBookedSlots(selectedDate!);
+        await fetchAvailableSlots(selectedDate, appointmentType, selectedStaffId);
         setStep(1);
         setSelectedTime("");
         return;
       }
 
-      logger.debug("Slot is available, creating appointment", { clinicId, date: format(selectedDate!, "yyyy-MM-dd"), time: selectedTime });
-
-      // Convert date and time to ISO format for QueueService
-      const appointmentDate = format(selectedDate!, "yyyy-MM-dd");
-      const [hours, minutes] = selectedTime.split(':');
-      const startDateTime = new Date(selectedDate!);
-      startDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-
-      // Get appointment duration from clinic settings or default to 15 minutes
-      const duration = clinic?.settings?.average_appointment_duration || 15;
-      const endDateTime = new Date(startDateTime);
-      endDateTime.setMinutes(endDateTime.getMinutes() + duration);
-
-      logger.debug("Creating appointment via QueueService", {
-        start: startDateTime.toISOString(),
-        end: endDateTime.toISOString(),
+      logger.debug("Starting booking process", {
+        date: format(selectedDate, "yyyy-MM-dd"),
+        time: requiresTimeSlot ? selectedTime : null,
         appointmentType,
-        clinicId,
-        userId
+        staffId: selectedStaffId,
+        queueMode,
+        clinicId
       });
 
-      // Validate appointmentType is a valid enum value
-      // Valid values: consultation, follow_up, emergency, procedure, vaccination, screening
-      const validAppointmentTypes = ['consultation', 'follow_up', 'emergency', 'procedure', 'vaccination', 'screening'];
-      const validatedAppointmentType = validAppointmentTypes.includes(appointmentType)
-        ? appointmentType
-        : 'consultation'; // Default fallback
+      const selectedType = selectedAppointmentType;
+      if (!selectedType) {
+        toast({
+          title: "Clinic Configuration Missing",
+          description: "This clinic has no valid appointment type configuration.",
+          variant: "destructive",
+        });
+        setStep(1);
+        return;
+      }
 
-      // Use QueueService to create appointment
-      const newAppointment = await createAppointment({
+      const bookingResult = await bookingService.bookAppointmentForMode({
         clinicId: clinicId!,
         patientId: userId,
-        appointmentType: validatedAppointmentType as any, // Cast to enum type
-        isWalkIn: false,
-        startTime: startDateTime.toISOString(),
-        endTime: endDateTime.toISOString(),
+        staffId: selectedStaffId,
+        appointmentDate: format(selectedDate, "yyyy-MM-dd"),
+        scheduledTime: requiresTimeSlot ? selectedTime : null,
+        appointmentType: selectedType.name,
         reasonForVisit: reason || undefined,
       });
 
-      if (!newAppointment) {
-        throw new Error("Failed to create appointment");
+      if (!bookingResult.success || !bookingResult.appointmentId) {
+        const errorMessage = bookingResult.error || "Failed to book appointment.";
+        toast({
+          title: "Booking Failed",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        await fetchAvailableSlots(selectedDate, selectedType.name, selectedStaffId);
+        setStep(1);
+        setSelectedTime("");
+        return;
       }
 
       logger.info("Booking successful", {
-        appointmentId: newAppointment.id,
+        appointmentId: bookingResult.appointmentId,
         clinicId,
+        staffId: selectedStaffId,
         userId: user?.id,
-        queuePosition: newAppointment.queuePosition
+        queuePosition: bookingResult.queuePosition,
+        queueMode,
       });
 
       // Get queue information for display
-      setQueuePosition(newAppointment.queuePosition || null);
-
-      // Count total appointments in queue for this day
-      const { count } = await supabase
-        .from("appointments")
-        .select("*", { count: "exact", head: true })
-        .eq("clinic_id", clinicId)
-        .eq("appointment_date", appointmentDate)
-        .in("status", ACTIVE_STATUSES);
-
-      setTotalInQueue(count || 0);
+      setQueuePosition(bookingResult.queuePosition || null);
 
       setStep(3);
       toast({
@@ -408,8 +368,8 @@ const BookingFlow = () => {
       logger.error("Booking failed", error instanceof Error ? error : new Error(String(error)), {
         clinicId,
         userId: user?.id,
-        date: format(selectedDate!, "yyyy-MM-dd"),
-        time: selectedTime,
+        date: selectedDate ? format(selectedDate, "yyyy-MM-dd") : undefined,
+        time: requiresTimeSlot ? selectedTime : null,
       });
       const description =
         error instanceof Error
@@ -420,16 +380,12 @@ const BookingFlow = () => {
         description,
         variant: "destructive",
       });
+
+      if (selectedDate && appointmentType) {
+        await fetchAvailableSlots(selectedDate, appointmentType, selectedStaffId);
+      }
     }
   };
-
-  // ==================== COMPUTED VALUES ====================
-
-  const appointmentTypes = getAppointmentTypes();
-  const timeSlots = generateTimeSlots();
-
-  // Filter out booked slots from available time slots
-  const availableTimeSlots = timeSlots.filter(time => !bookedSlots.includes(time));
 
   // ==================== RENDER ====================
 
@@ -490,6 +446,31 @@ const BookingFlow = () => {
                 </div>
 
                 <div className="space-y-5">
+                  {/* Doctor */}
+                  <div>
+                    <Label htmlFor="staff" className="text-sm font-medium text-gray-700 mb-1.5 block">
+                      Doctor
+                    </Label>
+                    <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
+                      <SelectTrigger className="h-10 border-gray-200 rounded-md text-sm">
+                        <SelectValue placeholder="Select doctor..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {doctors.map((doctor) => (
+                          <SelectItem key={doctor.id} value={doctor.id}>
+                            {doctor.fullName}
+                            {doctor.specialization ? ` - ${doctor.specialization}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {doctors.length === 0 && (
+                      <p className="text-xs text-red-600 mt-1.5">
+                        No active doctors are available for this clinic.
+                      </p>
+                    )}
+                  </div>
+
                   {/* Appointment Type */}
                   <div>
                     <Label htmlFor="appointmentType" className="text-sm font-medium text-gray-700 mb-1.5 block">
@@ -507,6 +488,11 @@ const BookingFlow = () => {
                         ))}
                       </SelectContent>
                     </Select>
+                    {appointmentTypes.length === 0 && (
+                      <p className="text-xs text-red-600 mt-1.5">
+                        Clinic appointment types are not configured yet.
+                      </p>
+                    )}
                   </div>
 
                   {/* Date & Time Grid */}
@@ -528,7 +514,7 @@ const BookingFlow = () => {
                     {/* Time Slots */}
                     <div>
                       <Label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                        Select Time
+                        {isFluidMode ? "Queue Mode" : "Select Time"}
                         {isLoadingSlots && (
                           <span className="ml-2 text-xs text-gray-400 font-normal">
                             Loading...
@@ -543,22 +529,35 @@ const BookingFlow = () => {
                         </div>
                       )}
 
-                      {appointmentType && availableTimeSlots.length === 0 && !isLoadingSlots && (
+                      {appointmentType && isFluidMode && !isLoadingSlots && (
+                        <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-md text-blue-800 text-sm">
+                          <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                          <div className="space-y-1">
+                            <p>Fluid mode has no fixed time slots.</p>
+                            <p className="text-xs text-blue-700">
+                              You will receive a FIFO queue position after booking.
+                              {selectedAppointmentType ? ` Estimated care time: ${selectedAppointmentType.duration} min.` : ""}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {appointmentType && !isFluidMode && availableTimeSlots.length === 0 && !isLoadingSlots && (
                         <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md text-amber-700 text-sm">
                           <AlertCircle className="h-4 w-4 flex-shrink-0" />
                           <span>No slots available. Try another day.</span>
                         </div>
                       )}
 
-                      {appointmentType && availableTimeSlots.length > 0 && (
+                      {appointmentType && !isFluidMode && availableTimeSlots.length > 0 && (
                         <div className="space-y-2">
                           <div className="flex items-center justify-between text-xs">
                             <span className="text-emerald-600 bg-emerald-50 px-2 py-1 rounded">
                               {availableTimeSlots.length} available
                             </span>
-                            {bookedSlots.length > 0 && (
+                            {totalSlotCount > availableTimeSlots.length && (
                               <span className="text-gray-400">
-                                {bookedSlots.length} booked
+                                {totalSlotCount - availableTimeSlots.length} unavailable
                               </span>
                             )}
                           </div>
@@ -602,7 +601,7 @@ const BookingFlow = () => {
                 <Button
                   onClick={handleNextStep}
                   className="w-full h-10 bg-obsidian hover:bg-obsidian-hover text-white text-sm font-medium rounded-md"
-                  disabled={!selectedDate || !selectedTime || !appointmentType}
+                  disabled={!selectedStaffId || !selectedDate || !appointmentType || (requiresTimeSlot && !selectedTime)}
                 >
                   Continue
                   <ArrowRight className="h-4 w-4 ml-2" />
@@ -626,7 +625,8 @@ const BookingFlow = () => {
                     <div>
                       <p className="text-sm font-medium text-gray-900">Date & Time</p>
                       <p className="text-sm text-gray-600">
-                        {selectedDate && format(selectedDate, "EEEE, MMMM d, yyyy")} at {selectedTime}
+                        {selectedDate && format(selectedDate, "EEEE, MMMM d, yyyy")}
+                        {requiresTimeSlot ? ` at ${selectedTime}` : " (No fixed time - FIFO queue)"}
                       </p>
                     </div>
                   </div>
@@ -638,8 +638,20 @@ const BookingFlow = () => {
                     <div>
                       <p className="text-sm font-medium text-gray-900">Appointment Type</p>
                       <p className="text-sm text-gray-600 capitalize">
-                        {appointmentTypes.find(t => t.name === appointmentType)?.label}
-                        {" "}({appointmentTypes.find(t => t.name === appointmentType)?.duration} min)
+                        {selectedAppointmentType?.label}
+                        {" "}({selectedAppointmentType?.duration} min)
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-md bg-obsidian text-white flex items-center justify-center flex-shrink-0">
+                      <User className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Doctor</p>
+                      <p className="text-sm text-gray-600 capitalize">
+                        {selectedDoctor?.fullName || "Not selected"}
                       </p>
                     </div>
                   </div>
@@ -713,13 +725,19 @@ const BookingFlow = () => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Time</span>
-                      <span className="font-medium text-gray-900">{selectedTime}</span>
+                      <span className="font-medium text-gray-900">
+                        {requiresTimeSlot ? selectedTime : "No fixed time (FIFO)"}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Type</span>
                       <span className="font-medium text-gray-900 capitalize">
-                        {appointmentTypes.find(t => t.name === appointmentType)?.label}
+                        {selectedAppointmentType?.label}
                       </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Doctor</span>
+                      <span className="font-medium text-gray-900">{selectedDoctor?.fullName || "Not selected"}</span>
                     </div>
                   </div>
                 </div>
@@ -727,15 +745,15 @@ const BookingFlow = () => {
                 {/* Actions */}
                 <div className="flex gap-3 justify-center">
                   <Button
-                    onClick={() => navigate("/clinics")}
+                    onClick={() => navigate("/doctors")}
                     className="h-10 px-5 bg-obsidian hover:bg-obsidian-hover text-white text-sm font-medium rounded-md"
                   >
-                    Browse Clinics
+                    Browse Doctors
                   </Button>
                   {user && (
                     <Button
                       variant="outline"
-                      onClick={() => navigate("/patient/dashboard")}
+                      onClick={() => navigate("/my-appointments")}
                       className="h-10 px-5 border-gray-200 text-sm font-medium rounded-md"
                     >
                       My Appointments

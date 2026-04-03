@@ -29,8 +29,24 @@ interface QueueInfo {
   predicted_wait_time: number | null;
   status: string;
   scheduled_time: string | null;
+  appointment_date: string | null;
   appointment_type: string;
   checked_in_at: string | null;
+}
+
+function formatAppointmentDate(dateString: string | null): string {
+  if (!dateString) return 'Not available';
+
+  const parsed = new Date(`${dateString}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return dateString;
+
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(parsed);
 }
 
 export default function MyQueue() {
@@ -58,6 +74,7 @@ export default function MyQueue() {
         predicted_wait_time: entry.estimatedWaitTime || null,
         status: entry.status,
         scheduled_time: entry.scheduledTime || null,
+        appointment_date: entry.appointmentDate ? entry.appointmentDate.toISOString().split('T')[0] : null,
         appointment_type: entry.appointmentType,
         checked_in_at: entry.checkedInAt?.toISOString() || null
       });
@@ -231,6 +248,7 @@ export default function MyQueue() {
   };
 
   const estimatedTime = getEstimatedTimeDisplay();
+  const appointmentDateLabel = formatAppointmentDate(queueInfo.appointment_date);
   const statusConfig = getStatusConfig(queueInfo.status);
   const isActive = ['scheduled', 'waiting', 'in_progress'].includes(queueInfo.status);
 
@@ -276,6 +294,14 @@ export default function MyQueue() {
             <div className="text-center">
               <p className="text-sm text-background/60 dark:text-foreground/50">Estimated time</p>
               <p className="text-xl font-semibold dark:text-primary">{estimatedTime}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-center gap-3 pt-5 mt-5 border-t border-background/20 dark:border-border">
+            <Calendar className="w-5 h-5 text-background/60 dark:text-primary" />
+            <div className="text-center">
+              <p className="text-sm text-background/60 dark:text-foreground/50">Appointment date</p>
+              <p className="text-base font-semibold dark:text-primary">{appointmentDateLabel}</p>
             </div>
           </div>
         </div>

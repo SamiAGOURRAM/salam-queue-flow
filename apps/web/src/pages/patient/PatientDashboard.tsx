@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { queueService } from "@/services/queue";
 import { patientService } from "@/services/patient";
 import { AppointmentStatus } from "@/services/queue";
@@ -68,6 +69,20 @@ function formatScheduledTime(scheduledTime: string | null): string {
   return `${hour12}:${minutes} ${ampm}`;
 }
 
+function pickBestDisplayName(...candidates: Array<unknown>): string {
+  const blocked = new Set(['patient', 'friend', 'user', 'there']);
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    const value = candidate.trim();
+    if (!value) continue;
+    if (blocked.has(value.toLowerCase())) continue;
+    return value;
+  }
+
+  return '';
+}
+
 export default function PatientDashboard() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
@@ -96,11 +111,55 @@ export default function PatientDashboard() {
 
   const fetchPatientProfile = useCallback(async () => {
     if (!user?.id) return;
+
+    const metadataName = pickBestDisplayName(
+      user.user_metadata?.full_name,
+      user.user_metadata?.name,
+      user.email?.split('@')[0],
+      user.user_metadata?.first_name,
+    );
+
     try {
       const profile = await patientService.getPatientProfile(user.id);
-      setPatientFullName(profile.fullName);
+      const resolvedName = pickBestDisplayName(profile.fullName, metadataName);
+
+      if (resolvedName) {
+        setPatientFullName(resolvedName);
+        return;
+      }
+
+      // Last profile fallback for legacy/missing service responses.
+      const { data: profileRow } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      setPatientFullName(pickBestDisplayName(profileRow?.full_name, metadataName));
     } catch (error) {
       logger.error("Error fetching patient name", error instanceof Error ? error : new Error(String(error)), { userId: user?.id });
+
+      try {
+        const [{ data: profileRow }, { data: patientRow }] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .maybeSingle(),
+          supabase
+            .from('patients')
+            .select('display_name')
+            .eq('user_id', user.id)
+            .eq('is_anonymized', false)
+            .maybeSingle(),
+        ]);
+
+        setPatientFullName(
+          pickBestDisplayName(profileRow?.full_name, patientRow?.display_name, metadataName)
+        );
+      } catch {
+        setPatientFullName(metadataName);
+      }
     }
   }, [user]);
 
@@ -299,7 +358,13 @@ export default function PatientDashboard() {
   const recentAppointments = getRecentAppointments();
   const displayedAppointments = getFilteredAppointments();
 
-  const displayName = patientFullName || user?.user_metadata?.first_name || t('common.friend', { defaultValue: 'friend' });
+  const metadataName = pickBestDisplayName(
+    user?.user_metadata?.full_name,
+    user?.user_metadata?.name,
+    user?.email?.split('@')[0],
+    user?.user_metadata?.first_name,
+  );
+  const displayName = pickBestDisplayName(patientFullName, metadataName) || t('common.friend');
   const firstName = displayName.split(' ')[0];
 
   if (loading) {

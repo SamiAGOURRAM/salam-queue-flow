@@ -29,23 +29,23 @@ export interface Clinic {
 }
 
 export interface ClinicSettings {
-  bufferTime?: number;
-  workingHours?: Record<string, {
+  buffer_time?: number;
+  working_hours?: Record<string, {
     open?: string;
     close?: string;
     closed?: boolean;
   }>;
-  allowWalkIns?: boolean;
-  maxQueueSize?: number;
-  requiresAppointment?: boolean;
-  averageAppointmentDuration?: number;
-  appointmentTypes?: Array<{
+  allow_walk_ins?: boolean;
+  max_queue_size?: number;
+  requires_appointment?: boolean;
+  average_appointment_duration?: number;
+  appointment_types?: Array<{
     name: string;
     label: string;
     duration: number;
     price?: number;
   }>;
-  paymentMethods?: {
+  payment_methods?: {
     cash?: boolean;
     card?: boolean;
     online?: boolean;
@@ -110,7 +110,7 @@ export class ClinicService {
       logger.debug('Fetching clinic settings', { clinicId });
 
       const settings = await this.repository.getClinicSettings(clinicId);
-      return (settings as ClinicSettings) || {};
+      return this.normalizeClinicSettings(settings);
     } catch (error) {
       if (error instanceof DatabaseError) {
         if (error.message.includes('not found')) {
@@ -133,7 +133,10 @@ export class ClinicService {
 
       // Get current settings
       const currentSettings = await this.getClinicSettings(clinicId);
-      const updatedSettings = { ...currentSettings, ...settings };
+      const updatedSettings = {
+        ...currentSettings,
+        ...this.normalizeClinicSettings(settings as Record<string, unknown>),
+      };
 
       await this.repository.updateClinicSettings(clinicId, updatedSettings as Record<string, unknown>);
 
@@ -192,13 +195,100 @@ export class ClinicService {
       phone: clinic.phone,
       email: clinic.email || undefined,
       logoUrl: clinic.logo_url || undefined,
-      settings: (clinic.settings as ClinicSettings) || {},
+      settings: this.normalizeClinicSettings(clinic.settings),
       subscriptionTier: clinic.subscription_tier,
       isActive: clinic.is_active,
       queueMode: clinic.queue_mode,
       createdAt: new Date(clinic.created_at),
       updatedAt: new Date(clinic.updated_at),
     };
+  }
+
+  private normalizeClinicSettings(raw: unknown): ClinicSettings {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return {};
+    }
+
+    const settings = raw as Record<string, unknown>;
+    const normalized: Record<string, unknown> = { ...settings };
+
+    // Remove legacy camelCase keys to enforce canonical snake_case contract.
+    delete normalized.bufferTime;
+    delete normalized.workingHours;
+    delete normalized.allowWalkIns;
+    delete normalized.maxQueueSize;
+    delete normalized.requiresAppointment;
+    delete normalized.averageAppointmentDuration;
+    delete normalized.appointmentTypes;
+    delete normalized.paymentMethods;
+
+    if ('working_hours' in settings) {
+      const workingHoursValue = settings.working_hours;
+      if (workingHoursValue && typeof workingHoursValue === 'object' && !Array.isArray(workingHoursValue)) {
+        normalized.working_hours = workingHoursValue;
+      } else {
+        delete normalized.working_hours;
+      }
+    }
+
+    if ('buffer_time' in settings) {
+      if (typeof settings.buffer_time === 'number') {
+        normalized.buffer_time = settings.buffer_time;
+      } else {
+        delete normalized.buffer_time;
+      }
+    }
+
+    if ('allow_walk_ins' in settings) {
+      if (typeof settings.allow_walk_ins === 'boolean') {
+        normalized.allow_walk_ins = settings.allow_walk_ins;
+      } else {
+        delete normalized.allow_walk_ins;
+      }
+    }
+
+    if ('max_queue_size' in settings) {
+      if (typeof settings.max_queue_size === 'number') {
+        normalized.max_queue_size = settings.max_queue_size;
+      } else {
+        delete normalized.max_queue_size;
+      }
+    }
+
+    if ('requires_appointment' in settings) {
+      if (typeof settings.requires_appointment === 'boolean') {
+        normalized.requires_appointment = settings.requires_appointment;
+      } else {
+        delete normalized.requires_appointment;
+      }
+    }
+
+    if ('average_appointment_duration' in settings) {
+      if (typeof settings.average_appointment_duration === 'number') {
+        normalized.average_appointment_duration = settings.average_appointment_duration;
+      } else {
+        delete normalized.average_appointment_duration;
+      }
+    }
+
+    if ('appointment_types' in settings) {
+      if (Array.isArray(settings.appointment_types)) {
+        normalized.appointment_types = settings.appointment_types;
+      } else {
+        delete normalized.appointment_types;
+      }
+    }
+
+    if ('payment_methods' in settings) {
+      const paymentMethodsValue = settings.payment_methods;
+      if (paymentMethodsValue && typeof paymentMethodsValue === 'object' && !Array.isArray(paymentMethodsValue)) {
+        normalized.payment_methods = paymentMethodsValue;
+      } else {
+        delete normalized.payment_methods;
+      }
+    }
+
+    return normalized as ClinicSettings;
   }
 }
 

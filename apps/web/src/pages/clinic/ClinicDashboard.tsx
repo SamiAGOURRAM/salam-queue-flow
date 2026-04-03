@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useClinicPermissions } from "@/hooks/useClinicPermissions";
 import { useQueueService } from "@/hooks/useQueueService";
-import { clinicService } from "@/services/clinic";
 import { staffService } from "@/services/staff";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,15 +27,6 @@ import {
 } from "lucide-react";
 import { AppointmentStatus, SkipReason } from "@/services/queue";
 import { cn } from "@/lib/utils";
-
-// ===== ALL INTERFACES PRESERVED =====
-interface Clinic {
-  id: string;
-  name: string;
-  practice_type: string;
-  specialty: string;
-  city: string;
-}
 
 interface StaffProfile {
   id: string;
@@ -69,40 +60,41 @@ function formatScheduledTime(scheduledTime?: string) {
 export default function ClinicDashboard() {
   // ===== ALL HOOKS PRESERVED IN EXACT ORDER =====
   const { user } = useAuth();
+  const { clinic: scopedClinic, loading: accessLoading, can } = useClinicPermissions();
   const navigate = useNavigate();
-  const [clinic, setClinic] = useState<Clinic | null>(null);
   const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
   const [chartFilter, setChartFilter] = useState<ChartFilter>("7d");
+  const canManageQueue = can("manage_queue");
+  const canViewCalendar = can("view_calendar") || can("manage_calendar");
+  const canViewTeam = can("view_team") || can("manage_team");
+  const canViewSettings = can("view_clinic_settings") || can("manage_clinic_settings");
 
   // ===== ALL EFFECTS PRESERVED =====
   useEffect(() => {
     const fetchInitialData = async () => {
-      if (!user) return;
+      if (!user || !scopedClinic?.id) return;
 
-      const clinicData = await clinicService.getClinicByOwner(user.id);
+      const staffData = await staffService.getStaffByClinicAndUser(scopedClinic.id, user.id);
 
-      if (clinicData) {
-        setClinic({
-          id: clinicData.id,
-          name: clinicData.name,
-          practice_type: clinicData.practiceType,
-          specialty: clinicData.specialty,
-          city: clinicData.city,
+      if (staffData) {
+        setStaffProfile({
+          id: staffData.id,
+          user_id: staffData.userId,
         });
+        return;
+      }
 
-        const staffData = await staffService.getStaffByClinicAndUser(clinicData.id, user.id);
-
-        if (staffData) {
-          setStaffProfile({
-            id: staffData.id,
-            user_id: staffData.userId,
-          });
-        }
+      const clinicStaff = await staffService.getStaffByClinic(scopedClinic.id);
+      if (clinicStaff[0]) {
+        setStaffProfile({
+          id: clinicStaff[0].id,
+          user_id: clinicStaff[0].userId,
+        });
       }
     };
 
     fetchInitialData();
-  }, [user]);
+  }, [scopedClinic, user]);
 
   // ===== QUEUE SERVICE PRESERVED =====
   const {
@@ -228,6 +220,14 @@ export default function ClinicDashboard() {
       color: "hsl(var(--coral))",
     },
   };
+
+  if (accessLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-8 h-8 border-2 border-border border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -414,61 +414,69 @@ export default function ClinicDashboard() {
             <CardTitle className="text-base font-semibold">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <button
-              onClick={() => navigate("/clinic/queue")}
-              className="w-full flex items-center gap-3 p-3.5 rounded-lg border border-border/60 bg-card hover:bg-muted/30 hover:border-primary/40 transition-all group"
-            >
-              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Activity className="w-4 h-4 text-primary" />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-medium text-foreground">Manage Queue</p>
-                <p className="text-xs text-muted-foreground">Handle patient flow</p>
-              </div>
-              <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-            </button>
+            {canManageQueue && (
+              <button
+                onClick={() => navigate("/clinic/queue")}
+                className="w-full flex items-center gap-3 p-3.5 rounded-lg border border-border/60 bg-card hover:bg-muted/30 hover:border-primary/40 transition-all group"
+              >
+                <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Activity className="w-4 h-4 text-primary" />
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-medium text-foreground">Manage Queue</p>
+                  <p className="text-xs text-muted-foreground">Handle patient flow</p>
+                </div>
+                <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+              </button>
+            )}
 
-            <button
-              onClick={() => navigate("/clinic/calendar")}
-              className="w-full flex items-center gap-3 p-3.5 rounded-lg border border-border/60 bg-card hover:bg-muted/30 hover:border-teal/40 transition-all group"
-            >
-              <div className="w-9 h-9 rounded-lg bg-teal/10 flex items-center justify-center">
-                <Calendar className="w-4 h-4 text-teal" />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-medium text-foreground">Calendar</p>
-                <p className="text-xs text-muted-foreground">View schedule</p>
-              </div>
-              <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-teal transition-colors" />
-            </button>
+            {canViewCalendar && (
+              <button
+                onClick={() => navigate("/clinic/calendar")}
+                className="w-full flex items-center gap-3 p-3.5 rounded-lg border border-border/60 bg-card hover:bg-muted/30 hover:border-teal/40 transition-all group"
+              >
+                <div className="w-9 h-9 rounded-lg bg-teal/10 flex items-center justify-center">
+                  <Calendar className="w-4 h-4 text-teal" />
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-medium text-foreground">Calendar</p>
+                  <p className="text-xs text-muted-foreground">View schedule</p>
+                </div>
+                <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-teal transition-colors" />
+              </button>
+            )}
 
-            <button
-              onClick={() => navigate("/clinic/team")}
-              className="w-full flex items-center gap-3 p-3.5 rounded-lg border border-border/60 bg-card hover:bg-muted/30 hover:border-accent/40 transition-all group"
-            >
-              <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center">
-                <UserPlus className="w-4 h-4 text-accent" />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-medium text-foreground">Team</p>
-                <p className="text-xs text-muted-foreground">Manage staff</p>
-              </div>
-              <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-accent transition-colors" />
-            </button>
+            {canViewTeam && (
+              <button
+                onClick={() => navigate("/clinic/team")}
+                className="w-full flex items-center gap-3 p-3.5 rounded-lg border border-border/60 bg-card hover:bg-muted/30 hover:border-accent/40 transition-all group"
+              >
+                <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center">
+                  <UserPlus className="w-4 h-4 text-accent" />
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-medium text-foreground">Team</p>
+                  <p className="text-xs text-muted-foreground">Manage staff</p>
+                </div>
+                <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-accent transition-colors" />
+              </button>
+            )}
 
-            <button
-              onClick={() => navigate("/clinic/settings")}
-              className="w-full flex items-center gap-3 p-3.5 rounded-lg border border-border/60 bg-card hover:bg-muted/30 hover:border-muted-foreground/40 transition-all group"
-            >
-              <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
-                <Settings className="w-4 h-4 text-muted-foreground" />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-medium text-foreground">Settings</p>
-                <p className="text-xs text-muted-foreground">Configure clinic</p>
-              </div>
-              <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-            </button>
+            {canViewSettings && (
+              <button
+                onClick={() => navigate("/clinic/settings")}
+                className="w-full flex items-center gap-3 p-3.5 rounded-lg border border-border/60 bg-card hover:bg-muted/30 hover:border-muted-foreground/40 transition-all group"
+              >
+                <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
+                  <Settings className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-medium text-foreground">Settings</p>
+                  <p className="text-xs text-muted-foreground">Configure clinic</p>
+                </div>
+                <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+              </button>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -493,6 +501,7 @@ export default function ClinicDashboard() {
               variant="ghost"
               size="sm"
               onClick={() => navigate("/clinic/queue")}
+              disabled={!canManageQueue}
               className="text-xs text-muted-foreground hover:text-foreground"
             >
               View all
@@ -517,6 +526,7 @@ export default function ClinicDashboard() {
               <p className="text-sm text-muted-foreground mt-1">Your queue is currently empty</p>
               <Button
                 onClick={() => navigate("/clinic/queue")}
+                disabled={!canManageQueue}
                 className="mt-5"
               >
                 <UserPlus className="w-4 h-4 mr-2" />
@@ -598,6 +608,7 @@ export default function ClinicDashboard() {
                 <div className="py-3 px-4 border-t border-border/30 bg-muted/20">
                   <button
                     onClick={() => navigate("/clinic/queue")}
+                    disabled={!canManageQueue}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     +{activeQueue.length - 6} more patients in queue

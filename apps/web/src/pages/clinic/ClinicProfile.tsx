@@ -8,18 +8,47 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Activity, Save, User } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { CheckCircle2, Save, User, Shield } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
+import {
+  getPermissionEntries,
+  getRoleLabel,
+  getRolePermissions,
+  normalizeRoleKey,
+  parseClinicRoleDefinitions,
+} from "@/lib/clinicRolePermissions";
 
-type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
+type ClinicRow = Database["public"]["Tables"]["clinics"]["Row"];
+type ClinicStaffRow = Database["public"]["Tables"]["clinic_staff"]["Row"];
+
+function formatJoinedDate(raw: string | null): string {
+  if (!raw) return "Not available";
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function readClinicSettings(settings: ClinicRow["settings"]): Record<string, unknown> {
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
+    return {};
+  }
+  return settings as Record<string, unknown>;
+}
 
 export default function ClinicProfile() {
-  const { user, loading, isClinicOwner, signOut } = useAuth();
+  const { user, loading, isClinicOwner } = useAuth();
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [saving, setSaving] = useState(false);
+  const [clinicName, setClinicName] = useState("Your Clinic");
+  const [roleLabel, setRoleLabel] = useState("Staff");
+  const [joinedAt, setJoinedAt] = useState<string | null>(null);
+  const [permissions, setPermissions] = useState<Array<{ key: string; label: string; allowed: boolean }>>([]);
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -29,13 +58,14 @@ export default function ClinicProfile() {
 
   const fetchProfile = useCallback(async () => {
     if (!user?.id) return;
-    const { data: profileData, error: profileError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single();
 
-    if (profileError) {
+    const [{ data: profileData, error: profileError }, { data: staffData }, { data: ownerClinicData }] = await Promise.all([
+      supabase.from("profiles").select("*").eq("id", user.id).single(),
+      supabase.from("clinic_staff").select("*").eq("user_id", user.id).maybeSingle(),
+      supabase.from("clinics").select("*").eq("owner_id", user.id).maybeSingle(),
+    ]);
+
+    if (profileError || !profileData) {
       toast({
         title: "Error",
         description: "Failed to load profile",
@@ -44,19 +74,52 @@ export default function ClinicProfile() {
       return;
     }
 
-    const { data: staffData } = await supabase
-      .from("clinic_staff")
-      .select("*")
-      .eq("user_id", user.id)
-      .single();
+    let clinicData = ownerClinicData as ClinicRow | null;
+    const activeStaff = (staffData || null) as ClinicStaffRow | null;
 
-    setProfile(profileData);
+    if (!clinicData && activeStaff?.clinic_id) {
+      const { data } = await supabase
+        .from("clinics")
+        .select("*")
+        .eq("id", activeStaff.clinic_id)
+        .maybeSingle();
+      clinicData = (data || null) as ClinicRow | null;
+    }
+
+    const clinicSettings = readClinicSettings(clinicData?.settings || null);
+    const roleDefinitions = parseClinicRoleDefinitions(clinicSettings);
+    const roleKey = isClinicOwner
+      ? "clinic_owner"
+      : normalizeRoleKey(activeStaff?.role || "staff");
+
+    const resolvedPermissions = getRolePermissions(roleKey, roleDefinitions, isClinicOwner);
+    const permissionEntries = getPermissionEntries(resolvedPermissions);
+
+    let membershipCreatedAt: string | null = activeStaff?.created_at || null;
+
+    if (!membershipCreatedAt && clinicData?.id) {
+      const { data: membership } = await supabase
+        .from("user_roles")
+        .select("created_at")
+        .eq("user_id", user.id)
+        .eq("clinic_id", clinicData.id)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      membershipCreatedAt = membership?.created_at || null;
+    }
+
+    setClinicName(clinicData?.name || "Your Clinic");
+    setRoleLabel(getRoleLabel(roleKey, roleDefinitions));
+    setJoinedAt(membershipCreatedAt || profileData.created_at);
+    setPermissions(permissionEntries);
+
     setFullName(profileData.full_name || "");
     setEmail(profileData.email || "");
     setPhone(profileData.phone_number || "");
-    setSpecialization(staffData?.specialization || "");
-    setLicenseNumber(staffData?.license_number || "");
-  }, [user]);
+    setSpecialization(activeStaff?.specialization || "");
+    setLicenseNumber(activeStaff?.license_number || "");
+  }, [isClinicOwner, user]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -106,94 +169,118 @@ export default function ClinicProfile() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-20">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
       </div>
     );
   }
 
+  const allowedPermissions = permissions.filter((entry) => entry.allowed);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
-      {/* Modern Header */}
-      <header className="sticky top-0 z-50 border-b bg-white/80 backdrop-blur-md shadow-sm">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 shadow-lg shadow-blue-500/30">
-                <Activity className="w-6 h-6 text-white" />
-                <span className="text-xl font-bold text-white">QueueMed</span>
-              </div>
-              <div className="hidden md:block h-8 w-px bg-gray-200" />
-              <h1 className="hidden md:block text-lg font-semibold text-gray-700">My Profile</h1>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => navigate("/clinic/queue")} className="border-2">
-                Queue
-              </Button>
-              <Button variant="outline" onClick={() => navigate("/clinic/settings")} className="border-2">
-                Settings
-              </Button>
-              <Button variant="ghost" onClick={signOut} className="text-red-600 hover:text-red-700 hover:bg-red-50">
-                Sign Out
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="max-w-4xl space-y-6">
+      <div>
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">My Profile</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          View your clinic role, permissions, and contact details.
+        </p>
+      </div>
 
-      <main className="container mx-auto px-6 py-8 max-w-3xl">
-        <div className="mb-8 space-y-2">
-          <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-              <User className="w-6 h-6 text-white" />
-            </div>
-            Personal Profile
-          </h2>
-          <p className="text-base text-gray-500">Manage your personal and professional information</p>
-        </div>
-
-        <Card className="shadow-lg border-0 bg-white">
-          <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50/30">
-            <CardTitle className="text-xl">Personal Information</CardTitle>
-            <CardDescription className="text-base">Update your profile details</CardDescription>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              Role & Membership
+            </CardTitle>
           </CardHeader>
-          <CardContent className="pt-6 space-y-6">
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Role</span>
+              <Badge variant="outline">{roleLabel}</Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Clinic</span>
+              <span className="text-sm font-medium">{clinicName}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Joined</span>
+              <span className="text-sm font-medium">{formatJoinedDate(joinedAt)}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4" />
+              What You Can Do
+            </CardTitle>
+            <CardDescription>
+              {allowedPermissions.length} permissions enabled for your role.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 max-h-64 overflow-y-auto">
+            {permissions.map((permission) => (
+              <div key={permission.key} className="flex items-center justify-between border border-border rounded-md px-3 py-2">
+                <span className="text-sm">{permission.label}</span>
+                <Badge variant={permission.allowed ? "default" : "secondary"}>
+                  {permission.allowed ? "Allowed" : "Not allowed"}
+                </Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <User className="w-4 h-4" />
+            Contact & Professional Info
+          </CardTitle>
+          <CardDescription>
+            Keep your personal details and professional information up to date.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-2 space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="fullName" className="text-sm font-medium">Full Name</Label>
+            <Input
+              id="fullName"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Dr. John Doe"
+              className="h-10"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="fullName" className="text-sm font-medium">Full Name</Label>
+              <Label htmlFor="email" className="text-sm font-medium">Email</Label>
               <Input
-                id="fullName"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Dr. John Doe"
-                className="h-11"
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="doctor@clinic.com"
+                className="h-10"
               />
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-sm font-medium">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="doctor@clinic.com"
-                  className="h-11"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone" className="text-sm font-medium">Phone Number</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+212 XXX XXX XXX"
-                  className="h-11"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone" className="text-sm font-medium">Phone Number</Label>
+              <Input
+                id="phone"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+212 XXX XXX XXX"
+                className="h-10"
+              />
             </div>
+          </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="specialization" className="text-sm font-medium">Specialization</Label>
               <Input
@@ -201,7 +288,7 @@ export default function ClinicProfile() {
                 value={specialization}
                 onChange={(e) => setSpecialization(e.target.value)}
                 placeholder="e.g., General Practice, Cardiology"
-                className="h-11"
+                className="h-10"
               />
             </div>
 
@@ -212,21 +299,26 @@ export default function ClinicProfile() {
                 value={licenseNumber}
                 onChange={(e) => setLicenseNumber(e.target.value)}
                 placeholder="Medical License Number"
-                className="h-11"
+                className="h-10"
               />
             </div>
+          </div>
 
-            <Button 
-              onClick={handleSave} 
-              disabled={saving} 
-              className="w-full h-11 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              {saving ? "Saving..." : "Save Profile"}
-            </Button>
-          </CardContent>
-        </Card>
-      </main>
+          <Button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full sm:w-auto"
+          >
+            <Save className="w-4 h-4 mr-2" />
+            {saving ? "Saving..." : "Save Profile"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={() => navigate("/clinic/team")}>Manage Team</Button>
+        <Button variant="outline" onClick={() => navigate("/clinic/settings?tab=basic")}>Clinic Settings</Button>
+      </div>
     </div>
   );
 }

@@ -2,7 +2,6 @@
  * ML-Based Wait Time Estimator
  * 
  * Wraps the ML API client to provide estimation via ML model.
- * Falls back gracefully if ML service is unavailable.
  */
 
 import { IWaitTimeEstimator, type WaitTimeEstimation, type EstimationContext, type EstimationMode } from './IWaitTimeEstimator';
@@ -37,7 +36,7 @@ export class MlEstimator implements IWaitTimeEstimator {
 
       // Validate confidence threshold
       if (estimation.confidence < this.minConfidence) {
-        logger.warn('ML prediction confidence below threshold, should fallback', {
+        logger.warn('ML prediction confidence below threshold', {
           appointmentId: appointment.id,
           confidence: estimation.confidence,
           minConfidence: this.minConfidence,
@@ -50,7 +49,6 @@ export class MlEstimator implements IWaitTimeEstimator {
         appointmentId: appointment.id,
       });
       
-      // Re-throw to trigger fallback in orchestrator
       throw new Error(`ML estimation failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }

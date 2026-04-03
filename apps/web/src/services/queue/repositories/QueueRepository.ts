@@ -10,7 +10,6 @@ import {
   QueueEntry,
   AbsentPatient,
   QueueOverride,
-  QueueFilters,
   AppointmentStatus,
   AppointmentType,
   SkipReason,
@@ -29,6 +28,7 @@ import { logger } from '../../shared/logging/Logger';
 
 type PatientProfile = {
   id: string;
+  user_id?: string | null;
   display_name?: string | null;
 };
 
@@ -111,7 +111,7 @@ type RawQueueOverrideRow = {
 };
 
 type ClinicScheduleResponse = {
-  queue_mode?: string;
+  queue_mode?: QueueMode;
   schedule?: RawAppointmentRow[] | null;
 };
 
@@ -126,7 +126,7 @@ export class QueueRepository {
     staffId: string,
     targetDate: string,
     useClinicWide: boolean = true
-  ): Promise<{ queue_mode: string; schedule: QueueEntry[] }> {
+  ): Promise<{ queue_mode: QueueMode; schedule: QueueEntry[] }> {
     try {
       if (useClinicWide) {
         // ======= CLINIC-WIDE MODE (CURRENT) =======
@@ -270,15 +270,13 @@ export class QueueRepository {
       };
 
       const averageDurationRaw =
-        coerceNumber(settings['average_appointment_duration']) ??
-        coerceNumber(settings['averageAppointmentDuration']) ??
-        coerceNumber(settings['averageAppointmentDurationMinutes']);
+        coerceNumber(settings['average_appointment_duration']);
 
       const averageAppointmentDuration = averageDurationRaw ?? 15;
 
       const estimationModeRaw = settings['estimation_mode'];
       const estimationMode =
-        estimationModeRaw === 'ml' || estimationModeRaw === 'hybrid' || estimationModeRaw === 'basic'
+        estimationModeRaw === 'ml' || estimationModeRaw === 'basic'
           ? (estimationModeRaw as EstimationMode)
           : 'basic';
 
@@ -321,19 +319,17 @@ export class QueueRepository {
         };
       };
 
-      // Map estimation mode to database enum values
-      // Database enum likely accepts: 'basic', 'ml', 'hybrid'
-      // Estimator modes: 'ml', 'rule-based', 'historical-average', 'fallback'
+      // Map estimator modes to database enum values.
+      // Database enum accepts canonical values: 'basic' and 'ml'.
       const mapModeToDbEnum = (mode: string): string => {
         switch (mode) {
           case 'ml':
             return 'ml';
           case 'rule-based':
           case 'historical-average':
-          case 'fallback':
-            return 'basic'; // Map all non-ML modes to 'basic'
-          default:
             return 'basic';
+          default:
+            throw new Error(`Unsupported estimation mode for persistence: ${mode}`);
         }
       };
 
@@ -493,22 +489,6 @@ export class QueueRepository {
     }
   }
 
-  // ============================================
-  // DEPRECATED & CORE QUEUE OPERATIONS
-  // ============================================
-
-  /**
-   * @DEPRECATED This method is no longer recommended. Use getDailySchedule instead.
-   * Kept for reference during transition.
-   */
-  async getQueueByDate(filters: QueueFilters): Promise<QueueEntry[]> {
-    logger.warn('getQueueByDate is deprecated. Please transition to getDailySchedule.');
-    // For now, we can't directly call the new function as it requires a staffId,
-    // which the old filters may not have. Returning empty to enforce migration.
-    return Promise.resolve([]);
-  }
-
-
   /**
    * Get a single queue entry by ID
    */
@@ -540,11 +520,26 @@ export class QueueRepository {
   }
 
   /**
-   * Get all appointments for a patient
+   * Get all appointments for an authenticated patient user
    */
-  async getPatientAppointments(patientId: string): Promise<QueueEntry[]> {
+  async getPatientAppointments(patientUserId: string): Promise<QueueEntry[]> {
     try {
-      logger.debug('Fetching patient appointments', { patientId });
+      logger.debug('Fetching patient appointments', { patientUserId });
+
+      const { data: patientRecord, error: patientError } = await supabase
+        .from('patients')
+        .select('id')
+        .eq('user_id', patientUserId)
+        .single();
+
+      if (patientError) {
+        logger.error('Failed to resolve patient record for user', patientError, { patientUserId });
+        throw new DatabaseError('Failed to resolve patient record for user', patientError);
+      }
+
+      if (!patientRecord?.id) {
+        return [];
+      }
 
       const { data, error } = await supabase
         .from('appointments')
@@ -553,19 +548,19 @@ export class QueueRepository {
           patient:patients!appointments_patient_id_fkey(id, display_name),
           clinic:clinics(id, name, specialty, city)
         `)
-        .eq('patient_id', patientId)
+        .eq('patient_id', patientRecord.id)
         .order('appointment_date', { ascending: true })
         .order('scheduled_time', { ascending: true, nullsFirst: false });
 
       if (error) {
-        logger.error('Failed to fetch patient appointments', error, { patientId });
+        logger.error('Failed to fetch patient appointments', error, { patientUserId });
         throw new DatabaseError('Failed to fetch patient appointments', error);
       }
 
       return this.mapToQueueEntries(data as RawAppointmentRow[] | null);
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
-      logger.error('Unexpected error fetching patient appointments', error as Error, { patientId });
+      logger.error('Unexpected error fetching patient appointments', error as Error, { patientUserId });
       throw new DatabaseError('Unexpected error fetching patient appointments', error as Error);
     }
   }
@@ -610,23 +605,7 @@ export class QueueRepository {
   }
 
   /**
-   * @DEPRECATED This method uses a direct insert and bypasses critical database logic.
-   * Use createQueueEntryViaRpc instead.
-   */
-  async createQueueEntry(dto: CreateQueueEntryDTO): Promise<QueueEntry> {
-    logger.warn('DEPRECATED: createQueueEntry called directly. Transition to RPC method.');
-    throw new DatabaseError(
-      'createQueueEntry is deprecated. Use createQueueEntryViaRpc instead.',
-      new Error('Deprecated method invocation')
-    );
-  }
-
-  // ====================================================================
-  // THIS IS THE NEW, CORRECT METHOD
-  // ====================================================================
-  /**
-   * Creates a new queue entry using the robust RPC function.
-   * This is the new standard method for creating all appointments.
+   * Creates a new queue entry using the canonical RPC workflow.
    */
   async createQueueEntryViaRpc(dto: CreateQueueEntryDTO): Promise<QueueEntry> {
     try {
@@ -828,9 +807,11 @@ export class QueueRepository {
 
       return data?.queue_position ? data.queue_position + 1 : 1;
     } catch (error) {
-      if (error instanceof DatabaseError) throw error;
+      if (error instanceof DatabaseError) {
+        throw error;
+      }
       logger.error('Error getting next queue position', error as Error, { clinicId, targetDate });
-      return 1; // Fallback to position 1
+      throw new DatabaseError('Error getting next queue position', error as Error);
     }
   }
 
@@ -1358,7 +1339,7 @@ export class QueueRepository {
   // MAPPING FUNCTIONS
   // ============================================
 
-  private mapScheduleResponse(data: unknown): { queue_mode: string; schedule: QueueEntry[] } {
+  private mapScheduleResponse(data: unknown): { queue_mode: QueueMode; schedule: QueueEntry[] } {
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
       throw new DatabaseError('Invalid schedule RPC payload: expected object with queue_mode and schedule');
     }
@@ -1398,6 +1379,13 @@ export class QueueRepository {
       fullName: data.patient.display_name,
     } : undefined;
 
+    const clinicInfo = data.clinic ? {
+      id: data.clinic.id,
+      name: data.clinic.name ?? undefined,
+      specialty: data.clinic.specialty ?? undefined,
+      city: data.clinic.city ?? undefined,
+    } : undefined;
+
     return {
       id: data.id,
       clinicId: data.clinic_id,
@@ -1424,6 +1412,7 @@ export class QueueRepository {
       updatedAt: new Date(data.updated_at),
       isWalkIn: data.is_walk_in || false,
       patient: patientInfo,
+      clinic: clinicInfo,
       originalQueuePosition: data.original_queue_position,
       skipCount: data.skip_count || 0,
       skipReason: data.skip_reason as SkipReason | undefined,

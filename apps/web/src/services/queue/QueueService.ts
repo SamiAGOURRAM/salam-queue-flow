@@ -7,12 +7,11 @@
 import { QueueRepository } from './repositories/QueueRepository';
 import { eventBus } from '../shared/events/EventBus';
 import { logger } from '../shared/logging/Logger';
+import { waitTimeEstimationService } from '../ml/WaitTimeEstimationService';
 import { NotFoundError, ValidationError, BusinessRuleError, ConflictError, DatabaseError } from '../shared/errors';
 import { QueueStrategyFactory } from './strategies/QueueStrategy';
 import {
   QueueEntry,
-  QueueFilters,
-  QueueSummary,
   CreateQueueEntryDTO,
   UpdateQueueEntryDTO,
   MarkAbsentDTO,
@@ -20,6 +19,7 @@ import {
   CallNextPatientDTO,
   ReorderQueueDTO,
   AppointmentStatus,
+  QueueMode,
   QueueActionType,
   SkipReason,
   WaitTimePredictionRecord,
@@ -41,7 +41,7 @@ export class QueueService {
    * Fetches the daily schedule for a staff member with queue mode metadata.
    * This is the primary method for retrieving schedule data.
    */
-  async getDailySchedule(staffId: string, targetDate: string): Promise<{ queue_mode: string; schedule: QueueEntry[] }> {
+  async getDailySchedule(staffId: string, targetDate: string): Promise<{ queue_mode: QueueMode; schedule: QueueEntry[] }> {
     // Reduced verbosity - only log in debug mode
     logger.debug('Fetching daily schedule for staff', { staffId, targetDate });
     try {
@@ -74,15 +74,15 @@ export class QueueService {
   }
 
   /**
-   * Get all appointments for a patient
+   * Get all appointments for an authenticated patient user
    */
-  async getPatientAppointments(patientId: string): Promise<QueueEntry[]> {
+  async getPatientAppointments(patientUserId: string): Promise<QueueEntry[]> {
     try {
-      logger.debug('Fetching patient appointments', { patientId });
-      return await this.repository.getPatientAppointments(patientId);
+      logger.debug('Fetching patient appointments', { patientUserId });
+      return await this.repository.getPatientAppointments(patientUserId);
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
-      logger.error('Unexpected error fetching patient appointments', error as Error, { patientId });
+      logger.error('Unexpected error fetching patient appointments', error as Error, { patientUserId });
       throw new DatabaseError('Unexpected error fetching patient appointments', error as Error);
     }
   }
@@ -164,8 +164,7 @@ export class QueueService {
     const scheduleData = await this.getDailySchedule(dto.staffId, new Date(dto.date).toISOString().split('T')[0]);
     
     // Use Strategy Pattern to determine next patient
-    // Cast queue_mode to QueueMode type (slotted | fluid)
-    const strategy = QueueStrategyFactory.getStrategy(scheduleData.queue_mode as any);
+    const strategy = QueueStrategyFactory.getStrategy(scheduleData.queue_mode);
     
     const nextPatientResult = await strategy.getNextPatient(scheduleData.schedule, {
       currentTime: new Date(),
@@ -507,33 +506,14 @@ export class QueueService {
     return updatedEntry;
   }
 
-  // ============================================
-  // DEPRECATED & HELPER METHODS
-  // ============================================
-
-  /** @DEPRECATED */
-  async getQueue(): Promise<QueueEntry[]> {
-    logger.warn('QueueService.getQueue is deprecated. Use getDailySchedule.');
-    return [];
-  }
-
-  /** @DEPRECATED */
-  async getQueueSummary(): Promise<QueueSummary> {
-    logger.warn('QueueService.getQueueSummary is deprecated. Summaries are now derived on the client.');
-    return {} as QueueSummary;
-  }
-
   /**
    * Apply wait time estimates using the estimation service
-   * Service handles ML/rule-based/historical fallback automatically
+   * Service handles estimator selection automatically
    */
   private async applyWaitTimeEstimates(staffId: string, schedule: QueueEntry[]): Promise<QueueEntry[]> {
     if (!schedule.length) return schedule;
 
     try {
-      // Use the estimation service (handles all complexity internally)
-      const { waitTimeEstimationService } = await import('../ml/WaitTimeEstimationService');
-      
       // Estimate for each appointment in parallel
       const estimationPromises = schedule.map(async (entry) => {
         try {

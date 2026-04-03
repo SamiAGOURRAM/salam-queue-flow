@@ -37,11 +37,8 @@ export function createMockQueueRepository(): Partial<QueueRepository> {
 export function createMockPatientRepository(): Partial<PatientRepository> {
   return {
     findPatientByPhone: vi.fn(),
-    findGuestPatientByPhone: vi.fn(),
-    createGuestPatient: vi.fn(),
     getPatientProfile: vi.fn(),
     updatePatientProfile: vi.fn(),
-    getGuestPatient: vi.fn(),
   };
 }
 

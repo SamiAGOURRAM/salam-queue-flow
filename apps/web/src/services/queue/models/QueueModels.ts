@@ -76,6 +76,16 @@ export interface Patient {
 }
 
 /**
+ * Clinic Information (optional relation on queue entries)
+ */
+export interface Clinic {
+  id: string;
+  name?: string;
+  specialty?: string;
+  city?: string;
+}
+
+/**
  * Queue Entry (Appointment in Queue Context)
  */
 export interface QueueEntry {
@@ -117,6 +127,7 @@ export interface QueueEntry {
 
   // Relations (optional - populated on demand)
   patient?: Patient;
+  clinic?: Clinic;
 }
 
 /**
@@ -213,10 +224,8 @@ export interface QueueSummary {
 export type EstimationMode =
   | 'basic'
   | 'ml'
-  | 'hybrid'
   | 'rule-based'
-  | 'historical-average'
-  | 'fallback';
+  | 'historical-average';
 
 export interface ClinicEstimationConfig {
   clinicId: string;

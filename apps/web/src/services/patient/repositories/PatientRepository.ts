@@ -39,6 +39,19 @@ export interface WalkInPatientRow {
   updated_at: string;
 }
 
+type PatientIdentityRow = {
+  id: string;
+  display_name: string;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+type DecryptedPatientRow = {
+  full_name: string;
+  phone_number: string;
+  email: string | null;
+};
+
 export class PatientRepository {
   /**
    * Find patient by phone number
@@ -154,18 +167,58 @@ export class PatientRepository {
    */
   async getPatientProfile(patientId: string): Promise<PatientProfileRow> {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', patientId)
-        .single();
+        .maybeSingle();
 
-      if (error || !data) {
-        logger.error('Patient not found', error, { patientId });
-        throw new DatabaseError('Patient not found', error);
+      if (data) {
+        return data as PatientProfileRow;
       }
 
-      return data as PatientProfileRow;
+      // Fallback for accounts where profile row is missing: resolve patient record by user_id.
+      const { data: patientIdentity, error: patientIdentityError } = await supabase
+        .from('patients')
+        .select('id, display_name, created_at, updated_at')
+        .eq('user_id', patientId)
+        .eq('is_anonymized', false)
+        .maybeSingle();
+
+      if (patientIdentityError || !patientIdentity) {
+        logger.error('Patient not found', patientIdentityError, { patientId });
+        throw new DatabaseError('Patient not found', patientIdentityError);
+      }
+
+      let fullName = (patientIdentity as PatientIdentityRow).display_name;
+      let phoneNumber = '';
+      let email: string | null = null;
+
+      const { data: decryptedPatient, error: decryptedPatientError } = await supabase.rpc('get_patient_decrypted', {
+        p_patient_id: patientIdentity.id,
+      });
+
+      if (!decryptedPatientError && Array.isArray(decryptedPatient) && decryptedPatient.length > 0) {
+        const decrypted = decryptedPatient[0] as DecryptedPatientRow;
+        fullName = decrypted.full_name || fullName;
+        phoneNumber = decrypted.phone_number || '';
+        email = decrypted.email || null;
+      }
+
+      const nowIso = new Date().toISOString();
+
+      return {
+        id: patientId,
+        phone_number: phoneNumber,
+        full_name: fullName,
+        email,
+        city: null,
+        preferred_language: null,
+        notification_preferences: null,
+        no_show_count: 0,
+        created_at: patientIdentity.created_at || nowIso,
+        updated_at: patientIdentity.updated_at || nowIso,
+      };
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error getting patient profile', error as Error, { patientId });

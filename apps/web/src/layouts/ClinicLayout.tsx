@@ -9,6 +9,7 @@ import {
   Calendar,
   Settings,
   UserPlus,
+  User,
   LayoutDashboard,
   LogOut,
   Search,
@@ -29,12 +30,15 @@ import {
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
+import { useClinicPermissions } from "@/hooks/useClinicPermissions";
+import type { ClinicPermissionKey } from "@/lib/clinicRolePermissions";
 
 type ClinicRow = Database["public"]["Tables"]["clinics"]["Row"];
 
 export default function ClinicLayout() {
   // ===== ALL HOOKS PRESERVED IN EXACT ORDER =====
   const { user, loading, isClinicOwner, isStaff, rolesLoading, userRoles, signOut } = useAuth();
+  const { can, isClinicOwnerAtClinic } = useClinicPermissions();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -131,30 +135,47 @@ export default function ClinicLayout() {
   }, [user, loading, rolesLoading, isClinicOwner, isStaff, navigate, fetchClinic]);
 
   // ===== ALL NAVIGATION LOGIC PRESERVED =====
-  const navigationItems = [
+  const navigationItems: Array<{
+    name: string;
+    path: string;
+    icon: React.ElementType;
+    showFor: string[];
+    requiredPermission?: ClinicPermissionKey;
+    requiredAnyPermissions?: ClinicPermissionKey[];
+  }> = [
     {
       name: "Dashboard",
       path: "/clinic/dashboard",
       icon: LayoutDashboard,
-      showFor: ["owner"],
+      showFor: ["owner", "staff"],
+      requiredAnyPermissions: ["view_dashboard", "manage_dashboard"],
     },
     {
       name: "Live Queue",
       path: "/clinic/queue",
       icon: Activity,
       showFor: ["owner", "staff"],
+      requiredPermission: "manage_queue",
     },
     {
       name: "Calendar",
       path: "/clinic/calendar",
       icon: Calendar,
       showFor: ["owner", "staff"],
+      requiredAnyPermissions: ["view_calendar", "manage_calendar"],
     },
     {
       name: "Team",
       path: "/clinic/team",
       icon: UserPlus,
-      showFor: ["owner"],
+      showFor: ["owner", "staff"],
+      requiredAnyPermissions: ["view_team", "manage_team"],
+    },
+    {
+      name: "Profile",
+      path: "/clinic/profile",
+      icon: User,
+      showFor: ["owner", "staff"],
     },
   ];
 
@@ -167,10 +188,13 @@ export default function ClinicLayout() {
     { name: "Payments", path: "/clinic/settings?tab=payment", icon: CreditCard, tab: "payment" },
   ];
 
-  const userRole = isClinicOwner ? "owner" : isStaff ? "staff" : null;
-  const visibleNavItems = navigationItems.filter((item) =>
-    item.showFor.includes(userRole || "")
-  );
+  const userRole = isClinicOwnerAtClinic || isClinicOwner ? "owner" : isStaff ? "staff" : null;
+  const visibleNavItems = navigationItems.filter((item) => {
+    if (!item.showFor.includes(userRole || "")) return false;
+    if (item.requiredPermission && !can(item.requiredPermission)) return false;
+    if (item.requiredAnyPermissions && !item.requiredAnyPermissions.some((permission) => can(permission))) return false;
+    return true;
+  });
 
   const isActive = (path: string) => location.pathname === path;
   const isSettingsActive = location.pathname.startsWith("/clinic/settings");
@@ -248,8 +272,8 @@ export default function ClinicLayout() {
             );
           })}
 
-          {/* Settings with Submenu - Only for Owner */}
-          {userRole === "owner" && (
+          {/* Settings with Submenu */}
+          {(can("view_clinic_settings") || can("manage_clinic_settings")) && (
             <div className="pt-1">
               <button
                 onClick={() => {

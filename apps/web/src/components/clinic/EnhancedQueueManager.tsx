@@ -20,7 +20,7 @@ import {
   Check
 } from "lucide-react";
 import { useQueueService } from "@/hooks/useQueueService";
-import { AppointmentStatus, QueueEntry, SkipReason } from "@/services/queue";
+import { AppointmentStatus, QueueEntry, QueueMode, SkipReason } from "@/services/queue";
 import { formatDistanceToNow, format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { logger } from "@/services/shared/logging/Logger";
@@ -64,8 +64,10 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
 
   const computeWorkingDayRange = (settings?: Record<string, unknown> | null): WorkingDayRange | null => {
     if (!settings) return null;
-    const workingHours = (settings as any)?.working_hours || (settings as any)?.workingHours;
-    if (!workingHours) return null;
+    const workingHoursRaw = settings.working_hours;
+    if (!workingHoursRaw || typeof workingHoursRaw !== 'object' || Array.isArray(workingHoursRaw)) return null;
+
+    const workingHours = workingHoursRaw as Record<string, { open?: string; close?: string; closed?: boolean }>;
     const today = new Date();
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const dayKey = dayNames[today.getDay()];
@@ -111,7 +113,7 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
     }
   }, [staffId]);
 
-  const isSlottedMode = queueMode === 'slotted';
+  const isSlottedMode = queueMode === QueueMode.SLOTTED;
 
   const { currentPatient, waitingPatients, absentPatients, summary } = useMemo(() => {
     if (!schedule) return { currentPatient: null, waitingPatients: [], absentPatients: [], summary: { waiting: 0, inProgress: 0, absent: 0, completed: 0 } };
@@ -156,7 +158,7 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
       const err = error as Error;
       if (err.message.includes('not physically present')) {
         const scheduleData = await queueService.getDailySchedule(staffId, new Date().toISOString().split('T')[0]);
-        const strategy = QueueStrategyFactory.getStrategy(scheduleData.queue_mode as any);
+        const strategy = QueueStrategyFactory.getStrategy(scheduleData.queue_mode);
         const nextPatient = await strategy.getNextPatient(scheduleData.schedule, {
           currentTime: new Date(),
           clinicId: clinicId,

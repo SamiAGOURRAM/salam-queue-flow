@@ -8,7 +8,7 @@ export class ManualOverridesService {
   /**
    * Swaps two patients in the queue
    * In Fluid mode, swaps their priority scores.
-   * In Fixed mode, swaps their start times (if possible) or just logs the intent (as fixed mode is strict).
+    * In Slotted mode, swaps their start times to preserve deterministic order.
    */
   async swapPatients(
     appointmentId1: string,
@@ -41,7 +41,7 @@ export class ManualOverridesService {
       };
 
       // Perform Swap
-      // We swap Priority Scores (for Fluid) and Start Times (for Fixed)
+      // We swap Priority Scores (for Fluid) and Start Times (for Slotted)
       // to ensure they swap places regardless of mode.
       
       await this.repository.updateQueueEntry(appt1.id, {

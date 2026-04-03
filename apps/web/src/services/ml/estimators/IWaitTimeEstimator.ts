@@ -32,7 +32,7 @@ export interface WaitTimeEstimation {
 /**
  * Estimation modes
  */
-export type EstimationMode = 'ml' | 'rule-based' | 'historical-average' | 'fallback';
+export type EstimationMode = 'ml' | 'rule-based' | 'historical-average';
 
 /**
  * Explanation of the estimation
@@ -118,7 +118,7 @@ export interface IWaitTimeEstimator {
   
   /**
    * Get minimum confidence threshold for this estimator
-   * If confidence is below this, should fallback to another estimator
+   * Used for diagnostics and quality reporting.
    */
   getMinConfidence(): number;
 }

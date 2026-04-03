@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   Search,
+  Stethoscope,
   Calendar,
   User,
   LogOut,
@@ -39,6 +40,11 @@ export default function PatientLayout() {
 
   // Base navigation items available to everyone
   const baseNavigationItems = [
+    {
+      name: t('nav.doctors', 'Browse Doctors'),
+      path: "/doctors",
+      icon: Stethoscope,
+    },
     {
       name: t('nav.clinics'),
       path: "/clinics",

@@ -3,15 +3,16 @@ import { useState, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { bookingService } from '@/services/booking/BookingService';
 import { BookingRequest } from '@/services/booking/types';
+import { QueueMode } from '@/services/queue/models/QueueModels';
 import { useToast } from '@/hooks/use-toast';
-
-type QueueMode = 'fluid' | 'slotted' | null;
+import { logger } from '@/services/shared/logging/Logger';
 
 export const useBookingService = (
-  clinicId?: string, 
+  clinicId?: string,
+  selectedStaffId?: string,
   selectedDate?: Date,
   appointmentType?: string,
-  queueMode?: QueueMode
+  queueMode?: QueueMode | null
 ) => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -26,135 +27,65 @@ export const useBookingService = (
   });
 
   // Calculate if we should fetch slots
-  const dateStr = selectedDate 
+  const dateStr = selectedDate
   ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
   : '';
-  // Fetch slots only for Slotted mode (not Fluid/Free Queue)
-  const shouldFetchSlots = !!clinicId && !!dateStr && !!appointmentType && queueMode === 'slotted';
-  
-  // 🐛 DEBUG: Log the conditions
-  useEffect(() => {
-    console.log('🔍 shouldFetchSlots calculation:', {
-      hasClinicId: !!clinicId,
-      hasDateStr: !!dateStr,
-      hasAppointmentType: !!appointmentType,
-      queueMode,
-      isTimeSlotMode: queueMode === 'slotted',
-      RESULT: shouldFetchSlots
-    });
-  }, [clinicId, dateStr, appointmentType, queueMode, shouldFetchSlots]);
+  const shouldFetchSlots = !!clinicId && !!selectedStaffId && !!dateStr && !!appointmentType && queueMode === QueueMode.SLOTTED;
 
-  // Fetch available slots - ONLY if mode is fixed or hybrid (not fluid)
-  const { 
-    data: availableSlots, 
+  // Fetch available slots only in slotted mode
+  const {
+    data: availableSlots,
     isLoading: loadingSlots,
     refetch: refetchSlots,
     error: slotsError
   } = useQuery({
-    queryKey: ['available-slots', clinicId, dateStr, appointmentType],
+    queryKey: ['available-slots', clinicId, selectedStaffId, dateStr, appointmentType],
     queryFn: async () => {
-      console.log('📞 Calling getAvailableSlotsForMode with:', {
-        clinicId,
-        dateStr,
-        appointmentType
-      });
-
-      // Check if method exists
-      if (typeof bookingService.getAvailableSlotsForMode !== 'function') {
-        console.error('❌ bookingService.getAvailableSlotsForMode is not a function!');
-        console.log('Available methods:', Object.keys(bookingService));
-        
-        // Fallback to old method if new one doesn't exist
-        if (typeof bookingService.getAvailableSlots === 'function') {
-          console.warn('⚠️ Falling back to getAvailableSlots (old method)');
-          return await bookingService.getAvailableSlots(clinicId!, dateStr, appointmentType);
-        }
-        
-        throw new Error('getAvailableSlotsForMode method not found');
-      }
-
-      const result = await bookingService.getAvailableSlotsForMode(clinicId!, dateStr, appointmentType);
-      
-      console.log('✅ Slots received:', {
-        slotsCount: result?.slots?.length || 0,
-        mode: result?.mode,
-        result
-      });
-      
+      logger.debug('Fetching slots for mode', { clinicId, selectedStaffId, dateStr, appointmentType });
+      const result = await bookingService.getAvailableSlotsForMode(clinicId!, dateStr, appointmentType!, selectedStaffId!);
+      logger.debug('Slots received', { slotsCount: result?.slots?.length || 0, mode: result?.mode });
       return result;
     },
     enabled: shouldFetchSlots,
     refetchInterval: shouldFetchSlots ? 30000 : false,
   });
 
-  // 🐛 DEBUG: Log slots data changes
-  useEffect(() => {
-    console.log('📊 Available Slots Updated:', {
-      availableSlots,
-      slotsCount: availableSlots?.slots?.length || 0,
-      loading: loadingSlots,
-      error: slotsError
-    });
-  }, [availableSlots, loadingSlots, slotsError]);
-
-  // Real-time subscription - only for fixed or hybrid modes
+  // Real-time subscription - only for slotted mode
   useEffect(() => {
     if (!shouldFetchSlots) return;
 
-    console.log('🔔 Setting up real-time subscription for:', clinicId, dateStr);
-    
     const unsubscribe = bookingService.subscribeToSlotUpdates(
       clinicId!,
       dateStr,
       () => {
-        console.log('🔄 Real-time update received! Refetching slots...');
         queryClient.invalidateQueries({
-          queryKey: ['available-slots', clinicId, dateStr, appointmentType]
+          queryKey: ['available-slots', clinicId, selectedStaffId, dateStr, appointmentType]
         });
       }
     );
 
     return () => {
-      console.log('🔕 Cleaning up real-time subscription');
       unsubscribe();
     };
-  }, [shouldFetchSlots, clinicId, dateStr, appointmentType, queryClient]);
+  }, [shouldFetchSlots, clinicId, selectedStaffId, dateStr, appointmentType, queryClient]);
 
   // Book appointment mutation
   const bookAppointmentMutation = useMutation({
     mutationFn: async (request: BookingRequest) => {
-      console.log('📞 Booking appointment with:', request);
-
-      // Check if method exists
-      if (typeof bookingService.bookAppointmentForMode !== 'function') {
-        console.error('❌ bookingService.bookAppointmentForMode is not a function!');
-        
-        // Fallback to old method
-        if (typeof bookingService.bookAppointment === 'function') {
-          console.warn('⚠️ Falling back to bookAppointment (old method)');
-          return await bookingService.bookAppointment(request);
-        }
-        
-        throw new Error('bookAppointmentForMode method not found');
-      }
-
       return await bookingService.bookAppointmentForMode(request);
     },
     onSuccess: (data) => {
-      console.log('✅ Booking success:', data);
-      
       if (data.success) {
-        const modeText = queueMode === 'fluid' ? 'Joined Queue!' : 'Booking Confirmed!';
-        
+        const modeText = queueMode === QueueMode.FLUID ? 'Joined Queue!' : 'Booking Confirmed!';
+
         toast({
-          title: `✅ ${modeText}`,
+          title: modeText,
           description: `Queue position: #${data.queuePosition}`,
         });
-        
-        // Only invalidate slots if we're in slotted mode
-        if (queueMode === 'slotted') {
-          queryClient.invalidateQueries({ 
-            queryKey: ['available-slots', clinicId, dateStr, appointmentType] 
+
+        if (queueMode === QueueMode.SLOTTED) {
+          queryClient.invalidateQueries({
+            queryKey: ['available-slots', clinicId, selectedStaffId, dateStr, appointmentType]
           });
         }
       } else {
@@ -166,7 +97,7 @@ export const useBookingService = (
       }
     },
     onError: (error) => {
-      console.error('❌ Booking error:', error);
+      logger.error('Booking failed', error as Error);
       toast({
         title: "Error",
         description: "Failed to book appointment. Please try again.",
@@ -182,30 +113,21 @@ export const useBookingService = (
     appointmentType: string,
     reasonForVisit?: string
   ) => {
-    if (!clinicId || !selectedDate) return;
-  
+    if (!clinicId || !selectedDate || !selectedStaffId) return;
+
     setIsBooking(true);
     try {
-      // Format date in local timezone (not UTC)
       const year = selectedDate.getFullYear();
       const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
       const day = String(selectedDate.getDate()).padStart(2, '0');
       const localDateStr = `${year}-${month}-${day}`;
-  
-      console.log('🎫 Creating booking:', {
-        clinicId,
-        patientId,
-        date: localDateStr,
-        time: scheduledTime,
-        type: appointmentType,
-        mode: queueMode
-      });
 
       const result = await bookAppointmentMutation.mutateAsync({
         clinicId,
+        staffId: selectedStaffId,
         patientId,
         appointmentDate: localDateStr,
-        scheduledTime: scheduledTime ? `${scheduledTime}:00` : null,
+        scheduledTime,
         appointmentType,
         reasonForVisit
       });
@@ -213,7 +135,7 @@ export const useBookingService = (
     } finally {
       setIsBooking(false);
     }
-  }, [clinicId, selectedDate, bookAppointmentMutation, queueMode]);
+  }, [clinicId, selectedDate, selectedStaffId, bookAppointmentMutation, queueMode]);
 
   return {
     clinicInfo,

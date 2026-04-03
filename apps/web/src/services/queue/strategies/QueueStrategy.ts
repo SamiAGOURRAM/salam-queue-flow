@@ -77,10 +77,6 @@ export interface NextPatientResult {
  * - Allows early calls if patient is present (frees up their slot for walk-ins/waitlist)
  * - NO shifting: Scheduled times remain fixed
  * - Gap filling: Freed slots can be used for walk-ins/waitlist
- * 
- * This replaces both Fixed and Hybrid modes, which were functionally identical.
- * Advanced features (cascade notifications, auto waitlist promotion) can be added
- * as configurable settings in the future, not separate modes.
  */
 export class SlottedQueueStrategy implements IQueueStrategy {
   async getNextPatient(
@@ -225,28 +221,18 @@ export class FluidQueueStrategy implements IQueueStrategy {
   }
 }
 
-// Note: HybridQueueStrategy removed - merged into SlottedQueueStrategy
-// Fixed and Hybrid were functionally identical, so they're now a single "Slotted" mode
-// Advanced features can be added as configurable settings in the future
-
 /**
  * Factory to get the correct strategy
  */
 export class QueueStrategyFactory {
-  static getStrategy(mode: QueueMode | 'fixed' | 'hybrid'): IQueueStrategy {
-    // Handle legacy modes for backward compatibility (migrate 'fixed'/'hybrid' to 'slotted')
-    if (mode === 'fixed' || mode === 'hybrid') {
-      return new SlottedQueueStrategy();
-    }
-
+  static getStrategy(mode: QueueMode): IQueueStrategy {
     switch (mode) {
       case QueueMode.SLOTTED:
         return new SlottedQueueStrategy();
       case QueueMode.FLUID:
         return new FluidQueueStrategy();
       default:
-        // Default to Fluid for backward compatibility
-        return new FluidQueueStrategy();
+        throw new Error(`Unsupported queue mode: ${mode}`);
     }
   }
 }

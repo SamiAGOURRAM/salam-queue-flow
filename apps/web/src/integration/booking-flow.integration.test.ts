@@ -17,6 +17,7 @@ const staffPhone = import.meta.env.VITE_SMOKE_STAFF_PHONE || '+212600009301';
 let ownerUserId = '';
 let patientUserId = '';
 let staffUserId = '';
+let ownerStaffId = '';
 let appointmentId = '';
 let appointmentDate = '';
 
@@ -103,7 +104,7 @@ describe('Web Booking Flow Integration Smoke', () => {
         day_start: '09:00',
         day_end: '12:00',
         slot_interval_minutes: 15,
-        slot_capacity: 1,
+        slot_capacity_per_staff: 1,
       },
     });
 
@@ -111,16 +112,22 @@ describe('Web Booking Flow Integration Smoke', () => {
       throw new Error(`Clinic setup failed: ${clinicInsert.error.message}`);
     }
 
-    const staffInsert = await supabase.from('clinic_staff').insert({
-      clinic_id: clinicId,
-      user_id: ownerUserId,
-      role: 'doctor',
-      is_active: true,
-    });
+    const staffInsert = await supabase
+      .from('clinic_staff')
+      .insert({
+        clinic_id: clinicId,
+        user_id: ownerUserId,
+        role: 'doctor',
+        is_active: true,
+      })
+      .select('id')
+      .single();
 
-    if (staffInsert.error) {
-      throw new Error(`Clinic staff setup failed: ${staffInsert.error.message}`);
+    if (staffInsert.error || !staffInsert.data) {
+      throw new Error(`Clinic staff setup failed: ${staffInsert.error?.message || 'missing clinic staff id'}`);
     }
+
+    ownerStaffId = staffInsert.data.id;
 
     await supabase.auth.signOut();
 
@@ -164,7 +171,8 @@ describe('Web Booking Flow Integration Smoke', () => {
     const slots = await bookingService.getAvailableSlotsForMode(
       clinicId,
       appointmentDate,
-      'consultation'
+      'consultation',
+      ownerStaffId,
     );
 
     expect(slots.available).toBe(true);
@@ -176,6 +184,7 @@ describe('Web Booking Flow Integration Smoke', () => {
     const bookingResult = await bookingService.bookAppointmentForMode({
       clinicId,
       patientId: patientUserId,
+      staffId: ownerStaffId,
       appointmentDate,
       scheduledTime: firstAvailableSlot?.time || null,
       appointmentType: 'consultation',
@@ -187,7 +196,35 @@ describe('Web Booking Flow Integration Smoke', () => {
 
     appointmentId = bookingResult.appointmentId!;
 
+    const refreshedSlots = await bookingService.getAvailableSlotsForMode(
+      clinicId,
+      appointmentDate,
+      'consultation',
+      ownerStaffId,
+    );
+
+    const justBookedSlot = refreshedSlots.slots.find((slot) => slot.time === firstAvailableSlot?.time);
+    expect(justBookedSlot?.available).toBe(false);
+
+    const duplicateBooking = await bookingService.bookAppointmentForMode({
+      clinicId,
+      patientId: patientUserId,
+      staffId: ownerStaffId,
+      appointmentDate,
+      scheduledTime: firstAvailableSlot?.time || null,
+      appointmentType: 'consultation',
+      reasonForVisit: 'smoke_web_flow_duplicate',
+    });
+
+    expect(duplicateBooking.success).toBe(false);
+    expect((duplicateBooking.error || '').toLowerCase()).toContain('no longer available');
+
     const queueRepository = new QueueRepository();
+    const patientAppointments = await queueRepository.getPatientAppointments(patientUserId);
+    const bookedAppointment = patientAppointments.find((entry) => entry.id === appointmentId);
+    expect(bookedAppointment).toBeDefined();
+    expect(bookedAppointment?.clinic?.name).toBe('Smoke Web Booking Clinic');
+
     const cancelled = await queueRepository.cancelAppointmentViaRpc(
       appointmentId,
       patientUserId,

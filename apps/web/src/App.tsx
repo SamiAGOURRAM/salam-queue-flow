@@ -10,6 +10,7 @@ import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Welcome from "./pages/Welcome.tsx";
 import Clinics from "./pages/Clinics.tsx";
+import Doctors from "./pages/Doctors.tsx";
 
 // Auth Pages
 import Login from "./pages/auth/Login.tsx";
@@ -42,6 +43,7 @@ import PatientLayout from "./layouts/PatientLayout.tsx";
 
 // Protected Route Component
 import { ProtectedRoute } from "./components/auth/ProtectedRoute.tsx";
+import { ClinicPermissionRoute } from "./components/auth/ClinicPermissionRoute.tsx";
 
 // Chat Widget
 import { ChatWidget } from "./components/chat/ChatWidget.tsx";
@@ -80,6 +82,7 @@ const App = () => (
             <Route path="welcome" element={<Welcome />} />
 
             {/* Clinic Directory - Search and Browse */}
+            <Route path="doctors" element={<Doctors />} />
             <Route path="clinics" element={<Clinics />} />
 
             {/* Public clinic browsing */}
@@ -99,12 +102,54 @@ const App = () => (
           {/* ======================================================= */}
           <Route element={<ProtectedRoute />}>
             <Route path="/clinic" element={<ClinicLayout />}>
-              <Route path="dashboard" element={<ClinicDashboard />} />
-              <Route path="queue" element={<ClinicQueue />} />
-              <Route path="calendar" element={<ClinicCalendar />} />
-              <Route path="team" element={<TeamManagement />} />
-              <Route path="settings" element={<ClinicSettings />} />
-              <Route path="profile" element={<ClinicProfile />} />
+              <Route
+                path="dashboard"
+                element={
+                  <ClinicPermissionRoute requiredAnyPermissions={["view_dashboard", "manage_dashboard"]}>
+                    <ClinicDashboard />
+                  </ClinicPermissionRoute>
+                }
+              />
+              <Route
+                path="queue"
+                element={
+                  <ClinicPermissionRoute requiredPermissions={["manage_queue"]}>
+                    <ClinicQueue />
+                  </ClinicPermissionRoute>
+                }
+              />
+              <Route
+                path="calendar"
+                element={
+                  <ClinicPermissionRoute requiredAnyPermissions={["view_calendar", "manage_calendar"]}>
+                    <ClinicCalendar />
+                  </ClinicPermissionRoute>
+                }
+              />
+              <Route
+                path="team"
+                element={
+                  <ClinicPermissionRoute requiredAnyPermissions={["view_team", "manage_team"]}>
+                    <TeamManagement />
+                  </ClinicPermissionRoute>
+                }
+              />
+              <Route
+                path="settings"
+                element={
+                  <ClinicPermissionRoute requiredAnyPermissions={["view_clinic_settings", "manage_clinic_settings"]}>
+                    <ClinicSettings />
+                  </ClinicPermissionRoute>
+                }
+              />
+              <Route
+                path="profile"
+                element={
+                  <ClinicPermissionRoute>
+                    <ClinicProfile />
+                  </ClinicPermissionRoute>
+                }
+              />
             </Route>
           </Route>
 

@@ -33,9 +33,6 @@ export class BookingService {
 
   constructor() {
     this.repository = new BookingRepository();
-    
-    // Set logger context for this service
-    logger.setContext({ service: 'BookingService' });
   }
 
   /**
@@ -60,6 +57,7 @@ export class BookingService {
       // Check availability one final time
       const availability = await this.repository.checkAvailability(
         request.clinicId,
+        request.staffId,
         request.appointmentDate,
         request.scheduledTime
       );
@@ -157,6 +155,7 @@ export class BookingService {
    */
   async getAvailableSlots(
     clinicId: string,
+    staffId: string,
     date: string,
     appointmentType?: string
   ): Promise<AvailableSlotsResponse> {
@@ -172,7 +171,7 @@ export class BookingService {
         appointmentType
       });
 
-      const slots = await this.repository.getAvailableSlots(clinicId, date, appointmentType);
+      const slots = await this.repository.getAvailableSlots(clinicId, staffId, date, appointmentType);
       
       logger.info('Available slots fetched', {
         totalSlots: slots.slots?.length || 0,
@@ -241,7 +240,7 @@ export class BookingService {
       return mode;
     } catch (error) {
       logger.error('Failed to fetch queue mode', error as Error);
-      return null; // Fallback gracefully
+      throw error;
     } finally {
       logger.clearContext();
     }
@@ -254,7 +253,8 @@ export class BookingService {
   async getAvailableSlotsForMode(
     clinicId: string,
     date: string,
-    appointmentType?: string
+    appointmentType: string,
+    staffId: string
   ): Promise<AvailableSlotsResponse> {
     logger.setContext({ 
       service: 'BookingService',
@@ -268,7 +268,7 @@ export class BookingService {
         appointmentType
       });
 
-      const slots = await this.repository.getAvailableSlotsForMode(clinicId, date, appointmentType);
+      const slots = await this.repository.getAvailableSlotsForMode(clinicId, date, appointmentType, staffId);
       
       logger.info('Available slots fetched', {
         mode: slots.mode,
@@ -307,6 +307,7 @@ export class BookingService {
       // Check availability (mode-aware)
       const availability = await this.repository.checkAvailabilityForMode(
         request.clinicId,
+        request.staffId,
         request.appointmentDate,
         request.scheduledTime
       );
@@ -375,6 +376,19 @@ export class BookingService {
         request
       });
 
+      const rawError = error as { message?: string; details?: string; hint?: string };
+      const errorText = [rawError?.message, rawError?.details, rawError?.hint]
+        .filter((value): value is string => typeof value === 'string' && value.length > 0)
+        .join(' ')
+        .toLowerCase();
+
+      let clientError = 'Unable to complete booking. Please refresh and try again.';
+      if (errorText.includes('no longer available')) {
+        clientError = 'This time slot is no longer available';
+      } else if (errorText.includes('scheduled_time') && errorText.includes('hh:mm')) {
+        clientError = 'Invalid time slot format. Please refresh and try again.';
+      }
+
       await eventBus.publish<BookingFailedEvent>({
         eventId: EventBus.generateEventId(),
         eventType: 'booking:failed',
@@ -384,13 +398,16 @@ export class BookingService {
         payload: {
           clinicId: request.clinicId,
           patientId: request.patientId,
-          reason: (error as Error).message,
+          reason: clientError,
           date: request.appointmentDate,
           time: request.scheduledTime || 'FREE_QUEUE'
         }
       });
 
-      throw error;
+      return {
+        success: false,
+        error: clientError,
+      };
     } finally {
       logger.clearContext();
     }

@@ -17,6 +17,7 @@ export interface BookingSlot {
   export interface BookingRequest {
     clinicId: string;
     patientId: string;
+    staffId: string;
     appointmentDate: string;
     scheduledTime: string | null;         // ← UPDATED: Can be null for free queue
     appointmentType: string;

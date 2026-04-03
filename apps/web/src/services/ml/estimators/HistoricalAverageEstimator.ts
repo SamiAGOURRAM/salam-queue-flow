@@ -1,8 +1,7 @@
 /**
  * Historical Average Wait Time Estimator
  * 
- * Simple fallback estimator using historical averages.
- * Used when other estimators fail or are unavailable.
+ * Historical estimator using aggregated prior queue patterns.
  */
 
 import { IWaitTimeEstimator, type WaitTimeEstimation, type EstimationContext, type EstimationMode } from './IWaitTimeEstimator';

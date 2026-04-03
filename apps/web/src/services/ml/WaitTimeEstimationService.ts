@@ -1,13 +1,12 @@
 /**
  * Wait Time Estimation Service
  * 
- * Orchestrates wait time estimation using a fallback chain:
- * 1. ML Estimator (if enabled and available)
- * 2. Rule-Based Estimator (reliable fallback)
- * 3. Historical Average Estimator (last resort)
+ * Orchestrates wait time estimation using a strict configured path.
+ * Runtime path uses ML or Rule-Based mode based on clinic config.
+ * Historical estimator remains available for explicit forceMode usage.
  * 
  * Frontend only needs to call: estimateWaitTime(appointmentId)
- * Service handles all complexity internally.
+ * Service handles estimator selection internally.
  */
 
 import { IWaitTimeEstimator, type WaitTimeEstimation, type EstimationContext } from './estimators/IWaitTimeEstimator';
@@ -15,8 +14,9 @@ import { MlEstimator } from './estimators/MlEstimator';
 import { RuleBasedEstimator } from './estimators/RuleBasedEstimator';
 import { HistoricalAverageEstimator } from './estimators/HistoricalAverageEstimator';
 import { QueueRepository } from '../queue/repositories/QueueRepository';
+import { StaffRepository } from '../staff/repositories/StaffRepository';
 import { logger } from '../shared/logging/Logger';
-import { NotFoundError, DatabaseError } from '../shared/errors';
+import { NotFoundError } from '../shared/errors';
 import type { QueueEntry } from '../queue/models/QueueModels';
 
 export class WaitTimeEstimationService {
@@ -38,7 +38,7 @@ export class WaitTimeEstimationService {
    * Estimate wait time for an appointment
    * 
    * This is the ONLY method the frontend needs to call.
-   * Service handles estimator selection and fallback internally.
+    * Service handles estimator selection internally.
    * 
    * @param appointmentId - Appointment ID to estimate for
    * @param options - Optional configuration
@@ -80,8 +80,8 @@ export class WaitTimeEstimationService {
         context.appointment.staffId || ''
       );
 
-      // 4. Try estimators in fallback chain
-      const estimation = await this.estimateWithFallback(context, {
+      // 4. Run configured estimator path
+      const estimation = await this.estimateWithConfiguredMode(context, {
         mlEnabled: clinicConfig?.mlEnabled || false,
         skipMl: options?.skipMl || false,
       });
@@ -106,86 +106,37 @@ export class WaitTimeEstimationService {
     } catch (error) {
       logger.error('Wait time estimation failed', error as Error, { appointmentId });
 
-      // Last resort: return a safe default
       if (error instanceof NotFoundError) {
-        throw error; // Re-throw not found errors
+        throw error;
       }
 
-      // For other errors, return historical average as fallback
-      try {
-        const context = await this.buildEstimationContext(appointmentId);
-        return await this.historicalAverageEstimator.estimate(context);
-      } catch (fallbackError) {
-        // If even fallback fails, return a safe default
-        logger.error('All estimation methods failed', fallbackError as Error, { appointmentId });
-        return {
-          waitTimeMinutes: 15,
-          confidence: 0.3,
-          mode: 'fallback',
-          explanation: {
-            topFactors: [],
-            context: 'Unable to estimate wait time. Using default value.',
-          },
-        };
-      }
+      throw error;
     }
   }
 
   /**
-   * Estimate with fallback chain
+   * Estimate using configured runtime mode.
    */
-  private async estimateWithFallback(
+  private async estimateWithConfiguredMode(
     context: EstimationContext,
     options: { mlEnabled: boolean; skipMl: boolean }
   ): Promise<WaitTimeEstimation> {
-    // Try ML first (if enabled and not skipped)
     if (options.mlEnabled && !options.skipMl) {
-      try {
-        const isAvailable = await this.mlEstimator.isAvailable();
-        if (isAvailable) {
-          const estimation = await this.mlEstimator.estimate(context);
-
-          // If confidence is high enough, use it
-          if (estimation.confidence >= this.mlEstimator.getMinConfidence()) {
-            logger.debug('Using ML estimation', {
-              appointmentId: context.appointment.id,
-              confidence: estimation.confidence,
-            });
-            return estimation;
-          } else {
-            logger.debug('ML estimation confidence too low, falling back', {
-              appointmentId: context.appointment.id,
-              confidence: estimation.confidence,
-              minConfidence: this.mlEstimator.getMinConfidence(),
-            });
-          }
-        }
-      } catch (error) {
-        logger.warn('ML estimation failed, falling back to rule-based', {
-          appointmentId: context.appointment.id,
-          error: error instanceof Error ? error.message : String(error),
-        });
+      const isAvailable = await this.mlEstimator.isAvailable();
+      if (!isAvailable) {
+        throw new Error('ML estimator is unavailable for configured clinic mode');
       }
-    }
 
-    // Try rule-based (reliable fallback)
-    try {
-      const estimation = await this.ruleBasedEstimator.estimate(context);
-      logger.debug('Using rule-based estimation', {
+      const estimation = await this.mlEstimator.estimate(context);
+      logger.debug('Using ML estimation', {
         appointmentId: context.appointment.id,
         confidence: estimation.confidence,
       });
       return estimation;
-    } catch (error) {
-      logger.warn('Rule-based estimation failed, falling back to historical average', {
-        appointmentId: context.appointment.id,
-        error: error instanceof Error ? error.message : String(error),
-      });
     }
 
-    // Last resort: historical average
-    const estimation = await this.historicalAverageEstimator.estimate(context);
-    logger.debug('Using historical average estimation', {
+    const estimation = await this.ruleBasedEstimator.estimate(context);
+    logger.debug('Using rule-based estimation', {
       appointmentId: context.appointment.id,
       confidence: estimation.confidence,
     });
@@ -222,7 +173,7 @@ export class WaitTimeEstimationService {
     // Fetch clinic config
     const clinicConfig = await this.repository.getClinicEstimationConfigByStaffId(
       appointment.staffId || ''
-    ).catch(() => null);
+    );
 
     // Fetch queue state (if available)
     const queueState = await this.getQueueState(appointment.clinicId, appointment.appointmentDate);
@@ -267,7 +218,6 @@ export class WaitTimeEstimationService {
     if (!staffId) return undefined;
 
     try {
-      const { StaffRepository } = await import('../staff/repositories/StaffRepository');
       const staffRepo = new StaffRepository();
 
       const staff = await staffRepo.getStaffById(staffId).catch(() => null);

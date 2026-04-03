@@ -1359,6 +1359,7 @@ export type Database = {
           p_appointment_date: string
           p_clinic_id: string
           p_scheduled_time: string
+          p_staff_id: string
         }
         Returns: Json
       }
@@ -1374,7 +1375,7 @@ export type Database = {
           p_patient_id: string
           p_reason_for_visit?: string
           p_scheduled_time?: string
-          p_staff_id?: string
+          p_staff_id: string
         }
         Returns: Json
       }
@@ -1386,6 +1387,7 @@ export type Database = {
           p_patient_id: string
           p_reason?: string
           p_scheduled_time: string
+          p_staff_id: string
         }
         Returns: Json
       }
@@ -1412,7 +1414,7 @@ export type Database = {
           p_is_guest?: boolean
           p_is_walk_in?: boolean
           p_patient_id?: string
-          p_staff_id?: string
+          p_staff_id: string
           p_start_time?: string
         }
         Returns: Json
@@ -1434,6 +1436,7 @@ export type Database = {
           p_appointment_date: string
           p_appointment_type?: string
           p_clinic_id: string
+          p_staff_id: string
         }
         Returns: Json
       }
@@ -1442,6 +1445,7 @@ export type Database = {
           p_appointment_date: string
           p_appointment_type?: string
           p_clinic_id: string
+          p_staff_id: string
         }
         Returns: Json
       }

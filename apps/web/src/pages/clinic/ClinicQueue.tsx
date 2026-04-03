@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { clinicService } from "@/services/clinic";
+import { useClinicPermissions } from "@/hooks/useClinicPermissions";
 import { staffService } from "@/services/staff";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,7 +28,10 @@ interface ClinicInfo {
 }
 
 export default function ClinicQueue() {
-  const { user, isClinicOwner, isStaff } = useAuth();
+  const { user, loading } = useAuth();
+  const { clinic: scopedClinic, loading: accessLoading, can, isClinicOwnerAtClinic } = useClinicPermissions();
+  const canManageQueue = can("manage_queue");
+  const canManageAppointments = can("manage_appointments");
   const [clinic, setClinic] = useState<ClinicInfo | null>(null);
   const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
   const [showBookAppointment, setShowBookAppointment] = useState(false);
@@ -38,45 +41,54 @@ export default function ClinicQueue() {
   const [queueSummary, setQueueSummary] = useState({ waiting: 0, inProgress: 0, absent: 0, completed: 0 });
 
   const fetchClinicAndStaffData = useCallback(async () => {
-    if (!user || (!isClinicOwner && !isStaff)) return;
+    if (!user || !scopedClinic?.id) return;
 
     try {
-      let clinicId: string | null = null;
-      
-      if (isClinicOwner) {
-        logger.debug("Attempting to fetch clinic by owner", { userId: user.id });
-        const ownerClinic = await clinicService.getClinicByOwner(user.id);
-        if (ownerClinic) {
-          clinicId = ownerClinic.id;
-          logger.debug("Found clinic by owner", { clinicId, userId: user.id });
-        }
-      }
-      
-      if (!clinicId && isStaff) {
-        logger.debug("Attempting to fetch clinic via staff path", { userId: user.id });
-        const staffData = await staffService.getStaffByUser(user.id);
-        if (staffData) {
-          clinicId = staffData.clinicId;
-          logger.debug("Found clinic via staff", { clinicId, userId: user.id });
-        }
-      }
+      setClinic({ id: scopedClinic.id });
 
-      if (!clinicId) {
-        const errorMsg = "Could not determine the clinic for your account.";
-        logger.error("Could not determine clinic", undefined, { userId: user.id, isClinicOwner, isStaff });
-        throw new Error(errorMsg);
-      }
-      
-      setClinic({ id: clinicId });
-
-      const staffData = await staffService.getStaffByClinicAndUser(clinicId, user.id);
+      const staffData = await staffService.getStaffByClinicAndUser(scopedClinic.id, user.id);
       
       if (!staffData) {
-        logger.warn("Could not find a staff profile for user in clinic", { 
-          userId: user.id, 
-          clinicId,
-          isClinicOwner,
-          isStaff 
+        if (isClinicOwnerAtClinic) {
+          // Prefer an existing clinic staff row so queue operations can proceed immediately.
+          const clinicStaff = await staffService.getStaffByClinic(scopedClinic.id);
+          if (clinicStaff[0]) {
+            setStaffProfile({ id: clinicStaff[0].id });
+            logger.info("Using fallback clinic staff profile for owner queue access", {
+              userId: user.id,
+              clinicId: scopedClinic.id,
+              fallbackStaffId: clinicStaff[0].id,
+            });
+            return;
+          }
+
+          // If the clinic has no staff rows yet, bootstrap one for the owner.
+          try {
+            const createdOwnerStaff = await staffService.addStaff({
+              clinicId: scopedClinic.id,
+              userId: user.id,
+              role: "doctor",
+            });
+
+            setStaffProfile({ id: createdOwnerStaff.id });
+            logger.info("Auto-created owner staff profile for queue access", {
+              userId: user.id,
+              clinicId: scopedClinic.id,
+              staffId: createdOwnerStaff.id,
+            });
+            return;
+          } catch (autoCreateError) {
+            logger.warn("Failed to auto-create owner staff profile", {
+              userId: user.id,
+              clinicId: scopedClinic.id,
+              reason: autoCreateError instanceof Error ? autoCreateError.message : String(autoCreateError),
+            });
+          }
+        }
+
+        logger.warn("Could not find a staff profile for user in clinic", {
+          userId: user.id,
+          clinicId: scopedClinic.id,
         });
       } else {
         setStaffProfile({ id: staffData.id });
@@ -86,11 +98,47 @@ export default function ClinicQueue() {
       logger.error("Error fetching clinic and staff data", error as Error, { userId: user?.id });
       toast({ title: "Error", description: (error as Error).message, variant: "destructive" });
     }
-  }, [user, isClinicOwner, isStaff]);
+  }, [isClinicOwnerAtClinic, scopedClinic?.id, user]);
 
   useEffect(() => {
     fetchClinicAndStaffData();
   }, [fetchClinicAndStaffData]);
+
+  if (loading || accessLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-foreground border-t-transparent mx-auto mb-4"></div>
+          <p className="text-sm text-muted-foreground">Loading queue info...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!scopedClinic?.id) {
+    return (
+      <Card className="border border-border bg-card">
+        <CardContent className="py-16 text-center">
+          <p className="font-medium text-foreground mb-1">No Clinic Access</p>
+          <p className="text-sm text-muted-foreground">Your account is not linked to a clinic.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!canManageQueue) {
+    return (
+      <Card className="border border-border bg-card">
+        <CardContent className="py-16 text-center">
+          <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-6 h-6 text-muted-foreground" />
+          </div>
+          <p className="font-medium text-foreground mb-1">Permission Required</p>
+          <p className="text-sm text-muted-foreground">Your role cannot manage the live queue.</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const handleSuccess = () => {
     setShowBookAppointment(false);
@@ -121,6 +169,7 @@ export default function ClinicQueue() {
               setShowBookAppointment(true);
             }}
             size="sm"
+            disabled={!canManageAppointments}
             className="bg-foreground text-background hover:bg-foreground/90 h-8 px-3 text-xs font-medium"
           >
             <Calendar className="w-3.5 h-3.5 sm:mr-1.5" />
@@ -134,6 +183,7 @@ export default function ClinicQueue() {
             }}
             variant="outline"
             size="sm"
+            disabled={!canManageAppointments}
             className="border-border hover:bg-muted h-8 px-3 text-xs font-medium"
           >
             <UserPlus className="w-3.5 h-3.5 sm:mr-1.5" />
@@ -146,6 +196,7 @@ export default function ClinicQueue() {
             onClick={() => setShowEndDay(true)}
             variant="ghost"
             size="sm"
+            disabled={!canManageQueue}
             className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 px-3 text-xs font-medium"
           >
             <XCircle className="w-3.5 h-3.5 sm:mr-1.5" />
@@ -171,7 +222,7 @@ export default function ClinicQueue() {
             </div>
             <p className="font-medium text-foreground mb-1">Staff Profile Required</p>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              {isClinicOwner
+              {isClinicOwnerAtClinic
                 ? "As a clinic owner, you need a staff profile to manage the queue."
                 : "A staff profile is required. Contact your clinic administrator."}
             </p>
@@ -187,7 +238,7 @@ export default function ClinicQueue() {
       )}
 
       {/* Dialogs */}
-      {clinic?.id && (
+      {clinic?.id && canManageAppointments && (
         <BookAppointmentDialog
           open={showBookAppointment}
           onOpenChange={(open) => {

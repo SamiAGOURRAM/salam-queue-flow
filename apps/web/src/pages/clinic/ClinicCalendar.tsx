@@ -3,6 +3,7 @@
  */
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useClinicPermissions } from "@/hooks/useClinicPermissions";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -13,6 +14,7 @@ import {
   CheckCircle2,
   Play,
   XCircle,
+  AlertCircle,
   ChevronLeft,
   ChevronRight,
   RefreshCw
@@ -24,7 +26,6 @@ import { logger } from "@/services/shared/logging/Logger";
 import { QueueEntry, SkipReason } from "@/services/queue";
 import { QueueService } from "@/services/queue/QueueService";
 import { staffService } from "@/services/staff/StaffService";
-import { clinicService } from "@/services/clinic/ClinicService";
 import { cn } from "@/lib/utils";
 
 type ClinicCalendarState = {
@@ -45,7 +46,11 @@ function getScheduledDateTime(appointment: QueueEntry): Date | null {
 }
 
 export default function ClinicCalendar() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  const { clinic: scopedClinic, loading: accessLoading, can } = useClinicPermissions();
+  const canViewCalendar = can("view_calendar") || can("manage_calendar");
+  const canManageCalendar = can("manage_calendar");
+  const canManageAppointments = can("manage_appointments");
   const [clinic, setClinic] = useState<ClinicCalendarState | null>(null);
   const [staffId, setStaffId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -59,31 +64,36 @@ export default function ClinicCalendar() {
   // Fetch initial data using services
   useEffect(() => {
     const fetchInitialData = async () => {
-      if (!user) return;
+      if (!user || !scopedClinic?.id) return;
+
       try {
-        // Use StaffService instead of direct Supabase query
-        const staffData = await staffService.getStaffByUser(user.id);
-        
-        if (staffData) {
-          setStaffId(staffData.id);
-          // Use ClinicService instead of direct Supabase query
-          const clinicData = await clinicService.getClinic(staffData.clinicId);
-          if (clinicData) {
-            setClinic({
-              id: clinicData.id,
-              settings:
-                clinicData.settings && typeof clinicData.settings === 'object' && !Array.isArray(clinicData.settings)
-                  ? (clinicData.settings as Record<string, unknown>)
-                  : null,
-            });
+        setClinic({
+          id: scopedClinic.id,
+          settings:
+            scopedClinic.settings && typeof scopedClinic.settings === 'object' && !Array.isArray(scopedClinic.settings)
+              ? (scopedClinic.settings as Record<string, unknown>)
+              : null,
+        });
+
+        const scopedStaff = await staffService.getStaffByClinicAndUser(scopedClinic.id, user.id);
+
+        if (scopedStaff) {
+          setStaffId(scopedStaff.id);
+        } else {
+          const clinicStaff = await staffService.getStaffByClinic(scopedClinic.id);
+          const fallbackStaffId = clinicStaff[0]?.id ?? null;
+          setStaffId(fallbackStaffId);
+          if (!fallbackStaffId) {
+            logger.debug("No clinic staff available for calendar schedule lookup", { clinicId: scopedClinic.id, userId: user.id });
           }
         }
       } catch (error) {
         logger.error("Error fetching initial calendar data", error as Error);
       }
     };
+
     fetchInitialData();
-  }, [user]);
+  }, [scopedClinic?.id, scopedClinic?.settings, user]);
 
   // Fetch appointments using QueueService
   const fetchAppointments = useCallback(async () => {
@@ -217,6 +227,38 @@ export default function ClinicCalendar() {
     return { scheduled, inProgress, completed, absent, total: appointments.length };
   }, [appointments]);
 
+  if (loading || accessLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-foreground border-t-transparent mx-auto mb-4"></div>
+          <p className="text-sm text-muted-foreground">Loading calendar...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!scopedClinic?.id) {
+    return (
+      <div className="border border-border rounded-lg bg-card p-8 text-center">
+        <p className="font-medium text-foreground mb-1">No Clinic Access</p>
+        <p className="text-sm text-muted-foreground">Your account is not linked to a clinic.</p>
+      </div>
+    );
+  }
+
+  if (!canViewCalendar) {
+    return (
+      <div className="border border-border rounded-lg bg-card p-8 text-center">
+        <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center mx-auto mb-4">
+          <AlertCircle className="w-6 h-6 text-muted-foreground" />
+        </div>
+        <p className="font-medium text-foreground mb-1">Permission Required</p>
+        <p className="text-sm text-muted-foreground">Your role cannot view the calendar.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -230,6 +272,7 @@ export default function ClinicCalendar() {
         <Button
           onClick={() => setShowBookAppointment(true)}
           size="sm"
+          disabled={!canManageCalendar || !canManageAppointments}
           className="bg-foreground text-background hover:bg-foreground/90 h-8 px-3 text-xs font-medium w-fit"
         >
           <Plus className="w-3.5 h-3.5 mr-1.5" />
@@ -422,16 +465,18 @@ export default function ClinicCalendar() {
       </div>
 
       {/* Book Appointment Dialog */}
-      <BookAppointmentDialog
-        open={showBookAppointment}
-        onOpenChange={setShowBookAppointment}
-        clinicId={clinic?.id || ""}
-        onSuccess={() => {
-          fetchAppointments();
-          setShowBookAppointment(false);
-        }}
-        preselectedDate={selectedDate}
-      />
+      {canManageCalendar && canManageAppointments && (
+        <BookAppointmentDialog
+          open={showBookAppointment}
+          onOpenChange={setShowBookAppointment}
+          clinicId={clinic?.id || ""}
+          onSuccess={() => {
+            fetchAppointments();
+            setShowBookAppointment(false);
+          }}
+          preselectedDate={selectedDate}
+        />
+      )}
     </div>
   );
 }

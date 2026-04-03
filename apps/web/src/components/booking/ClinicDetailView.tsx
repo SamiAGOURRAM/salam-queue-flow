@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/services/shared/logging/Logger";
+import { clinicService } from "@/services/clinic";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -103,14 +104,7 @@ const ClinicDetailView = () => {
     try {
       setLoading(true);
 
-      const { data: clinicData, error: clinicError } = await supabase
-        .from("clinics")
-        .select("*")
-        .eq("id", clinicId)
-        .eq("is_active", true)
-        .single();
-
-      if (clinicError) throw clinicError;
+      const clinicData = await clinicService.getClinic(clinicId);
       const normalizedSettings =
         clinicData.settings && typeof clinicData.settings === 'object' && !Array.isArray(clinicData.settings)
           ? (clinicData.settings as ClinicSettings)
@@ -119,13 +113,13 @@ const ClinicDetailView = () => {
       setClinic({
         id: clinicData.id,
         name: clinicData.name,
-        name_ar: clinicData.name_ar,
+        name_ar: clinicData.nameAr ?? null,
         specialty: clinicData.specialty,
         city: clinicData.city,
         address: clinicData.address,
         phone: clinicData.phone,
-        email: clinicData.email,
-        logo_url: clinicData.logo_url,
+        email: clinicData.email ?? null,
+        logo_url: clinicData.logoUrl ?? null,
         settings: normalizedSettings,
       });
 
@@ -248,6 +242,15 @@ const ClinicDetailView = () => {
   const paymentMethods = getPaymentMethods();
   const appointmentTypes = clinic.settings?.appointment_types || [];
 
+  const navigateToBooking = (staffId?: string) => {
+    if (!staffId) {
+      navigate(`/booking/${clinic.id}`);
+      return;
+    }
+
+    navigate(`/booking/${clinic.id}?staffId=${encodeURIComponent(staffId)}`);
+  };
+
   return (
     <div className="min-h-screen bg-[#fafafa]">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
@@ -340,7 +343,7 @@ const ClinicDetailView = () => {
             {/* CTA */}
             <div className="mt-5 pt-5 border-t border-gray-100 flex flex-col sm:flex-row gap-3">
               <Button
-                onClick={() => navigate(`/booking/${clinic.id}`)}
+                onClick={() => navigateToBooking()}
                 className="h-10 px-6 bg-obsidian hover:bg-obsidian-hover text-white text-sm font-medium rounded-md flex-1 sm:flex-none"
               >
                 <Calendar className="w-4 h-4 mr-2" />
@@ -548,6 +551,16 @@ const ClinicDetailView = () => {
                         </p>
                         <p className="text-xs text-gray-500">{member.role}</p>
                       </div>
+                      {member.role?.toLowerCase().includes("doctor") && (
+                        <Button
+                          variant="ghost"
+                          onClick={() => navigateToBooking(member.id)}
+                          className="ml-auto h-8 px-2.5 text-xs font-medium text-obsidian hover:text-obsidian hover:bg-gray-100"
+                        >
+                          Book
+                          <ExternalLink className="w-3.5 h-3.5 ml-1" />
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -562,7 +575,7 @@ const ClinicDetailView = () => {
                   Schedule your appointment now and skip the wait.
                 </p>
                 <Button
-                  onClick={() => navigate(`/booking/${clinic.id}`)}
+                  onClick={() => navigateToBooking()}
                   className="w-full h-9 bg-white hover:bg-gray-100 text-gray-900 text-sm font-medium rounded-md"
                 >
                   {t('clinic.bookNow')}

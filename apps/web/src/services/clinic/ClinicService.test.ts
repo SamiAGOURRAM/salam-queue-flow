@@ -44,7 +44,7 @@ describe('ClinicService', () => {
         phone: '+212612345678',
         email: 'clinic@example.com',
         logo_url: 'https://example.com/logo.png',
-        settings: { bufferTime: 15 },
+        settings: { buffer_time: 15 },
         subscription_tier: 'premium',
         is_active: true,
         queue_mode: QueueMode.SLOTTED,
@@ -120,23 +120,23 @@ describe('ClinicService', () => {
     it('should return clinic settings successfully', async () => {
       const clinicId = 'clinic-123';
       const mockSettings: ClinicSettings = {
-        bufferTime: 15,
-        workingHours: {
+        buffer_time: 15,
+        working_hours: {
           monday: { open: '09:00', close: '17:00', closed: false },
           tuesday: { open: '09:00', close: '17:00', closed: false },
         },
-        allowWalkIns: true,
-        maxQueueSize: 50,
-        averageAppointmentDuration: 30,
+        allow_walk_ins: true,
+        max_queue_size: 50,
+        average_appointment_duration: 30,
       };
 
       mockRepository.getClinicSettings = vi.fn().mockResolvedValue(mockSettings);
 
       const result = await service.getClinicSettings(clinicId);
 
-      expect(result.bufferTime).toBe(15);
-      expect(result.allowWalkIns).toBe(true);
-      expect(result.maxQueueSize).toBe(50);
+      expect(result.buffer_time).toBe(15);
+      expect(result.allow_walk_ins).toBe(true);
+      expect(result.max_queue_size).toBe(50);
       expect(mockRepository.getClinicSettings).toHaveBeenCalledWith(clinicId);
     });
 
@@ -164,12 +164,12 @@ describe('ClinicService', () => {
     it('should update clinic settings successfully', async () => {
       const clinicId = 'clinic-123';
       const currentSettings: ClinicSettings = {
-        bufferTime: 15,
-        allowWalkIns: true,
+        buffer_time: 15,
+        allow_walk_ins: true,
       };
       const updateData: Partial<ClinicSettings> = {
-        bufferTime: 20,
-        maxQueueSize: 100,
+        buffer_time: 20,
+        max_queue_size: 100,
       };
 
       mockRepository.getClinicSettings = vi.fn().mockResolvedValue(currentSettings);
@@ -177,9 +177,9 @@ describe('ClinicService', () => {
 
       const result = await service.updateClinicSettings(clinicId, updateData);
 
-      expect(result.bufferTime).toBe(20);
-      expect(result.maxQueueSize).toBe(100);
-      expect(result.allowWalkIns).toBe(true); // Preserved from current
+      expect(result.buffer_time).toBe(20);
+      expect(result.max_queue_size).toBe(100);
+      expect(result.allow_walk_ins).toBe(true); // Preserved from current
       expect(mockRepository.updateClinicSettings).toHaveBeenCalled();
     });
 
@@ -191,7 +191,7 @@ describe('ClinicService', () => {
       mockRepository.updateClinicSettings = vi.fn().mockRejectedValue(error);
 
       await expect(
-        service.updateClinicSettings(clinicId, { bufferTime: 20 })
+        service.updateClinicSettings(clinicId, { buffer_time: 20 })
       ).rejects.toThrow(DatabaseError);
     });
   });

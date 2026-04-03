@@ -271,40 +271,18 @@ export class NotificationService {
    * Render notification template with variables
    */
   private async renderTemplate(
-    clinicId: string,
+    _clinicId: string,
     type: NotificationType,
     variables: Record<string, string>
   ): Promise<string> {
-    try {
-      // Try to get custom clinic template first
-      const { data: template } = await supabase
-        .from('notification_templates')
-        .select('*')
-        .eq('clinic_id', clinicId)
-        .eq('template_key', type)
-        .eq('language', 'ar') // Default to Arabic for Morocco
-        .eq('is_active', true)
-        .single();
+    const templateText = this.getDefaultTemplate(type);
+    let message = templateText;
 
-      // Fallback to default system templates
-      let templateText = template?.template_text;
-      
-      if (!templateText) {
-        templateText = this.getDefaultTemplate(type);
-      }
+    Object.entries(variables).forEach(([key, value]) => {
+      message = message.replace(new RegExp(`{{${key}}}`, 'g'), value);
+    });
 
-      // Replace variables in template
-      let message = templateText;
-      Object.entries(variables).forEach(([key, value]) => {
-        message = message.replace(new RegExp(`{{${key}}}`, 'g'), value);
-      });
-
-      return message;
-      
-    } catch (error) {
-      logger.warn('Template fetch failed, using default', { type });
-      return this.getDefaultTemplate(type);
-    }
+    return message;
   }
 
   private resolveRecipient(dto: SendNotificationDTO): string {

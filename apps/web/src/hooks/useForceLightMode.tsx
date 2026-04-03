@@ -20,6 +20,7 @@ export function useForceLightMode() {
       '/auth/signup',
       '/auth/staff-signup',
       '/auth/onboarding',
+      '/doctors',
       '/clinics',
       '/welcome',
       '/clinic/', // Public clinic browsing

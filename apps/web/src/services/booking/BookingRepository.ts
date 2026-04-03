@@ -12,12 +12,14 @@ export class BookingRepository {
    * Check if a specific time slot is available
    */
   async checkAvailability(
-    clinicId: string, 
-    date: string, 
+    clinicId: string,
+    staffId: string,
+    date: string,
     time: string
   ): Promise<AppointmentAvailability> {
     const { data, error } = await supabase.rpc('check_appointment_availability', {
       p_clinic_id: clinicId,
+      p_staff_id: staffId,
       p_appointment_date: date,
       p_scheduled_time: time
     });
@@ -35,11 +37,13 @@ export class BookingRepository {
    */
   async getAvailableSlots(
     clinicId: string,
+    staffId: string,
     date: string,
     appointmentType?: string
   ): Promise<AvailableSlotsResponse> {
     const { data, error } = await supabase.rpc('get_available_slots', {
       p_clinic_id: clinicId,
+      p_staff_id: staffId,
       p_appointment_date: date,
       p_appointment_type: appointmentType
     });
@@ -59,6 +63,7 @@ export class BookingRepository {
     const { data, error } = await supabase.rpc('create_appointment_with_validation', {
       p_clinic_id: booking.clinicId,
       p_patient_id: booking.patientId,
+      p_staff_id: booking.staffId,
       p_appointment_date: booking.appointmentDate,
       p_scheduled_time: booking.scheduledTime,
       p_appointment_type: booking.appointmentType,
@@ -91,39 +96,25 @@ export class BookingRepository {
    * Get appointment types for a clinic
    */
   async getAppointmentTypes(clinicId: string) {
-    try {
-      const { data: clinic, error } = await supabase
-        .from('clinics')
-        .select('settings')
-        .eq('id', clinicId)
-        .single();
+    const { data: clinic, error } = await supabase
+      .from('clinics')
+      .select('settings')
+      .eq('id', clinicId)
+      .single();
 
-      if (error) {
-        throw error;
-      }
-
-      const settings = clinic?.settings;
-      if (settings && typeof settings === 'object' && !Array.isArray(settings)) {
-        const appointmentTypes = (settings as Record<string, unknown>).appointment_types;
-        if (Array.isArray(appointmentTypes)) {
-          return appointmentTypes;
-        }
-      }
-
-      return [
-        { name: 'consultation', label: 'Consultation', duration: 15 },
-        { name: 'follow_up', label: 'Follow-up', duration: 10 },
-        { name: 'procedure', label: 'Procedure', duration: 30 },
-      ];
-    } catch (error) {
-      console.warn('Failed to fetch appointment types, using defaults', error);
-      // Return default types on any error
-      return [
-        { name: 'consultation', label: 'Consultation', duration: 15 },
-        { name: 'follow_up', label: 'Follow-up', duration: 10 },
-        { name: 'procedure', label: 'Procedure', duration: 30 }
-      ];
+    if (error) {
+      throw error;
     }
+
+    const settings = clinic?.settings;
+    if (settings && typeof settings === 'object' && !Array.isArray(settings)) {
+      const appointmentTypes = (settings as Record<string, unknown>).appointment_types;
+      if (Array.isArray(appointmentTypes)) {
+        return appointmentTypes;
+      }
+    }
+
+    return [];
   }
 
   /**
@@ -152,13 +143,13 @@ export class BookingRepository {
   }
 
   // ============================================================================
-  // ✨ NEW METHODS FOR DUAL QUEUE MODE SUPPORT
+  // MODE-AWARE BOOKING METHODS
   // ============================================================================
 
   /**
-   * NEW: Get queue mode for a specific date
+   * Get queue mode for a specific date
    */
-  async getQueueModeForDate(clinicId: string, date: string): Promise<QueueMode | null> {
+  async getQueueModeForDate(clinicId: string, date: string): Promise<QueueMode> {
     const { data, error } = await supabase.rpc('get_queue_mode_for_date', {
       p_clinic_id: clinicId,
       p_date: date
@@ -166,46 +157,27 @@ export class BookingRepository {
   
     if (error) {
       console.error('Error fetching queue mode:', error);
-      return null;
-    }
-  
-    // ✨ FIX: Strip extra quotes if present
-    let mode = data;
-    
-    // If data is a string with quotes, parse it
-    if (typeof data === 'string' && (data.startsWith('"') || data.startsWith("'"))) {
-      try {
-        mode = JSON.parse(data);
-      } catch {
-        // If parsing fails, just remove quotes manually
-        mode = data.replace(/^["']|["']$/g, '');
-      }
+      throw new Error('Failed to fetch queue mode');
     }
 
-    // ✨ Migrate legacy terms to clean standard
-    if (mode === 'ordinal_queue') mode = QueueMode.FLUID;
-    if (mode === 'time_grid_fixed') mode = QueueMode.SLOTTED;
-    // Migrate old modes to new unified mode
-    if (mode === 'fixed' || mode === 'hybrid') mode = QueueMode.SLOTTED;
+    if (data !== QueueMode.FLUID && data !== QueueMode.SLOTTED) {
+      throw new Error(`Unsupported queue mode: ${String(data)}`);
+    }
 
-    console.log('Queue mode processed:', { original: data, cleaned: mode });
-
-    return mode as QueueMode | null;
+    return data;
   }
 
   /**
-   * NEW: Get available slots respecting queue mode
-   * This wraps the existing getAvailableSlots but adds mode awareness
+   * Get available slots respecting queue mode
    */
   async getAvailableSlotsForMode(
     clinicId: string,
     date: string,
-    appointmentType?: string
+    appointmentType: string,
+    staffId: string
   ): Promise<AvailableSlotsResponse> {
-    // Check queue mode first
     const mode = await this.getQueueModeForDate(clinicId, date);
     
-    // If free queue mode (fluid), return empty slots (no time selection needed)
     if (mode === QueueMode.FLUID) {
       return {
         available: true,
@@ -214,11 +186,11 @@ export class BookingRepository {
       };
     }
 
-    // For time slots mode (slotted), use the new RPC function
     const { data, error } = await supabase.rpc('get_available_slots_for_mode', {
       p_clinic_id: clinicId,
+      p_staff_id: staffId,
       p_appointment_date: date,
-      p_appointment_type: appointmentType || 'consultation'
+      p_appointment_type: appointmentType
     });
 
     if (error) {
@@ -233,7 +205,7 @@ export class BookingRepository {
 
     return {
       ...responsePayload,
-      mode: mode || QueueMode.SLOTTED // Use the detected mode (slotted)
+      mode
     } as AvailableSlotsResponse;
   }
 
@@ -244,7 +216,7 @@ export class BookingRepository {
     const { data, error } = await supabase.rpc('create_appointment_for_mode', {
       p_clinic_id: booking.clinicId,
       p_patient_id: booking.patientId,
-      p_staff_id: null,
+      p_staff_id: booking.staffId,
       p_appointment_date: booking.appointmentDate,
       p_scheduled_time: booking.scheduledTime, // Can be null for free queue
       p_appointment_type: booking.appointmentType,
@@ -253,12 +225,23 @@ export class BookingRepository {
 
     if (error) {
       console.error('Error creating appointment:', error);
-      
-      // Check for specific error types
-      if (error.message?.includes('no longer available')) {
+
+      const errorText = [error.message, error.details, error.hint]
+        .filter((value): value is string => typeof value === 'string' && value.length > 0)
+        .join(' ')
+        .toLowerCase();
+
+      if (errorText.includes('no longer available')) {
         return {
           success: false,
           error: 'This time slot is no longer available'
+        };
+      }
+
+      if (errorText.includes('scheduled_time') && errorText.includes('hh:mm')) {
+        return {
+          success: false,
+          error: 'Invalid time slot format. Please refresh and try again.'
         };
       }
       
@@ -284,6 +267,7 @@ export class BookingRepository {
    */
   async checkAvailabilityForMode(
     clinicId: string,
+    staffId: string,
     date: string,
     time: string | null
   ): Promise<AppointmentAvailability> {
@@ -297,7 +281,7 @@ export class BookingRepository {
     }
 
     // For time slots, use existing availability check
-    return this.checkAvailability(clinicId, date, time);
+    return this.checkAvailability(clinicId, staffId, date, time);
   }
 
   /**

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useClinicPermissions } from "@/hooks/useClinicPermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { clinicService } from "@/services/clinic";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import {
   Trash2,
   Users,
   Timer,
+  Shield,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -43,7 +45,7 @@ interface AppointmentType {
   price?: number;
 }
 
-type QueueMode = 'fluid' | 'slotted';
+import { QueueMode } from '@/services/queue/models/QueueModels';
 
 interface DailyQueueModes {
   monday: QueueMode;
@@ -75,20 +77,6 @@ interface ClinicSettingsShape {
   daily_queue_modes?: DailyQueueModes;
 }
 
-const defaultAppointmentTypes: AppointmentType[] = [
-  { name: "consultation", duration: 15, label: "Consultation", price: undefined },
-  { name: "follow_up", duration: 10, label: "Follow-up", price: undefined },
-  { name: "procedure", duration: 30, label: "Procedure", price: undefined },
-  { name: "emergency", duration: 20, label: "Emergency", price: undefined },
-];
-
-const defaultPaymentMethods: PaymentMethods = {
-  cash: true,
-  card: false,
-  insurance: false,
-  online: false,
-};
-
 const parseClinicSettings = (settings: ClinicRow["settings"] | null): ClinicSettingsShape => {
   if (!settings || typeof settings !== "object") {
     return {};
@@ -96,20 +84,22 @@ const parseClinicSettings = (settings: ClinicRow["settings"] | null): ClinicSett
   return settings as ClinicSettingsShape;
 };
 
-const migrateQueueMode = (mode: string | undefined): QueueMode => {
-  if (!mode) return 'fluid';
-  if (mode === 'ordinal_queue') return 'fluid';
-  if (mode === 'time_grid_fixed') return 'slotted';
-  if (mode === 'fixed' || mode === 'hybrid') return 'slotted';
-  if (mode === 'fluid' || mode === 'slotted') return mode as QueueMode;
-  return 'fluid';
+const parseQueueMode = (mode: unknown): QueueMode => {
+  if (mode === QueueMode.FLUID || mode === QueueMode.SLOTTED) {
+    return mode;
+  }
+  throw new Error(`Unsupported queue mode in clinic settings: ${String(mode)}`);
 };
 
 export default function ClinicSettings() {
-  const { user, loading, isClinicOwner, signOut } = useAuth();
+  const { user, loading } = useAuth();
+  const { clinic: scopedClinic, loading: accessLoading, can } = useClinicPermissions();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "basic";
+
+  const canViewSettings = can("view_clinic_settings") || can("manage_clinic_settings");
+  const canManageSettings = can("manage_clinic_settings");
   
   const [clinic, setClinic] = useState<ClinicRow | null>(null);
   const [saving, setSaving] = useState(false);
@@ -130,25 +120,30 @@ export default function ClinicSettings() {
   const [bufferTime, setBufferTime] = useState(5);
   const [maxQueueSize, setMaxQueueSize] = useState(50);
 
-  const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>(() => [...defaultAppointmentTypes]);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethods>(() => ({ ...defaultPaymentMethods }));
+  const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethods>({
+    cash: false,
+    card: false,
+    insurance: false,
+    online: false,
+  });
 
   const [dailyQueueModes, setDailyQueueModes] = useState<DailyQueueModes>({
-    monday: 'fluid',
-    tuesday: 'fluid',
-    wednesday: 'fluid',
-    thursday: 'fluid',
-    friday: 'fluid',
-    saturday: 'slotted',
-    sunday: 'slotted',
+    monday: QueueMode.FLUID,
+    tuesday: QueueMode.FLUID,
+    wednesday: QueueMode.FLUID,
+    thursday: QueueMode.FLUID,
+    friday: QueueMode.FLUID,
+    saturday: QueueMode.SLOTTED,
+    sunday: QueueMode.SLOTTED,
   });
 
   const fetchClinic = useCallback(async () => {
-    if (!user?.id) return;
+    if (!scopedClinic?.id) return;
     const { data, error } = await supabase
       .from("clinics")
       .select("*")
-      .eq("owner_id", user.id)
+      .eq("id", scopedClinic.id)
       .single();
 
     if (error) {
@@ -176,35 +171,45 @@ export default function ClinicSettings() {
       setAvgDuration(settings.average_appointment_duration || 15);
       setBufferTime(settings.buffer_time || 5);
       setMaxQueueSize(settings.max_queue_size || 50);
-      setPaymentMethods(settings.payment_methods || { ...defaultPaymentMethods });
-      setAppointmentTypes(settings.appointment_types || [...defaultAppointmentTypes]);
+      setPaymentMethods({
+        cash: settings.payment_methods?.cash === true,
+        card: settings.payment_methods?.card === true,
+        insurance: settings.payment_methods?.insurance === true,
+        online: settings.payment_methods?.online === true,
+      });
+      setAppointmentTypes(Array.isArray(settings.appointment_types) ? settings.appointment_types : []);
 
       if (settings.daily_queue_modes) {
         const migratedModes: DailyQueueModes = {
-          monday: migrateQueueMode(settings.daily_queue_modes.monday),
-          tuesday: migrateQueueMode(settings.daily_queue_modes.tuesday),
-          wednesday: migrateQueueMode(settings.daily_queue_modes.wednesday),
-          thursday: migrateQueueMode(settings.daily_queue_modes.thursday),
-          friday: migrateQueueMode(settings.daily_queue_modes.friday),
-          saturday: migrateQueueMode(settings.daily_queue_modes.saturday),
-          sunday: migrateQueueMode(settings.daily_queue_modes.sunday),
+          monday: parseQueueMode(settings.daily_queue_modes.monday),
+          tuesday: parseQueueMode(settings.daily_queue_modes.tuesday),
+          wednesday: parseQueueMode(settings.daily_queue_modes.wednesday),
+          thursday: parseQueueMode(settings.daily_queue_modes.thursday),
+          friday: parseQueueMode(settings.daily_queue_modes.friday),
+          saturday: parseQueueMode(settings.daily_queue_modes.saturday),
+          sunday: parseQueueMode(settings.daily_queue_modes.sunday),
         };
         setDailyQueueModes(migratedModes);
       }
     }
-  }, [user]);
+  }, [scopedClinic]);
 
   useEffect(() => {
     if (!loading && !user) {
       navigate("/auth/login");
       return;
     }
-    if (user) {
+    if (user && scopedClinic?.id) {
       fetchClinic();
     }
-  }, [user, loading, navigate, fetchClinic]);
+  }, [user, loading, navigate, fetchClinic, scopedClinic?.id]);
 
   const handleSaveBasicInfo = async () => {
+    if (!canManageSettings) {
+      toast({ title: "Permission denied", description: "You cannot edit clinic settings.", variant: "destructive" });
+      return;
+    }
+
     if (!clinic) {
       toast({ title: "Clinic not loaded", description: "Please try again.", variant: "destructive" });
       return;
@@ -221,6 +226,11 @@ export default function ClinicSettings() {
   };
 
   const handleSaveSchedule = async () => {
+    if (!canManageSettings) {
+      toast({ title: "Permission denied", description: "You cannot edit clinic settings.", variant: "destructive" });
+      return;
+    }
+
     if (!clinic) {
       toast({ title: "Clinic not loaded", description: "Please try again.", variant: "destructive" });
       return;
@@ -261,6 +271,11 @@ export default function ClinicSettings() {
   };
 
   const handleSaveQueueModes = async () => {
+    if (!canManageSettings) {
+      toast({ title: "Permission denied", description: "You cannot edit clinic settings.", variant: "destructive" });
+      return;
+    }
+
     if (!clinic) return;
     setSaving(true);
     try {
@@ -284,10 +299,24 @@ export default function ClinicSettings() {
 
   const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
-  if (loading) {
+  if (loading || accessLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="animate-spin rounded-full h-8 w-8 border-2 border-border border-t-primary"></div>
+      </div>
+    );
+  }
+
+  if (!canViewSettings) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="max-w-md rounded-lg border border-border bg-card p-8 text-center">
+          <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center mx-auto mb-4">
+            <Shield className="w-6 h-6 text-muted-foreground" />
+          </div>
+          <p className="font-medium text-foreground mb-1">Permission Required</p>
+          <p className="text-sm text-muted-foreground">Your role does not include access to clinic settings.</p>
+        </div>
       </div>
     );
   }
@@ -359,7 +388,7 @@ export default function ClinicSettings() {
             </div>
           </div>
 
-          <Button onClick={handleSaveBasicInfo} disabled={saving} size="sm" className="rounded-[4px] bg-foreground text-background hover:bg-foreground/90">
+          <Button onClick={handleSaveBasicInfo} disabled={saving || !canManageSettings} size="sm" className="rounded-[4px] bg-foreground text-background hover:bg-foreground/90">
             <Save className="w-4 h-4 mr-2" />
             {saving ? "Saving..." : "Save Changes"}
           </Button>
@@ -435,7 +464,7 @@ export default function ClinicSettings() {
             </div>
           </div>
 
-          <Button onClick={handleSaveSchedule} disabled={saving} size="sm" className="rounded-[4px] bg-foreground text-background hover:bg-foreground/90">
+          <Button onClick={handleSaveSchedule} disabled={saving || !canManageSettings} size="sm" className="rounded-[4px] bg-foreground text-background hover:bg-foreground/90">
             <Save className="w-4 h-4 mr-2" />
             {saving ? "Saving..." : "Save Schedule"}
           </Button>
@@ -516,7 +545,7 @@ export default function ClinicSettings() {
               variant="outline"
               size="sm"
               className="rounded-[4px] text-xs"
-              onClick={() => setDailyQueueModes({ monday: 'fluid', tuesday: 'fluid', wednesday: 'fluid', thursday: 'fluid', friday: 'fluid', saturday: 'fluid', sunday: 'fluid' })}
+              onClick={() => setDailyQueueModes({ monday: QueueMode.FLUID, tuesday: QueueMode.FLUID, wednesday: QueueMode.FLUID, thursday: QueueMode.FLUID, friday: QueueMode.FLUID, saturday: QueueMode.FLUID, sunday: QueueMode.FLUID })}
             >
               <Users className="w-3 h-3 mr-1.5" />
               All Free Queue
@@ -525,14 +554,14 @@ export default function ClinicSettings() {
               variant="outline"
               size="sm"
               className="rounded-[4px] text-xs"
-              onClick={() => setDailyQueueModes({ monday: 'slotted', tuesday: 'slotted', wednesday: 'slotted', thursday: 'slotted', friday: 'slotted', saturday: 'slotted', sunday: 'slotted' })}
+              onClick={() => setDailyQueueModes({ monday: QueueMode.SLOTTED, tuesday: QueueMode.SLOTTED, wednesday: QueueMode.SLOTTED, thursday: QueueMode.SLOTTED, friday: QueueMode.SLOTTED, saturday: QueueMode.SLOTTED, sunday: QueueMode.SLOTTED })}
             >
               <Timer className="w-3 h-3 mr-1.5" />
               All Time Slots
             </Button>
           </div>
 
-          <Button onClick={handleSaveQueueModes} disabled={saving} size="sm" className="rounded-[4px] bg-foreground text-background hover:bg-foreground/90">
+          <Button onClick={handleSaveQueueModes} disabled={saving || !canManageSettings} size="sm" className="rounded-[4px] bg-foreground text-background hover:bg-foreground/90">
             <Save className="w-4 h-4 mr-2" />
             {saving ? "Saving..." : "Save Queue Config"}
           </Button>
@@ -614,7 +643,7 @@ export default function ClinicSettings() {
             Add appointment type
           </button>
 
-          <Button onClick={handleSaveSchedule} disabled={saving} size="sm" className="rounded-[4px] bg-foreground text-background hover:bg-foreground/90">
+          <Button onClick={handleSaveSchedule} disabled={saving || !canManageSettings} size="sm" className="rounded-[4px] bg-foreground text-background hover:bg-foreground/90">
             <Save className="w-4 h-4 mr-2" />
             {saving ? "Saving..." : "Save Appointments"}
           </Button>
@@ -645,7 +674,7 @@ export default function ClinicSettings() {
             ))}
           </div>
 
-          <Button onClick={handleSaveSchedule} disabled={saving} size="sm" className="rounded-[4px] bg-foreground text-background hover:bg-foreground/90">
+          <Button onClick={handleSaveSchedule} disabled={saving || !canManageSettings} size="sm" className="rounded-[4px] bg-foreground text-background hover:bg-foreground/90">
             <Save className="w-4 h-4 mr-2" />
             {saving ? "Saving..." : "Save Payments"}
           </Button>

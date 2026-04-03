@@ -57,10 +57,10 @@ const WelcomePage = () => {
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Button
-                onClick={() => navigate('/clinics')}
+                onClick={() => navigate('/doctors')}
                 className="h-10 px-6 bg-obsidian hover:bg-obsidian-hover text-white text-sm font-medium rounded-md"
               >
-                Find a clinic
+                Find a doctor
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
               <Button
@@ -191,10 +191,10 @@ const WelcomePage = () => {
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Button
-                onClick={() => navigate('/clinics')}
+                onClick={() => navigate('/doctors')}
                 className="h-10 px-6 bg-obsidian hover:bg-obsidian-hover text-white text-sm font-medium rounded-md"
               >
-                Browse clinics
+                Browse doctors
               </Button>
               <Button
                 variant="outline"
