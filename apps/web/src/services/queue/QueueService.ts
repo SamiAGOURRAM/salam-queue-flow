@@ -201,11 +201,17 @@ export class QueueService {
     // Set checked_in_at when staff calls "Call Next" (patient enters consultation room)
     // Use latestEntry instead of nextPatient to ensure we're working with fresh data
     const now = new Date().toISOString();
-    const updatedEntry = await this.repository.updateQueueEntry(latestEntry.id, {
-      status: AppointmentStatus.IN_PROGRESS,
-      checkedInAt: now,
-      // isPresent should already be true (checked above)
-    });
+    const updatedEntry = dto.resourceId
+      ? await this.repository.assignResourceAndCallPatient(
+          latestEntry.id,
+          dto.resourceId,
+          dto.performedBy
+        )
+      : await this.repository.updateQueueEntry(latestEntry.id, {
+          status: AppointmentStatus.IN_PROGRESS,
+          checkedInAt: now,
+          // isPresent should already be true (checked above)
+        });
 
     await this.repository.createQueueOverride(dto.clinicId, latestEntry.id, QueueActionType.CALL_PRESENT, dto.performedBy, undefined, latestEntry.queuePosition, latestEntry.queuePosition);
     

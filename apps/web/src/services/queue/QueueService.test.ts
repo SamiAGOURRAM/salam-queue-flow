@@ -48,12 +48,14 @@ describe('QueueService', () => {
       getQueueEntryById: vi.fn(),
       createQueueEntryViaRpc: vi.fn(),
       updateQueueEntry: vi.fn(),
+      assignResourceAndCallPatient: vi.fn(),
       checkInPatient: vi.fn(),
       markPatientReturned: vi.fn(),
       createAbsentPatient: vi.fn(),
       createQueueOverride: vi.fn(),
       getNextQueuePosition: vi.fn(),
       getClinicEstimationConfigByStaffId: vi.fn(),
+      getAvailableClinicResources: vi.fn(),
       recordActualWaitTime: vi.fn(),
       recordWaitTimePredictions: vi.fn(),
     };
@@ -296,6 +298,45 @@ describe('QueueService', () => {
 
       expect(result.status).toBe(AppointmentStatus.IN_PROGRESS);
       expect(mockRepository.updateQueueEntry).toHaveBeenCalled();
+      expect(mockRepository.createQueueOverride).toHaveBeenCalled();
+      expect(eventBus.publish).toHaveBeenCalled();
+    });
+
+    it('should call next patient using atomic resource assignment when resourceId is provided', async () => {
+      const dto: CallNextPatientDTO = {
+        staffId: 'staff-123',
+        clinicId: 'clinic-123',
+        date: new Date(),
+        performedBy: 'user-123',
+        resourceId: 'resource-1',
+      };
+
+      const waitingPatient = createMockQueueEntry({
+        id: 'app-1',
+        staffId: dto.staffId,
+        status: AppointmentStatus.WAITING,
+        isPresent: true,
+        queuePosition: 1,
+      });
+
+      mockRepository.getDailySchedule = vi.fn().mockResolvedValue({
+        queue_mode: QueueMode.SLOTTED,
+        schedule: [waitingPatient],
+      });
+      mockRepository.getQueueEntryById = vi.fn().mockResolvedValue(waitingPatient);
+      mockRepository.assignResourceAndCallPatient = vi.fn().mockResolvedValue({
+        ...waitingPatient,
+        status: AppointmentStatus.IN_PROGRESS,
+        resourceId: dto.resourceId,
+      });
+      mockRepository.createQueueOverride = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(eventBus.publish).mockResolvedValue(undefined);
+
+      const result = await service.callNextPatient(dto);
+
+      expect(result.status).toBe(AppointmentStatus.IN_PROGRESS);
+      expect(mockRepository.assignResourceAndCallPatient).toHaveBeenCalledWith('app-1', 'resource-1', 'user-123');
+      expect(mockRepository.updateQueueEntry).not.toHaveBeenCalled();
       expect(mockRepository.createQueueOverride).toHaveBeenCalled();
       expect(eventBus.publish).toHaveBeenCalled();
     });

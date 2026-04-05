@@ -211,6 +211,7 @@ export type Database = {
           promoted_from_waitlist: boolean | null
           queue_position: number | null
           reason_for_visit: string | null
+          resource_id: string | null
           returned_at: string | null
           scheduled_time: string | null
           skip_count: number | null
@@ -257,6 +258,7 @@ export type Database = {
           promoted_from_waitlist?: boolean | null
           queue_position?: number | null
           reason_for_visit?: string | null
+          resource_id?: string | null
           returned_at?: string | null
           scheduled_time?: string | null
           skip_count?: number | null
@@ -303,6 +305,7 @@ export type Database = {
           promoted_from_waitlist?: boolean | null
           queue_position?: number | null
           reason_for_visit?: string | null
+          resource_id?: string | null
           returned_at?: string | null
           scheduled_time?: string | null
           skip_count?: number | null
@@ -325,6 +328,13 @@ export type Database = {
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_resource_id_fkey"
+            columns: ["resource_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_resources"
             referencedColumns: ["id"]
           },
           {
@@ -1395,6 +1405,14 @@ export type Database = {
         Returns: boolean
       }
       anonymize_patient: { Args: { p_patient_id: string }; Returns: undefined }
+      assign_resource_and_call_patient: {
+        Args: {
+          p_appointment_id: string
+          p_performed_by?: string
+          p_resource_id?: string
+        }
+        Returns: Json
+      }
       calculate_priority_score: {
         Args: {
           p_appointment_type: Database["public"]["Enums"]["appointment_type"]
@@ -1528,6 +1546,20 @@ export type Database = {
           p_staff_id: string
         }
         Returns: Json
+      }
+      get_available_clinic_resources: {
+        Args: { p_clinic_id: string }
+        Returns: {
+          capacity: number
+          clinic_id: string
+          display_order: number
+          id: string
+          is_active: boolean
+          is_occupied: boolean
+          name: string
+          notes: string | null
+          resource_type: string
+        }[]
       }
       get_clinic_realtime_metrics: {
         Args: { p_clinic_id: string }

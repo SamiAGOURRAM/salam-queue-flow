@@ -17,6 +17,7 @@ import {
   CreateQueueEntryDTO,
   UpdateQueueEntryDTO,
   ClinicEstimationConfig,
+  ClinicResourceAvailability,
   EstimationMode,
   QueueMode,
   WaitTimePredictionRecord,
@@ -80,6 +81,24 @@ type RawAppointmentRow = {
   late_arrival_converted?: boolean | null;
   original_slot_time?: string | null;
   reason_for_visit?: string | null;
+  resource_id?: string | null;
+  resource?: {
+    id: string;
+    name: string;
+    resource_type: string;
+  } | null;
+};
+
+type RawClinicResourceAvailabilityRow = {
+  id: string;
+  clinic_id: string;
+  name: string;
+  resource_type: string;
+  capacity: number;
+  display_order: number;
+  is_active: boolean;
+  notes?: string | null;
+  is_occupied: boolean;
 };
 
 type RawAbsentPatientRow = {
@@ -501,7 +520,8 @@ export class QueueRepository {
         .select(`
           *,
           patient:patients!appointments_patient_id_fkey(id, display_name),
-          clinic:clinics(id, name)
+          clinic:clinics(id, name),
+          resource:clinic_resources(id, name, resource_type)
         `)
         .eq('id', id)
         .single();
@@ -546,7 +566,8 @@ export class QueueRepository {
         .select(`
           *,
           patient:patients!appointments_patient_id_fkey(id, display_name),
-          clinic:clinics(id, name, specialty, city)
+          clinic:clinics(id, name, specialty, city),
+          resource:clinic_resources(id, name, resource_type)
         `)
         .eq('patient_id', patientRecord.id)
         .order('appointment_date', { ascending: true })
@@ -666,6 +687,7 @@ export class QueueRepository {
       if (dto.checkedInAt !== undefined) updateObj.checked_in_at = dto.checkedInAt;
       if (dto.actualEndTime !== undefined) updateObj.actual_end_time = dto.actualEndTime;
       if (dto.actualDuration !== undefined) updateObj.actual_duration = dto.actualDuration;
+      if (dto.resourceId !== undefined) updateObj.resource_id = dto.resourceId;
 
       // Always set updated_at to now()
       updateObj.updated_at = new Date().toISOString();
@@ -699,7 +721,8 @@ export class QueueRepository {
         .select(`
           *,
           patient:patients!appointments_patient_id_fkey(id, display_name),
-          clinic:clinics(id, name)
+          clinic:clinics(id, name),
+          resource:clinic_resources(id, name, resource_type)
         `)
         .eq('id', id)
         .maybeSingle();
@@ -720,6 +743,68 @@ export class QueueRepository {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error updating queue entry', error as Error, { id, dto });
       throw new DatabaseError('Unexpected error updating queue entry', error as Error);
+    }
+  }
+
+  async assignResourceAndCallPatient(
+    appointmentId: string,
+    resourceId: string | null | undefined,
+    performedBy: string
+  ): Promise<QueueEntry> {
+    try {
+      logger.debug('Assigning resource and calling patient', { appointmentId, resourceId, performedBy });
+
+      const { data, error } = await supabase.rpc('assign_resource_and_call_patient', {
+        p_appointment_id: appointmentId,
+        p_resource_id: resourceId ?? null,
+        p_performed_by: performedBy,
+      });
+
+      if (error || !data) {
+        logger.error('Failed to assign resource and call patient', error, { appointmentId, resourceId });
+        throw new DatabaseError('Failed to assign resource and call patient', error);
+      }
+
+      return this.mapToQueueEntry(data as RawAppointmentRow);
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error assigning resource and calling patient', error as Error, { appointmentId, resourceId });
+      throw new DatabaseError('Unexpected error assigning resource and calling patient', error as Error);
+    }
+  }
+
+  async getAvailableClinicResources(clinicId: string): Promise<ClinicResourceAvailability[]> {
+    try {
+      logger.debug('Fetching available clinic resources', { clinicId });
+
+      const { data, error } = await supabase.rpc('get_available_clinic_resources', {
+        p_clinic_id: clinicId,
+      });
+
+      if (error) {
+        logger.error('Failed to fetch available clinic resources', error, { clinicId });
+        throw new DatabaseError('Failed to fetch available clinic resources', error);
+      }
+
+      const rows = Array.isArray(data)
+        ? (data as RawClinicResourceAvailabilityRow[])
+        : [];
+
+      return rows.map((row) => ({
+        id: row.id,
+        clinicId: row.clinic_id,
+        name: row.name,
+        resourceType: row.resource_type,
+        capacity: row.capacity,
+        displayOrder: row.display_order,
+        isActive: row.is_active,
+        notes: row.notes ?? null,
+        isOccupied: row.is_occupied,
+      }));
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error fetching available clinic resources', error as Error, { clinicId });
+      throw new DatabaseError('Unexpected error fetching available clinic resources', error as Error);
     }
   }
 
@@ -1257,7 +1342,8 @@ export class QueueRepository {
         .select(`
           *,
           patient:patients!appointments_patient_id_fkey(id, display_name),
-          clinic:clinics(id, name)
+          clinic:clinics(id, name),
+          resource:clinic_resources(id, name, resource_type)
         `)
         .eq('appointment_date', dateStr)
         .eq('status', AppointmentStatus.IN_PROGRESS);
@@ -1287,7 +1373,8 @@ export class QueueRepository {
         .select(`
           *,
           patient:patients!appointments_patient_id_fkey(id, display_name),
-          clinic:clinics(id, name)
+          clinic:clinics(id, name),
+          resource:clinic_resources(id, name, resource_type)
         `)
         .eq('clinic_id', clinicId)
         .eq('appointment_date', dateStr)
@@ -1386,6 +1473,12 @@ export class QueueRepository {
       city: data.clinic.city ?? undefined,
     } : undefined;
 
+    const resourceInfo = data.resource ? {
+      id: data.resource.id,
+      name: data.resource.name,
+      resourceType: data.resource.resource_type,
+    } : undefined;
+
     return {
       id: data.id,
       clinicId: data.clinic_id,
@@ -1413,6 +1506,8 @@ export class QueueRepository {
       isWalkIn: data.is_walk_in || false,
       patient: patientInfo,
       clinic: clinicInfo,
+      resourceId: data.resource_id ?? undefined,
+      resource: resourceInfo,
       originalQueuePosition: data.original_queue_position,
       skipCount: data.skip_count || 0,
       skipReason: data.skip_reason as SkipReason | undefined,

@@ -85,6 +85,24 @@ export interface Clinic {
   city?: string;
 }
 
+export interface QueueResource {
+  id: string;
+  name: string;
+  resourceType: string;
+}
+
+export interface ClinicResourceAvailability {
+  id: string;
+  clinicId: string;
+  name: string;
+  resourceType: string;
+  capacity: number;
+  displayOrder: number;
+  isActive: boolean;
+  notes?: string | null;
+  isOccupied: boolean;
+}
+
 /**
  * Queue Entry (Appointment in Queue Context)
  */
@@ -128,6 +146,8 @@ export interface QueueEntry {
   // Relations (optional - populated on demand)
   patient?: Patient;
   clinic?: Clinic;
+  resourceId?: string;
+  resource?: QueueResource;
 }
 
 /**
@@ -360,6 +380,7 @@ export interface UpdateQueueEntryDTO {
   checkedInAt?: string; // Set when staff calls "Call Next"
   actualEndTime?: string;
   actualDuration?: number;
+  resourceId?: string | null;
   // RFC Fields
   priorityScore?: number;
   isGapFiller?: boolean;
@@ -390,6 +411,7 @@ export interface CallNextPatientDTO {
   date: Date;
   performedBy: string;
   skipAbsentPatients?: boolean; // Default: true
+  resourceId?: string;
 }
 
 /**
