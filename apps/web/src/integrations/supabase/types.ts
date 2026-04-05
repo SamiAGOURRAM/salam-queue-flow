@@ -468,6 +468,63 @@ export type Database = {
           },
         ]
       }
+      clinic_resources: {
+        Row: {
+          capacity: number
+          clinic_id: string
+          created_at: string
+          created_by: string | null
+          display_order: number
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          resource_type: string
+          updated_at: string
+        }
+        Insert: {
+          capacity?: number
+          clinic_id: string
+          created_at?: string
+          created_by?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          resource_type?: string
+          updated_at?: string
+        }
+        Update: {
+          capacity?: number
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          resource_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_resources_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinic_resources_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinic_staff: {
         Row: {
           average_consultation_duration: number | null
@@ -1390,6 +1447,29 @@ export type Database = {
           p_staff_id: string
         }
         Returns: Json
+      }
+      create_clinic_resource: {
+        Args: {
+          p_capacity?: number
+          p_clinic_id: string
+          p_created_by?: string
+          p_name: string
+          p_notes?: string
+          p_resource_type?: string
+        }
+        Returns: {
+          capacity: number
+          clinic_id: string
+          created_at: string
+          created_by: string | null
+          display_order: number
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          resource_type: string
+          updated_at: string
+        }
       }
       create_patient: {
         Args: {
