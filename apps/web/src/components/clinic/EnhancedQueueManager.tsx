@@ -17,7 +17,8 @@ import {
   UserCheck,
   Calendar,
   List,
-  Check
+  Check,
+  FileText
 } from "lucide-react";
 import { useQueueService } from "@/hooks/useQueueService";
 import { AppointmentStatus, ClinicResourceAvailability, QueueEntry, QueueMode, SkipReason } from "@/services/queue";
@@ -35,6 +36,9 @@ import { waitlistService } from "@/services/queue/WaitlistService";
 import { useToast } from "@/hooks/use-toast";
 import { useClinicResources } from "@/hooks/useClinicResources";
 import { ResourceAssignmentDialog } from "./ResourceAssignmentDialog";
+import { useMedicalRecordAccess } from "@/hooks/useMedicalRecordAccess";
+import { RequestMedicalHistoryDialog } from "./RequestMedicalHistoryDialog";
+import { SharedRecordsPanel } from "./SharedRecordsPanel";
 
 interface EnhancedQueueManagerProps {
   clinicId: string;
@@ -66,6 +70,8 @@ export function EnhancedQueueManager({
   const [clinicConfig, setClinicConfig] = useState<{ gracePeriodMinutes: number; allowWaitlist: boolean; workingDay?: WorkingDayRange | null } | null>(null);
   const [rebookDialog, setRebookDialog] = useState<{ open: boolean; patient: QueueEntry | null }>({ open: false, patient: null });
   const [activeTab, setActiveTab] = useState<'schedule' | 'absents'>('schedule');
+  const [medicalDialogOpen, setMedicalDialogOpen] = useState(false);
+  const [recordsPanelOpen, setRecordsPanelOpen] = useState(false);
 
   const { 
     isLoading, error, schedule, queueMode, refreshSchedule, callNextPatient, 
@@ -165,6 +171,23 @@ export function EnhancedQueueManager({
       summary: { waiting: waiting.length, inProgress: current ? 1 : 0, absent: absent.length, completed: schedule.filter(p => p.status === AppointmentStatus.COMPLETED).length }
     };
   }, [schedule]);
+
+  const {
+    hasAccess: hasMedicalAccess,
+    activeGrantId,
+    expiresAt: medicalAccessExpiresAt,
+    loading: medicalAccessLoading,
+    refreshActiveGrant,
+  } = useMedicalRecordAccess(currentPatient?.patientId);
+
+  useEffect(() => {
+    if (!currentPatient) {
+      setMedicalDialogOpen(false);
+      setRecordsPanelOpen(false);
+      return;
+    }
+    setRecordsPanelOpen(false);
+  }, [currentPatient?.id]);
 
   useEffect(() => {
     if (onSummaryChange) {
@@ -297,6 +320,11 @@ export function EnhancedQueueManager({
     setRebookDialog({ open: true, patient });
   };
 
+  const handleMedicalAccessActivated = () => {
+    setRecordsPanelOpen(true);
+    void refreshActiveGrant();
+  };
+
   const handleRebookSuccess = async () => {
     if (rebookDialog.patient) {
       await resolveAbsentAppointment(rebookDialog.patient.id, userId, 'rebooked');
@@ -403,15 +431,38 @@ export function EnhancedQueueManager({
               </p>
             </div>
           </div>
-          <Button
-            onClick={handleCompleteAppointment}
-            disabled={actionLoading}
-            size="sm"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-4 font-medium flex-shrink-0"
-          >
-            <Check className="w-4 h-4 mr-1.5" />
-            Complete
-          </Button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {currentPatient.patientId && (
+              <Button
+                onClick={() => {
+                  if (hasMedicalAccess && activeGrantId) {
+                    setRecordsPanelOpen(true);
+                    return;
+                  }
+                  setMedicalDialogOpen(true);
+                }}
+                disabled={actionLoading || medicalAccessLoading}
+                size="sm"
+                variant={hasMedicalAccess ? 'default' : 'outline'}
+                className={cn(
+                  "h-9 px-3 font-medium",
+                  hasMedicalAccess ? "bg-blue-600 hover:bg-blue-700 text-white" : ""
+                )}
+              >
+                <FileText className="w-4 h-4 mr-1.5" />
+                {hasMedicalAccess ? 'View Records' : 'Request History'}
+              </Button>
+            )}
+            <Button
+              onClick={handleCompleteAppointment}
+              disabled={actionLoading}
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-4 font-medium"
+            >
+              <Check className="w-4 h-4 mr-1.5" />
+              Complete
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="flex items-center justify-between bg-muted/50 border border-border rounded-lg px-4 py-3">
@@ -448,6 +499,19 @@ export function EnhancedQueueManager({
             </Button>
           )}
         </div>
+      )}
+
+      {recordsPanelOpen && currentPatient?.patientId && (
+        <SharedRecordsPanel
+          grantId={activeGrantId}
+          patientName={currentPatient.patient?.fullName}
+          expiresAt={medicalAccessExpiresAt}
+          onClose={() => setRecordsPanelOpen(false)}
+          onExpired={() => {
+            setRecordsPanelOpen(false);
+            void refreshActiveGrant();
+          }}
+        />
       )}
 
       {/* Main Content with Tabs */}
@@ -658,6 +722,16 @@ export function EnhancedQueueManager({
           defaultStaffId={rebookDialog.patient.staffId || undefined}
         />
       )}
+
+      <RequestMedicalHistoryDialog
+        open={medicalDialogOpen}
+        onOpenChange={setMedicalDialogOpen}
+        clinicId={clinicId}
+        patientId={currentPatient?.patientId}
+        appointmentId={currentPatient?.id}
+        patientName={currentPatient?.patient?.fullName}
+        onAccessActivated={handleMedicalAccessActivated}
+      />
     </div>
   );
 }

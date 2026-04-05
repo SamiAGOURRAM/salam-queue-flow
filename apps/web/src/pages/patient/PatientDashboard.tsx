@@ -10,16 +10,11 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Calendar, 
   Clock, 
-  Activity, 
   Search, 
   MapPin, 
-  Building2, 
-  ArrowRight, 
-  X, 
   MessageSquare,
   XCircle,
   ChevronRight,
-  Sparkles,
   Plus
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
@@ -38,6 +33,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ActiveSharesPanel } from "@/components/patient/ActiveSharesPanel";
+import { AccessAuditLog } from "@/components/patient/AccessAuditLog";
+import { AccessRequestNotification } from "@/components/patient/AccessRequestNotification";
+import { useMySharedRecords } from "@/hooks/useMySharedRecords";
 
 interface Appointment {
   id: string;
@@ -108,6 +107,26 @@ export default function PatientDashboard() {
     date: string;
     time: string;
   } | null>(null);
+  const [selectedPendingGrantId, setSelectedPendingGrantId] = useState<string | null>(null);
+  const [accessRequestModalOpen, setAccessRequestModalOpen] = useState(false);
+
+  const {
+    pendingRequests,
+    latestPendingRequest,
+    activeShares,
+    auditLog,
+    hasMoreAuditLog,
+    loading: loadingShares,
+    loadingAudit,
+    error: shareError,
+    auditError,
+    approve,
+    deny,
+    revoke,
+    revokeAll,
+    loadMoreAuditLog,
+    dismissPendingRequest,
+  } = useMySharedRecords(user?.id);
 
   const fetchPatientProfile = useCallback(async () => {
     if (!user?.id) return;
@@ -352,6 +371,95 @@ export default function PatientDashboard() {
     setSelectedClinicForReview(null);
   };
 
+  const selectedPendingRequest = useMemo(() => {
+    if (selectedPendingGrantId) {
+      const selected = pendingRequests.find((request) => request.id === selectedPendingGrantId);
+      if (selected) return selected;
+    }
+    return latestPendingRequest;
+  }, [latestPendingRequest, pendingRequests, selectedPendingGrantId]);
+
+  useEffect(() => {
+    if (latestPendingRequest) {
+      setSelectedPendingGrantId(latestPendingRequest.id);
+      setAccessRequestModalOpen(true);
+    }
+  }, [latestPendingRequest?.id]);
+
+  const handleApprovePendingRequest = async (durationSeconds: number) => {
+    if (!selectedPendingRequest) return;
+
+    try {
+      await approve(selectedPendingRequest.id, durationSeconds);
+      toast({
+        title: 'Access approved',
+        description: `You approved access for ${selectedPendingRequest.granteeName}.`,
+      });
+      dismissPendingRequest();
+      setAccessRequestModalOpen(false);
+      setSelectedPendingGrantId(null);
+    } catch (approveError) {
+      toast({
+        title: 'Approval failed',
+        description: approveError instanceof Error ? approveError.message : 'Unexpected error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDenyPendingRequest = async () => {
+    if (!selectedPendingRequest) return;
+
+    try {
+      await deny(selectedPendingRequest.id);
+      toast({
+        title: 'Request denied',
+        description: `Access request from ${selectedPendingRequest.granteeName} was denied.`,
+      });
+      dismissPendingRequest();
+      setAccessRequestModalOpen(false);
+      setSelectedPendingGrantId(null);
+    } catch (denyError) {
+      toast({
+        title: 'Failed to deny request',
+        description: denyError instanceof Error ? denyError.message : 'Unexpected error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleRevokeShare = async (grantId: string) => {
+    try {
+      await revoke(grantId);
+      toast({
+        title: 'Access revoked',
+        description: 'The selected share was revoked successfully.',
+      });
+    } catch (revokeError) {
+      toast({
+        title: 'Failed to revoke access',
+        description: revokeError instanceof Error ? revokeError.message : 'Unexpected error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleRevokeAllShares = async () => {
+    try {
+      const revokedCount = await revokeAll();
+      toast({
+        title: 'All access revoked',
+        description: `${revokedCount} active share(s) were revoked.`,
+      });
+    } catch (revokeError) {
+      toast({
+        title: 'Failed to revoke all access',
+        description: revokeError instanceof Error ? revokeError.message : 'Unexpected error',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const upcomingAppointments = getUpcomingAppointments();
   const completedAppointments = getCompletedAppointments();
   const cancelledAppointments = getCancelledAppointments();
@@ -420,6 +528,26 @@ export default function PatientDashboard() {
         </div>
         <ChevronRight className="w-6 h-6 opacity-70 group-hover:translate-x-1 transition-transform" />
       </button>
+
+      <ActiveSharesPanel
+        pendingRequests={pendingRequests}
+        activeShares={activeShares}
+        loading={loadingShares}
+        error={shareError}
+        onReviewRequest={(grantId) => {
+          setSelectedPendingGrantId(grantId);
+          setAccessRequestModalOpen(true);
+        }}
+        onRevoke={handleRevokeShare}
+        onRevokeAll={handleRevokeAllShares}
+      />
+      <AccessAuditLog
+        entries={auditLog}
+        loading={loadingAudit}
+        error={auditError}
+        hasMore={hasMoreAuditLog}
+        onLoadMore={loadMoreAuditLog}
+      />
 
       {/* Filter Pills */}
       <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
@@ -630,6 +758,23 @@ export default function PatientDashboard() {
           onClose={handleCloseReviewModal}
           clinicId={selectedClinicForReview.id}
           clinicName={selectedClinicForReview.name}
+        />
+      )}
+
+      {selectedPendingRequest && (
+        <AccessRequestNotification
+          open={accessRequestModalOpen}
+          doctorName={selectedPendingRequest.granteeName}
+          clinicName={selectedPendingRequest.clinicName}
+          loading={loadingShares}
+          onApprove={handleApprovePendingRequest}
+          onDeny={handleDenyPendingRequest}
+          onOpenChange={(open) => {
+            setAccessRequestModalOpen(open);
+            if (!open) {
+              dismissPendingRequest();
+            }
+          }}
         />
       )}
     </div>
