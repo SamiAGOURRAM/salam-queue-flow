@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { Card } from "@/components/ui/card";
@@ -22,9 +23,9 @@ interface DoctorListing {
   city: string;
 }
 
-function formatRole(role: string): string {
+function formatRole(role: string, fallbackRoleLabel: string): string {
   const normalized = role.replace(/_/g, " ").trim();
-  if (!normalized) return "Doctor";
+  if (!normalized) return fallbackRoleLabel;
 
   return normalized
     .split(" ")
@@ -55,6 +56,7 @@ function isDoctorLikeRole(role: string, specialization: string | null): boolean 
 
 const DoctorDirectory = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCity, setSelectedCity] = useState("all");
   const [selectedSpecialty, setSelectedSpecialty] = useState("all");
@@ -108,13 +110,15 @@ const DoctorDirectory = () => {
         if (!isDoctorLikeRole(staff.role, staff.specialization)) continue;
 
         const profile = profilesById.get(staff.user_id);
-        const fullName = profile?.full_name?.trim() || `Doctor ${fallbackCounter++}`;
+        const fullName =
+          profile?.full_name?.trim() ||
+          t("doctorDirectory.fallbackDoctorName", "Doctor {{count}}", { count: fallbackCounter++ });
 
         listings.push({
           staffId: staff.id,
           clinicId: clinic.id,
           fullName,
-          role: formatRole(staff.role),
+          role: formatRole(staff.role, t("doctorDirectory.fallbackRole", "Doctor")),
           specialization: staff.specialization,
           clinicName: clinic.name,
           clinicSpecialty: clinic.specialty,
@@ -185,15 +189,19 @@ const DoctorDirectory = () => {
     <div className="min-h-screen bg-[#fafafa]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
         <header className="mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Browse Doctors</h1>
-          <p className="text-sm text-gray-500 mt-1">{filteredDoctors.length} doctors available</p>
+          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
+            {t("doctorDirectory.title", "Browse Doctors")}
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {t("doctorDirectory.availableCount", "{{count}} doctors available", { count: filteredDoctors.length })}
+          </p>
         </header>
 
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm mb-6 p-3 flex flex-col sm:flex-row gap-3">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
-              placeholder="Search by doctor, specialty, clinic, or city"
+              placeholder={t("doctorDirectory.searchPlaceholder", "Search by doctor, specialty, clinic, or city")}
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               className="h-10 pl-9 pr-3 border-gray-200 rounded-md text-sm"
@@ -204,10 +212,10 @@ const DoctorDirectory = () => {
             <Select value={selectedCity} onValueChange={setSelectedCity}>
               <SelectTrigger className="h-10 w-[140px] border-gray-200 rounded-md text-sm">
                 <MapPin className="w-3.5 h-3.5 mr-1.5 text-gray-400" />
-                <SelectValue placeholder="All cities" />
+                <SelectValue placeholder={t("doctorDirectory.allCities", "All cities")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All cities</SelectItem>
+                <SelectItem value="all">{t("doctorDirectory.allCities", "All cities")}</SelectItem>
                 {cities.map((city) => (
                   <SelectItem key={city} value={city}>{city}</SelectItem>
                 ))}
@@ -217,10 +225,10 @@ const DoctorDirectory = () => {
             <Select value={selectedSpecialty} onValueChange={setSelectedSpecialty}>
               <SelectTrigger className="h-10 w-[180px] border-gray-200 rounded-md text-sm">
                 <Stethoscope className="w-3.5 h-3.5 mr-1.5 text-gray-400" />
-                <SelectValue placeholder="All specialties" />
+                <SelectValue placeholder={t("doctorDirectory.allSpecialties", "All specialties")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All specialties</SelectItem>
+                <SelectItem value="all">{t("doctorDirectory.allSpecialties", "All specialties")}</SelectItem>
                 {specialties.map((specialty) => (
                   <SelectItem key={specialty} value={specialty}>{specialty}</SelectItem>
                 ))}
@@ -234,8 +242,12 @@ const DoctorDirectory = () => {
             <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center mx-auto mb-4">
               <User className="w-6 h-6 text-gray-400" />
             </div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-1">No doctors found</h2>
-            <p className="text-sm text-gray-500 mb-5">Try changing your search or browse clinics instead.</p>
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">
+              {t("doctorDirectory.noDoctorsTitle", "No doctors found")}
+            </h2>
+            <p className="text-sm text-gray-500 mb-5">
+              {t("doctorDirectory.noDoctorsDescription", "Try changing your search or browse clinics instead.")}
+            </p>
             <div className="flex gap-3 justify-center">
               <Button
                 onClick={() => {
@@ -246,13 +258,13 @@ const DoctorDirectory = () => {
                 variant="outline"
                 className="h-9 px-4 rounded-md"
               >
-                Clear filters
+                {t("doctorDirectory.clearFilters", "Clear filters")}
               </Button>
               <Button
                 onClick={() => navigate("/clinics")}
                 className="h-9 px-4 bg-obsidian hover:bg-obsidian-hover text-white rounded-md"
               >
-                Browse Clinics
+                {t("doctorDirectory.browseClinics", "Browse Clinics")}
               </Button>
             </div>
           </Card>
@@ -292,14 +304,14 @@ const DoctorDirectory = () => {
                     className="flex-1 h-9 bg-obsidian hover:bg-obsidian-hover text-white text-xs font-medium rounded-md"
                   >
                     <Calendar className="w-3.5 h-3.5 mr-1.5" />
-                    Book
+                    {t("doctorDirectory.book", "Book")}
                   </Button>
                   <Button
                     variant="outline"
                     onClick={() => navigate(`/clinic/${doctor.clinicId}`)}
                     className="h-9 px-3 border-gray-200 text-xs font-medium rounded-md"
                   >
-                    Clinic
+                    {t("doctorDirectory.clinic", "Clinic")}
                     <ArrowRight className="w-3.5 h-3.5 ml-1" />
                   </Button>
                 </div>

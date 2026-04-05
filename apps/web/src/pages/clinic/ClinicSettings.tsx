@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { useClinicPermissions } from "@/hooks/useClinicPermissions";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +10,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Save,
   Clock,
@@ -21,6 +32,7 @@ import {
   Users,
   Timer,
   Shield,
+  Stethoscope,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -65,6 +77,14 @@ interface PaymentMethods {
 }
 
 type ClinicRow = Database["public"]["Tables"]["clinics"]["Row"];
+type ClinicResourceRow = Database["public"]["Tables"]["clinic_resources"]["Row"];
+
+interface NewClinicResource {
+  name: string;
+  resource_type: string;
+  capacity: number;
+  notes: string;
+}
 
 interface ClinicSettingsShape {
   working_hours?: WorkingHours;
@@ -92,6 +112,7 @@ const parseQueueMode = (mode: unknown): QueueMode => {
 };
 
 export default function ClinicSettings() {
+  const { t } = useTranslation();
   const { user, loading } = useAuth();
   const { clinic: scopedClinic, loading: accessLoading, can } = useClinicPermissions();
   const navigate = useNavigate();
@@ -137,6 +158,25 @@ export default function ClinicSettings() {
     saturday: QueueMode.SLOTTED,
     sunday: QueueMode.SLOTTED,
   });
+
+  const [resources, setResources] = useState<ClinicResourceRow[]>([]);
+  const [resourcesLoading, setResourcesLoading] = useState(false);
+  const [resourceSavingId, setResourceSavingId] = useState<string | null>(null);
+  const [resourcePendingDeleteId, setResourcePendingDeleteId] = useState<string | null>(null);
+  const [creatingResource, setCreatingResource] = useState(false);
+  const [newResource, setNewResource] = useState<NewClinicResource>({
+    name: "",
+    resource_type: "room",
+    capacity: 1,
+    notes: "",
+  });
+
+  const resourceTypeOptions = [
+    { value: "room", label: t("clinicSettings.resources.types.room", "Room") },
+    { value: "equipment", label: t("clinicSettings.resources.types.equipment", "Equipment") },
+    { value: "station", label: t("clinicSettings.resources.types.station", "Station") },
+    { value: "other", label: t("clinicSettings.resources.types.other", "Other") },
+  ];
 
   const fetchClinic = useCallback(async () => {
     if (!scopedClinic?.id) return;
@@ -194,6 +234,31 @@ export default function ClinicSettings() {
     }
   }, [scopedClinic]);
 
+  const fetchResources = useCallback(async () => {
+    if (!scopedClinic?.id) return;
+
+    setResourcesLoading(true);
+    const { data, error } = await supabase
+      .from("clinic_resources")
+      .select("*")
+      .eq("clinic_id", scopedClinic.id)
+      .order("display_order", { ascending: true })
+      .order("name", { ascending: true });
+
+    if (error) {
+      toast({
+        title: t("errors.error", "Error"),
+        description: t("clinicSettings.resources.toasts.loadFailed", "Failed to load clinic resources"),
+        variant: "destructive",
+      });
+      setResourcesLoading(false);
+      return;
+    }
+
+    setResources(data ?? []);
+    setResourcesLoading(false);
+  }, [scopedClinic, t]);
+
   useEffect(() => {
     if (!loading && !user) {
       navigate("/auth/login");
@@ -203,6 +268,12 @@ export default function ClinicSettings() {
       fetchClinic();
     }
   }, [user, loading, navigate, fetchClinic, scopedClinic?.id]);
+
+  useEffect(() => {
+    if (user && scopedClinic?.id && activeTab === "resources") {
+      fetchResources();
+    }
+  }, [user, scopedClinic?.id, activeTab, fetchResources]);
 
   const handleSaveBasicInfo = async () => {
     if (!canManageSettings) {
@@ -289,6 +360,216 @@ export default function ClinicSettings() {
     }
   };
 
+  const updateResourceLocal = (
+    resourceId: string,
+    updates: Partial<Pick<ClinicResourceRow, "name" | "resource_type" | "capacity" | "notes" | "is_active" | "display_order">>
+  ) => {
+    setResources((previousResources) =>
+      previousResources.map((resource) =>
+        resource.id === resourceId ? { ...resource, ...updates } : resource
+      )
+    );
+  };
+
+  const handleCreateResource = async () => {
+    if (!canManageSettings) {
+      toast({ title: "Permission denied", description: "You cannot edit clinic settings.", variant: "destructive" });
+      return;
+    }
+
+    if (!clinic) {
+      toast({ title: "Clinic not loaded", description: "Please try again.", variant: "destructive" });
+      return;
+    }
+
+    const normalizedName = newResource.name.trim();
+    const normalizedCapacity = Number.isFinite(newResource.capacity)
+      ? Math.max(1, Math.trunc(newResource.capacity))
+      : 1;
+
+    if (!normalizedName) {
+      toast({
+        title: t("errors.error", "Error"),
+        description: t("clinicSettings.resources.toasts.nameRequired", "Please enter a resource name."),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCreatingResource(true);
+    try {
+      const { data, error } = await supabase.rpc("create_clinic_resource", {
+        p_clinic_id: clinic.id,
+        p_name: normalizedName,
+        p_resource_type: newResource.resource_type,
+        p_capacity: normalizedCapacity,
+        p_notes: newResource.notes.trim() || null,
+        p_created_by: user?.id ?? null,
+      });
+
+      if (error || !data) {
+        throw error ?? new Error("Resource was not created");
+      }
+
+      const insertedResource = data as ClinicResourceRow;
+
+      setResources((previousResources) =>
+        [...previousResources, insertedResource].sort((a, b) => {
+          if (a.display_order !== b.display_order) {
+            return a.display_order - b.display_order;
+          }
+          return a.name.localeCompare(b.name);
+        })
+      );
+      setNewResource({ name: "", resource_type: "room", capacity: 1, notes: "" });
+      toast({
+        title: t("common.success", "Success"),
+        description: t("clinicSettings.resources.toasts.addSuccess", "Resource added"),
+      });
+    } catch (error: unknown) {
+      toast({
+        title: t("errors.error", "Error"),
+        description: error instanceof Error
+          ? error.message
+          : t("clinicSettings.resources.toasts.addFailed", "Failed to add resource"),
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingResource(false);
+    }
+  };
+
+  const handleSaveResource = async (resourceId: string) => {
+    if (!canManageSettings) {
+      toast({ title: "Permission denied", description: "You cannot edit clinic settings.", variant: "destructive" });
+      return;
+    }
+
+    if (!clinic) {
+      toast({ title: "Clinic not loaded", description: "Please try again.", variant: "destructive" });
+      return;
+    }
+
+    const targetResource = resources.find((resource) => resource.id === resourceId);
+    if (!targetResource) {
+      return;
+    }
+
+    const normalizedName = targetResource.name.trim();
+    const normalizedCapacity = Number.isFinite(targetResource.capacity)
+      ? Math.max(1, Math.trunc(targetResource.capacity))
+      : 1;
+
+    if (!normalizedName) {
+      toast({
+        title: t("errors.error", "Error"),
+        description: t("clinicSettings.resources.toasts.nameRequired", "Please enter a resource name."),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setResourceSavingId(resourceId);
+    try {
+      const { error } = await supabase
+        .from("clinic_resources")
+        .update({
+          name: normalizedName,
+          resource_type: targetResource.resource_type,
+          capacity: normalizedCapacity,
+          notes: targetResource.notes?.trim() || null,
+          is_active: targetResource.is_active,
+          display_order: targetResource.display_order,
+        })
+        .eq("id", resourceId)
+        .eq("clinic_id", clinic.id);
+
+      if (error) {
+        throw error;
+      }
+
+      updateResourceLocal(resourceId, {
+        name: normalizedName,
+        capacity: normalizedCapacity,
+        notes: targetResource.notes?.trim() || null,
+      });
+      toast({
+        title: t("common.success", "Success"),
+        description: t("clinicSettings.resources.toasts.updateSuccess", "Resource updated"),
+      });
+    } catch (error: unknown) {
+      toast({
+        title: t("errors.error", "Error"),
+        description: error instanceof Error
+          ? error.message
+          : t("clinicSettings.resources.toasts.updateFailed", "Failed to update resource"),
+        variant: "destructive",
+      });
+    } finally {
+      setResourceSavingId(null);
+    }
+  };
+
+  const handleDeleteResource = (resourceId: string) => {
+    if (!canManageSettings) {
+      toast({ title: "Permission denied", description: "You cannot edit clinic settings.", variant: "destructive" });
+      return;
+    }
+
+    if (!clinic) {
+      toast({ title: "Clinic not loaded", description: "Please try again.", variant: "destructive" });
+      return;
+    }
+
+    setResourcePendingDeleteId(resourceId);
+  };
+
+  const confirmDeleteResource = async () => {
+    if (!resourcePendingDeleteId) {
+      return;
+    }
+
+    if (!canManageSettings) {
+      toast({ title: "Permission denied", description: "You cannot edit clinic settings.", variant: "destructive" });
+      return;
+    }
+
+    if (!clinic) {
+      toast({ title: "Clinic not loaded", description: "Please try again.", variant: "destructive" });
+      return;
+    }
+
+    setResourceSavingId(resourcePendingDeleteId);
+    try {
+      const { error } = await supabase
+        .from("clinic_resources")
+        .delete()
+        .eq("id", resourcePendingDeleteId)
+        .eq("clinic_id", clinic.id);
+
+      if (error) {
+        throw error;
+      }
+
+      setResources((previousResources) => previousResources.filter((resource) => resource.id !== resourcePendingDeleteId));
+      setResourcePendingDeleteId(null);
+      toast({
+        title: t("common.success", "Success"),
+        description: t("clinicSettings.resources.toasts.deleteSuccess", "Resource removed"),
+      });
+    } catch (error: unknown) {
+      toast({
+        title: t("errors.error", "Error"),
+        description: error instanceof Error
+          ? error.message
+          : t("clinicSettings.resources.toasts.deleteFailed", "Failed to delete resource"),
+        variant: "destructive",
+      });
+    } finally {
+      setResourceSavingId(null);
+    }
+  };
+
   const updateDayHours = (day: string, field: keyof WorkingDayConfig, value: WorkingDayConfig[keyof WorkingDayConfig]) => {
     setWorkingHours((prev) => ({ ...prev, [day]: { ...prev[day], [field]: value } }));
   };
@@ -326,6 +607,11 @@ export default function ClinicSettings() {
     schedule: { title: "Schedule", description: "Working hours and appointment settings", icon: Clock },
     queue: { title: "Queue Mode", description: "Configure how your queue operates", icon: ListOrdered },
     appointments: { title: "Appointments", description: "Appointment types and durations", icon: CalendarClock },
+    resources: {
+      title: t("clinicSettings.resources.tab.title", "Resources"),
+      description: t("clinicSettings.resources.tab.description", "Rooms and equipment available for care"),
+      icon: Stethoscope,
+    },
     payment: { title: "Payments", description: "Accepted payment methods", icon: CreditCard },
   };
 
@@ -335,6 +621,7 @@ export default function ClinicSettings() {
   // Shared input styles for sharper look
   const inputClass = "h-9 rounded-[4px] border-border/60 focus:border-foreground/40 transition-colors";
   const selectTriggerClass = "h-9 rounded-[4px] border-border/60";
+  const pendingDeleteResource = resources.find((resource) => resource.id === resourcePendingDeleteId) ?? null;
 
   return (
     <div className="max-w-3xl">
@@ -647,6 +934,255 @@ export default function ClinicSettings() {
             <Save className="w-4 h-4 mr-2" />
             {saving ? "Saving..." : "Save Appointments"}
           </Button>
+        </div>
+      )}
+
+      {/* RESOURCES */}
+      {activeTab === "resources" && (
+        <div className="space-y-6">
+          <div className="p-4 bg-muted/40 rounded-[4px]">
+            <p className="text-sm text-foreground">
+              {t(
+                "clinicSettings.resources.overview",
+                "Manage rooms and equipment available for appointments and queue operations."
+              )}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {t(
+                "clinicSettings.resources.helper",
+                "Resources stay clinic-scoped and can be activated or retired as operations change."
+              )}
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium">{t("clinicSettings.resources.addTitle", "Add Resource")}</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">
+                  {t("clinicSettings.resources.fields.name", "Name")}
+                </Label>
+                <Input
+                  value={newResource.name}
+                  onChange={(event) => setNewResource({ ...newResource, name: event.target.value })}
+                  placeholder={t("clinicSettings.resources.placeholders.name", "Consultation Room 1")}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">
+                  {t("clinicSettings.resources.fields.type", "Type")}
+                </Label>
+                <Select
+                  value={newResource.resource_type}
+                  onValueChange={(value) => setNewResource({ ...newResource, resource_type: value })}
+                >
+                  <SelectTrigger className={selectTriggerClass}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-[4px]">
+                    {resourceTypeOptions.map((resourceTypeOption) => (
+                      <SelectItem key={resourceTypeOption.value} value={resourceTypeOption.value} className="rounded-[2px]">
+                        {resourceTypeOption.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-[130px_1fr_auto] gap-3 items-end">
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">
+                  {t("clinicSettings.resources.fields.capacity", "Capacity")}
+                </Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={newResource.capacity}
+                  onChange={(event) => setNewResource({ ...newResource, capacity: parseInt(event.target.value, 10) || 1 })}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">
+                  {t("clinicSettings.resources.fields.notes", "Notes")}
+                </Label>
+                <Input
+                  value={newResource.notes}
+                  onChange={(event) => setNewResource({ ...newResource, notes: event.target.value })}
+                  placeholder={t("clinicSettings.resources.placeholders.notes", "Optional details")}
+                  className={inputClass}
+                />
+              </div>
+              <Button
+                onClick={handleCreateResource}
+                disabled={creatingResource || !canManageSettings}
+                size="sm"
+                className="h-9 rounded-[4px] bg-foreground text-background hover:bg-foreground/90"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                {creatingResource
+                  ? t("clinicSettings.resources.actions.adding", "Adding...")
+                  : t("clinicSettings.resources.actions.add", "Add")}
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium">{t("clinicSettings.resources.currentTitle", "Current Resources")}</h3>
+
+            {resourcesLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-border border-t-primary" />
+                {t("clinicSettings.resources.loading", "Loading resources...")}
+              </div>
+            ) : resources.length === 0 ? (
+              <div className="rounded-[4px] border border-border p-4 text-sm text-muted-foreground">
+                {t("clinicSettings.resources.empty", "No resources yet. Add your first room or equipment item.")}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {resources.map((resource) => (
+                  <div key={resource.id} className="rounded-[4px] border border-border p-3 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1.5 block">
+                          {t("clinicSettings.resources.fields.name", "Name")}
+                        </Label>
+                        <Input
+                          value={resource.name}
+                          onChange={(event) => updateResourceLocal(resource.id, { name: event.target.value })}
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1.5 block">
+                          {t("clinicSettings.resources.fields.type", "Type")}
+                        </Label>
+                        <Select
+                          value={resource.resource_type}
+                          onValueChange={(value) => updateResourceLocal(resource.id, { resource_type: value })}
+                        >
+                          <SelectTrigger className={selectTriggerClass}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-[4px]">
+                            {resourceTypeOptions.map((resourceTypeOption) => (
+                              <SelectItem key={resourceTypeOption.value} value={resourceTypeOption.value} className="rounded-[2px]">
+                                {resourceTypeOption.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1.5 block">
+                          {t("clinicSettings.resources.fields.capacity", "Capacity")}
+                        </Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={resource.capacity}
+                          onChange={(event) => updateResourceLocal(resource.id, { capacity: parseInt(event.target.value, 10) || 1 })}
+                          className={inputClass}
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <div className="w-full h-9 px-3 rounded-[4px] border border-border/60 flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">
+                            {t("clinicSettings.resources.fields.active", "Active")}
+                          </span>
+                          <Switch
+                            checked={resource.is_active}
+                            onCheckedChange={(checked) => updateResourceLocal(resource.id, { is_active: checked })}
+                            className="data-[state=checked]:bg-foreground"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-3">
+                      <Input
+                        value={resource.notes || ""}
+                        onChange={(event) => updateResourceLocal(resource.id, { notes: event.target.value || null })}
+                        placeholder={t("clinicSettings.resources.placeholders.optionalNotes", "Optional notes")}
+                        className={inputClass}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => handleSaveResource(resource.id)}
+                        disabled={resourceSavingId === resource.id || !canManageSettings}
+                        className="rounded-[4px] bg-foreground text-background hover:bg-foreground/90"
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        {resourceSavingId === resource.id
+                          ? t("clinicSettings.resources.actions.saving", "Saving...")
+                          : t("clinicSettings.resources.actions.save", "Save")}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteResource(resource.id)}
+                        disabled={resourceSavingId === resource.id || !canManageSettings}
+                        className="rounded-[4px] text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        {t("clinicSettings.resources.actions.delete", "Delete")}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <AlertDialog
+            open={resourcePendingDeleteId !== null}
+            onOpenChange={(open) => {
+              if (!open && resourceSavingId !== resourcePendingDeleteId) {
+                setResourcePendingDeleteId(null);
+              }
+            }}
+          >
+            <AlertDialogContent className="rounded-[4px]">
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {t("clinicSettings.resources.deleteDialog.title", "Delete Resource")}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t(
+                    "clinicSettings.resources.deleteDialog.description",
+                    "Delete {{name}}? This action cannot be undone.",
+                    {
+                      name: pendingDeleteResource?.name
+                        ?? t("clinicSettings.resources.deleteDialog.resourceFallback", "this resource"),
+                    }
+                  )}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="rounded-[4px]">
+                  {t("clinicSettings.resources.deleteDialog.cancel", "Cancel")}
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  className="rounded-[4px] bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void confirmDeleteResource();
+                  }}
+                  disabled={
+                    !canManageSettings
+                    || (resourcePendingDeleteId !== null && resourceSavingId === resourcePendingDeleteId)
+                  }
+                >
+                  {resourcePendingDeleteId !== null && resourceSavingId === resourcePendingDeleteId
+                    ? t("clinicSettings.resources.actions.deleting", "Deleting...")
+                    : t("clinicSettings.resources.deleteDialog.confirm", "Delete resource")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       )}
 

@@ -208,6 +208,21 @@
     "instantBooking": "Instant Booking",
     "instantBookingDesc": "No waiting required"
   },
+  "doctorDirectory": {
+    "title": "Browse Doctors",
+    "availableCount": "{{count}} doctors available",
+    "searchPlaceholder": "Search by doctor, specialty, clinic, or city",
+    "allCities": "All cities",
+    "allSpecialties": "All specialties",
+    "noDoctorsTitle": "No doctors found",
+    "noDoctorsDescription": "Try changing your search or browse clinics instead.",
+    "clearFilters": "Clear filters",
+    "browseClinics": "Browse Clinics",
+    "book": "Book",
+    "clinic": "Clinic",
+    "fallbackRole": "Doctor",
+    "fallbackDoctorName": "Doctor {{count}}"
+  },
   "features": {
     "walkIn": "Walk-in",
     "walkInsOk": "Walk-ins OK",
@@ -306,6 +321,63 @@
     "saveError": "Failed to update profile",
     "favoritesTitle": "My Favorite Clinics",
     "removeFavoriteError": "Failed to remove favorite: {{error}}"
+  },
+  "clinicSettings": {
+    "resources": {
+      "tab": {
+        "title": "Resources",
+        "description": "Rooms and equipment available for care"
+      },
+      "overview": "Manage rooms and equipment available for appointments and queue operations.",
+      "helper": "Resources stay clinic-scoped and can be activated or retired as operations change.",
+      "addTitle": "Add Resource",
+      "currentTitle": "Current Resources",
+      "loading": "Loading resources...",
+      "empty": "No resources yet. Add your first room or equipment item.",
+      "fields": {
+        "name": "Name",
+        "type": "Type",
+        "capacity": "Capacity",
+        "notes": "Notes",
+        "active": "Active"
+      },
+      "placeholders": {
+        "name": "Consultation Room 1",
+        "notes": "Optional details",
+        "optionalNotes": "Optional notes"
+      },
+      "types": {
+        "room": "Room",
+        "equipment": "Equipment",
+        "station": "Station",
+        "other": "Other"
+      },
+      "actions": {
+        "add": "Add",
+        "adding": "Adding...",
+        "save": "Save",
+        "saving": "Saving...",
+        "delete": "Delete",
+        "deleting": "Deleting..."
+      },
+      "deleteDialog": {
+        "title": "Delete Resource",
+        "description": "Delete {{name}}? This action cannot be undone.",
+        "resourceFallback": "this resource",
+        "cancel": "Cancel",
+        "confirm": "Delete resource"
+      },
+      "toasts": {
+        "loadFailed": "Failed to load clinic resources",
+        "nameRequired": "Please enter a resource name.",
+        "addSuccess": "Resource added",
+        "addFailed": "Failed to add resource",
+        "updateSuccess": "Resource updated",
+        "updateFailed": "Failed to update resource",
+        "deleteSuccess": "Resource removed",
+        "deleteFailed": "Failed to delete resource"
+      }
+    }
   },
   "about": {
     "hero": {

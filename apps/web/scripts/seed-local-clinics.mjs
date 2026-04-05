@@ -85,7 +85,7 @@ BEGIN
       'Casablanca',
       '+212522000201',
       'slotted',
-      '{"working_hours":{"monday":{"open":"09:00","close":"18:00"},"tuesday":{"open":"09:00","close":"18:00"},"wednesday":{"open":"09:00","close":"18:00"},"thursday":{"open":"09:00","close":"18:00"},"friday":{"open":"09:00","close":"18:00"},"saturday":{"open":"09:00","close":"13:00"},"sunday":{"closed":true}},"slot_capacity":1}'::jsonb,
+      '{"working_hours":{"monday":{"open":"09:00","close":"18:00"},"tuesday":{"open":"09:00","close":"18:00"},"wednesday":{"open":"09:00","close":"18:00"},"thursday":{"open":"09:00","close":"18:00"},"friday":{"open":"09:00","close":"18:00"},"saturday":{"open":"09:00","close":"13:00"},"sunday":{"closed":true}},"slot_capacity_per_staff":1}'::jsonb,
       true
     ),
     (
@@ -109,7 +109,7 @@ BEGIN
       'Marrakech',
       '+212524000203',
       'slotted',
-      '{"working_hours":{"monday":{"open":"09:00","close":"17:00"},"tuesday":{"open":"09:00","close":"17:00"},"wednesday":{"open":"09:00","close":"17:00"},"thursday":{"open":"09:00","close":"17:00"},"friday":{"open":"09:00","close":"16:00"},"saturday":{"open":"09:00","close":"12:00"},"sunday":{"closed":true}},"slot_capacity":2}'::jsonb,
+      '{"working_hours":{"monday":{"open":"09:00","close":"17:00"},"tuesday":{"open":"09:00","close":"17:00"},"wednesday":{"open":"09:00","close":"17:00"},"thursday":{"open":"09:00","close":"17:00"},"friday":{"open":"09:00","close":"16:00"},"saturday":{"open":"09:00","close":"12:00"},"sunday":{"closed":true}},"slot_capacity_per_staff":2}'::jsonb,
       true
     )
   ON CONFLICT (id) DO UPDATE SET

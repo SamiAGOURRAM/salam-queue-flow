@@ -200,6 +200,21 @@
     "allRatings": "كاع التقييمات",
     "popularSpecialties": "التخصصات المشهورة"
   },
+  "doctorDirectory": {
+    "title": "شوف الطبيبة",
+    "availableCount": "{{count}} طبيب متاح",
+    "searchPlaceholder": "قلّب بالطبيب، التخصص، العيادة، ولا المدينة",
+    "allCities": "كاع المدن",
+    "allSpecialties": "كاع التخصصات",
+    "noDoctorsTitle": "مالقيناش طبيبة",
+    "noDoctorsDescription": "جرّب تبدّل البحث ولا تصفّح العيادات.",
+    "clearFilters": "مسح الفيلترات",
+    "browseClinics": "شوف العيادات",
+    "book": "حجز",
+    "clinic": "العيادة",
+    "fallbackRole": "طبيب",
+    "fallbackDoctorName": "طبيب {{count}}"
+  },
   "features": {
     "walkIn": "بلا رونديفو",
     "walkInsOk": "كيقبل بلا رونديفو",
@@ -303,6 +318,63 @@
     "saveError": "البروفيل ماتجددش",
     "favoritesTitle": "العيادات المفضلة ديالي",
     "removeFavoriteError": "المفضل ماتحيّدش: {{error}}"
+  },
+  "clinicSettings": {
+    "resources": {
+      "tab": {
+        "title": "الموارد",
+        "description": "القاعات والتجهيزات المتاحة للعلاج"
+      },
+      "overview": "دبّر القاعات والتجهيزات المتاحة للمواعيد وتسيير الصف.",
+      "helper": "الموارد تبقى مرتبطة بالعيادة ويمكن تفعيلها أو إيقافها حسب الحاجة.",
+      "addTitle": "ضيف مورد",
+      "currentTitle": "الموارد الحالية",
+      "loading": "كيتحمّلو الموارد...",
+      "empty": "ما كايناش موارد دابا. ضيف أول قاعة ولا تجهيز.",
+      "fields": {
+        "name": "الاسم",
+        "type": "النوع",
+        "capacity": "السعة",
+        "notes": "ملاحظات",
+        "active": "خدّام"
+      },
+      "placeholders": {
+        "name": "قاعة الاستشارة 1",
+        "notes": "تفاصيل اختيارية",
+        "optionalNotes": "ملاحظات اختيارية"
+      },
+      "types": {
+        "room": "قاعة",
+        "equipment": "تجهيز",
+        "station": "محطة",
+        "other": "آخر"
+      },
+      "actions": {
+        "add": "ضيف",
+        "adding": "كيتزاد...",
+        "save": "سوڤيڭارد",
+        "saving": "كيتسوڤيڭارد...",
+        "delete": "حيّد",
+        "deleting": "كيتحيد..."
+      },
+      "deleteDialog": {
+        "title": "حيّد المورد",
+        "description": "بغيتي تحيّد {{name}}؟ هاد العملية ما كتترجعش.",
+        "resourceFallback": "هاد المورد",
+        "cancel": "أنولي",
+        "confirm": "حيّد المورد"
+      },
+      "toasts": {
+        "loadFailed": "ماتحمّلوش موارد العيادة",
+        "nameRequired": "عافاك دخل سميّة المورد.",
+        "addSuccess": "المورد تزاد",
+        "addFailed": "ماقدرناش نزيدو المورد",
+        "updateSuccess": "المورد تجدد",
+        "updateFailed": "ماقدرناش نجددو المورد",
+        "deleteSuccess": "المورد تحيّد",
+        "deleteFailed": "ماقدرناش نحيدو المورد"
+      }
+    }
   },
   "about": {
     "hero": {

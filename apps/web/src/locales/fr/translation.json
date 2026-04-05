@@ -208,6 +208,21 @@
     "instantBooking": "Réservation instantanée",
     "instantBookingDesc": "Aucune attente requise"
   },
+  "doctorDirectory": {
+    "title": "Parcourir les médecins",
+    "availableCount": "{{count}} médecins disponibles",
+    "searchPlaceholder": "Rechercher par médecin, spécialité, clinique ou ville",
+    "allCities": "Toutes les villes",
+    "allSpecialties": "Toutes les spécialités",
+    "noDoctorsTitle": "Aucun médecin trouvé",
+    "noDoctorsDescription": "Essayez de modifier votre recherche ou parcourez plutôt les cliniques.",
+    "clearFilters": "Effacer les filtres",
+    "browseClinics": "Parcourir les cliniques",
+    "book": "Réserver",
+    "clinic": "Clinique",
+    "fallbackRole": "Médecin",
+    "fallbackDoctorName": "Médecin {{count}}"
+  },
   "features": {
     "walkIn": "Sans rendez-vous",
     "walkInsOk": "Sans rendez-vous accepté",
@@ -306,6 +321,63 @@
     "saveError": "Échec de la mise à jour du profil",
     "favoritesTitle": "Mes cliniques favorites",
     "removeFavoriteError": "Échec de la suppression du favori : {{error}}"
+  },
+  "clinicSettings": {
+    "resources": {
+      "tab": {
+        "title": "Ressources",
+        "description": "Salles et équipements disponibles pour les soins"
+      },
+      "overview": "Gérez les salles et équipements disponibles pour les rendez-vous et la file d'attente.",
+      "helper": "Les ressources restent liées à la clinique et peuvent être activées ou retirées selon vos opérations.",
+      "addTitle": "Ajouter une ressource",
+      "currentTitle": "Ressources actuelles",
+      "loading": "Chargement des ressources...",
+      "empty": "Aucune ressource pour le moment. Ajoutez votre première salle ou équipement.",
+      "fields": {
+        "name": "Nom",
+        "type": "Type",
+        "capacity": "Capacité",
+        "notes": "Notes",
+        "active": "Actif"
+      },
+      "placeholders": {
+        "name": "Salle de consultation 1",
+        "notes": "Détails optionnels",
+        "optionalNotes": "Notes optionnelles"
+      },
+      "types": {
+        "room": "Salle",
+        "equipment": "Équipement",
+        "station": "Poste",
+        "other": "Autre"
+      },
+      "actions": {
+        "add": "Ajouter",
+        "adding": "Ajout...",
+        "save": "Enregistrer",
+        "saving": "Enregistrement...",
+        "delete": "Supprimer",
+        "deleting": "Suppression..."
+      },
+      "deleteDialog": {
+        "title": "Supprimer la ressource",
+        "description": "Supprimer {{name}} ? Cette action est irréversible.",
+        "resourceFallback": "cette ressource",
+        "cancel": "Annuler",
+        "confirm": "Supprimer la ressource"
+      },
+      "toasts": {
+        "loadFailed": "Échec du chargement des ressources de la clinique",
+        "nameRequired": "Veuillez saisir un nom de ressource.",
+        "addSuccess": "Ressource ajoutée",
+        "addFailed": "Échec de l'ajout de la ressource",
+        "updateSuccess": "Ressource mise à jour",
+        "updateFailed": "Échec de la mise à jour de la ressource",
+        "deleteSuccess": "Ressource supprimée",
+        "deleteFailed": "Échec de la suppression de la ressource"
+      }
+    }
   },
   "about": {
     "hero": {

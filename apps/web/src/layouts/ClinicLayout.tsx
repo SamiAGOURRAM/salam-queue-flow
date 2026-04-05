@@ -25,7 +25,8 @@ import {
   Clock,
   ListOrdered,
   CalendarClock,
-  CreditCard
+  CreditCard,
+  Stethoscope
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
@@ -185,6 +186,7 @@ export default function ClinicLayout() {
     { name: "Schedule", path: "/clinic/settings?tab=schedule", icon: Clock, tab: "schedule" },
     { name: "Queue Mode", path: "/clinic/settings?tab=queue", icon: ListOrdered, tab: "queue" },
     { name: "Appointments", path: "/clinic/settings?tab=appointments", icon: CalendarClock, tab: "appointments" },
+    { name: "Resources", path: "/clinic/settings?tab=resources", icon: Stethoscope, tab: "resources" },
     { name: "Payments", path: "/clinic/settings?tab=payment", icon: CreditCard, tab: "payment" },
   ];
 
