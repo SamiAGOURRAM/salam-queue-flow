@@ -376,6 +376,54 @@
       }
     }
   },
+  "medicalSharing": {
+    "patient": {
+      "activeShares": {
+        "title": "شكون يقدر يشوف سجلاتك الطبية",
+        "subtitle": "تقدر تحيد اي مشاركة دابا. السحب كيتطبق مباشرة.",
+        "revokeAll": "حيّد جميع الولوجات",
+        "pendingTitle": "طلبات معلقة",
+        "review": "شوف الطلب",
+        "loading": "كيتحمّلو الولوجات النشيطين...",
+        "empty": "ماكاين حتى مشاركة نشيطة للسجلات الطبية.",
+        "noExpiry": "بلا انتهاء",
+        "expired": "منتهي",
+        "minRemaining": "{{count}} دقيقة باقية",
+        "hourMinRemaining": "{{hours}}س {{minutes}}د باقية",
+        "revoke": "حيّد"
+      },
+      "notification": {
+        "title": "طلب الولوج للسجلات الطبية",
+        "requestDescription": "{{doctorName}} من {{clinicName}} طالب ولوج مؤقت.",
+        "info": "الموافقة كتسمح بولوج مؤقت ويمكن تحيدو فاي وقت.",
+        "durationLabel": "مدة الولوج",
+        "durationAppointment": "هاد الموعد (ساعة)",
+        "duration24h": "24 ساعة",
+        "durationWeek": "اسبوع",
+        "deny": "رفض",
+        "approve": "موافقة"
+      },
+      "audit": {
+        "title": "سجل الولوج",
+        "empty": "حتى واحد ما دخل لسجلاتك الطبية مزال.",
+        "loadMore": "زيد عرض"
+      },
+      "toast": {
+        "approvedTitle": "تمت الموافقة على الولوج",
+        "approvedDescription": "وافقتي على الولوج ديال {{name}}.",
+        "approveFailedTitle": "الموافقة ماكملاتش",
+        "deniedTitle": "ترفض الطلب",
+        "deniedDescription": "ترفض طلب الولوج ديال {{name}}.",
+        "denyFailedTitle": "ماقدرناش نرفضو الطلب",
+        "revokeTitle": "تم سحب الولوج",
+        "revokeDescription": "الولوج المختار تحيد بنجاح.",
+        "revokeFailedTitle": "ماقدرناش نحيدو الولوج",
+        "revokeAllTitle": "تحيدو جميع الولوجات",
+        "revokeAllDescription": "تحيدو {{count}} مشاركة نشيطة.",
+        "revokeAllFailedTitle": "ماقدرناش نحيدو جميع الولوجات"
+      }
+    }
+  },
   "about": {
     "hero": {
       "title": "كلشي لي خاصك باش",

@@ -379,6 +379,54 @@
       }
     }
   },
+  "medicalSharing": {
+    "patient": {
+      "activeShares": {
+        "title": "Qui peut voir vos dossiers medicaux",
+        "subtitle": "Vous pouvez revoquer tout partage instantanement. La revocation est immediate.",
+        "revokeAll": "Revoquer tous les acces",
+        "pendingTitle": "Demandes en attente",
+        "review": "Examiner",
+        "loading": "Chargement des acces actifs...",
+        "empty": "Aucun partage actif de dossier medical.",
+        "noExpiry": "Sans expiration",
+        "expired": "Expire",
+        "minRemaining": "Encore {{count}} min",
+        "hourMinRemaining": "Encore {{hours}}h {{minutes}}m",
+        "revoke": "Revoquer"
+      },
+      "notification": {
+        "title": "Demande d'acces aux dossiers medicaux",
+        "requestDescription": "{{doctorName}} de {{clinicName}} demande un acces temporaire.",
+        "info": "L'approbation accorde un acces temporaire et revocable. Vous pouvez revoquer un partage a tout moment.",
+        "durationLabel": "Duree d'acces",
+        "durationAppointment": "Cette consultation (1 heure)",
+        "duration24h": "24 heures",
+        "durationWeek": "1 semaine",
+        "deny": "Refuser",
+        "approve": "Approuver"
+      },
+      "audit": {
+        "title": "Journal des acces",
+        "empty": "Personne n'a encore accede a vos dossiers.",
+        "loadMore": "Charger plus"
+      },
+      "toast": {
+        "approvedTitle": "Acces approuve",
+        "approvedDescription": "Vous avez approuve l'acces pour {{name}}.",
+        "approveFailedTitle": "Echec de l'approbation",
+        "deniedTitle": "Demande refusee",
+        "deniedDescription": "La demande d'acces de {{name}} a ete refusee.",
+        "denyFailedTitle": "Echec du refus",
+        "revokeTitle": "Acces revoque",
+        "revokeDescription": "Le partage selectionne a ete revoque avec succes.",
+        "revokeFailedTitle": "Echec de la revocation",
+        "revokeAllTitle": "Tous les acces ont ete revoques",
+        "revokeAllDescription": "{{count}} partage(s) actif(s) ont ete revoques.",
+        "revokeAllFailedTitle": "Echec de la revocation totale"
+      }
+    }
+  },
   "about": {
     "hero": {
       "title": "Tout ce dont vous avez besoin pour",

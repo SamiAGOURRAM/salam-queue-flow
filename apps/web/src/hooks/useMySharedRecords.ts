@@ -165,6 +165,30 @@ export function useMySharedRecords(patientUserId?: string) {
     };
   }, [loadShares, patientId]);
 
+  useEffect(() => {
+    if (!patientId) return;
+
+    const auditChannel = supabase
+      .channel(`medical-share-audit-${patientId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'medical_record_access_log',
+          filter: `patient_id=eq.${patientId}`,
+        },
+        async () => {
+          await loadAuditLogPage(0, true);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(auditChannel);
+    };
+  }, [loadAuditLogPage, patientId]);
+
   const approve = useCallback(
     async (grantId: string, durationSeconds: number = DURATION_PRESETS.THIS_APPOINTMENT) => {
       setLoadingActions(true);

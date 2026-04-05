@@ -2,19 +2,25 @@ import { AlertTriangle, Loader2, Shield, ShieldAlert, ShieldCheck } from 'lucide
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { ActiveShare } from '@/services/medical-records';
+import { useTranslation } from 'react-i18next';
 
-function formatExpiry(expiresAt?: Date): string {
-  if (!expiresAt) return 'No expiry';
+function formatExpiry(expiresAt: Date | undefined, t: (key: string, options?: Record<string, unknown>) => string): string {
+  if (!expiresAt) return t('medicalSharing.patient.activeShares.noExpiry');
 
   const diff = expiresAt.getTime() - Date.now();
-  if (diff <= 0) return 'Expired';
+  if (diff <= 0) return t('medicalSharing.patient.activeShares.expired');
 
   const minutes = Math.floor(diff / 60000);
-  if (minutes < 60) return `${minutes} min remaining`;
+  if (minutes < 60) {
+    return t('medicalSharing.patient.activeShares.minRemaining', { count: minutes });
+  }
 
   const hours = Math.floor(minutes / 60);
   const remMinutes = minutes % 60;
-  return `${hours}h ${remMinutes}m remaining`;
+  return t('medicalSharing.patient.activeShares.hourMinRemaining', {
+    hours,
+    minutes: remMinutes,
+  });
 }
 
 interface ActiveSharesPanelProps {
@@ -36,6 +42,7 @@ export function ActiveSharesPanel({
   onRevoke,
   onRevokeAll,
 }: ActiveSharesPanelProps) {
+  const { t } = useTranslation();
 
   return (
     <section className="rounded-2xl border border-border bg-card p-5 mt-8">
@@ -43,10 +50,10 @@ export function ActiveSharesPanel({
         <div>
           <p className="text-sm font-semibold text-foreground flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
-            Who can see your medical records
+            {t('medicalSharing.patient.activeShares.title')}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            You can revoke any share instantly. Revocation takes effect immediately.
+            {t('medicalSharing.patient.activeShares.subtitle')}
           </p>
         </div>
         <Button
@@ -57,13 +64,15 @@ export function ActiveSharesPanel({
           disabled={loading || activeShares.length === 0}
         >
           <ShieldAlert className="h-4 w-4 mr-1" />
-          Revoke All Access
+          {t('medicalSharing.patient.activeShares.revokeAll')}
         </Button>
       </div>
 
       {pendingRequests.length > 0 && (
         <div className="mt-4 space-y-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Pending Requests</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {t('medicalSharing.patient.activeShares.pendingTitle')}
+          </p>
           {pendingRequests.map((request) => (
             <div key={request.id} className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-900 dark:bg-amber-950/20">
               <div className="min-w-0">
@@ -76,7 +85,7 @@ export function ActiveSharesPanel({
                 className="border-amber-300 hover:bg-amber-100 dark:border-amber-800 dark:hover:bg-amber-900/40"
                 onClick={() => onReviewRequest(request.id)}
               >
-                Review
+                {t('medicalSharing.patient.activeShares.review')}
               </Button>
             </div>
           ))}
@@ -86,7 +95,7 @@ export function ActiveSharesPanel({
       {loading && activeShares.length === 0 ? (
         <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          Loading active shares...
+          {t('medicalSharing.patient.activeShares.loading')}
         </div>
       ) : error ? (
         <div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive flex items-start gap-2">
@@ -95,7 +104,7 @@ export function ActiveSharesPanel({
         </div>
       ) : activeShares.length === 0 ? (
         <div className="mt-4 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-          No active medical record shares.
+          {t('medicalSharing.patient.activeShares.empty')}
         </div>
       ) : (
         <div className="mt-4 space-y-2">
@@ -104,7 +113,7 @@ export function ActiveSharesPanel({
               <div className="min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">{share.granteeName}</p>
                 <p className="text-xs text-muted-foreground truncate">{share.clinicName}</p>
-                <p className="text-xs text-muted-foreground mt-1">{formatExpiry(share.expiresAt)}</p>
+                <p className="text-xs text-muted-foreground mt-1">{formatExpiry(share.expiresAt, t)}</p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -119,7 +128,7 @@ export function ActiveSharesPanel({
                   onClick={() => onRevoke(share.id)}
                   disabled={loading}
                 >
-                  Revoke
+                  {t('medicalSharing.patient.activeShares.revoke')}
                 </Button>
               </div>
             </div>

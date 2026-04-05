@@ -379,6 +379,54 @@
       }
     }
   },
+  "medicalSharing": {
+    "patient": {
+      "activeShares": {
+        "title": "Who can see your medical records",
+        "subtitle": "You can revoke any share instantly. Revocation takes effect immediately.",
+        "revokeAll": "Revoke All Access",
+        "pendingTitle": "Pending Requests",
+        "review": "Review",
+        "loading": "Loading active shares...",
+        "empty": "No active medical record shares.",
+        "noExpiry": "No expiry",
+        "expired": "Expired",
+        "minRemaining": "{{count}} min remaining",
+        "hourMinRemaining": "{{hours}}h {{minutes}}m remaining",
+        "revoke": "Revoke"
+      },
+      "notification": {
+        "title": "Medical records access request",
+        "requestDescription": "{{doctorName}} at {{clinicName}} is requesting temporary access.",
+        "info": "Approving grants temporary, revocable access. You can revoke any active share anytime.",
+        "durationLabel": "Access duration",
+        "durationAppointment": "This appointment (1 hour)",
+        "duration24h": "24 hours",
+        "durationWeek": "1 week",
+        "deny": "Deny",
+        "approve": "Approve"
+      },
+      "audit": {
+        "title": "Access Audit Log",
+        "empty": "No one has accessed your records yet.",
+        "loadMore": "Load More"
+      },
+      "toast": {
+        "approvedTitle": "Access approved",
+        "approvedDescription": "You approved access for {{name}}.",
+        "approveFailedTitle": "Approval failed",
+        "deniedTitle": "Request denied",
+        "deniedDescription": "Access request from {{name}} was denied.",
+        "denyFailedTitle": "Failed to deny request",
+        "revokeTitle": "Access revoked",
+        "revokeDescription": "The selected share was revoked successfully.",
+        "revokeFailedTitle": "Failed to revoke access",
+        "revokeAllTitle": "All access revoked",
+        "revokeAllDescription": "{{count}} active share(s) were revoked.",
+        "revokeAllFailedTitle": "Failed to revoke all access"
+      }
+    }
+  },
   "about": {
     "hero": {
       "title": "Everything You Need to",

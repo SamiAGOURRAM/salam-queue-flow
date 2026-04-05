@@ -12,6 +12,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { DURATION_PRESETS } from '@/services/medical-records';
+import { useTranslation } from 'react-i18next';
 
 interface AccessRequestNotificationProps {
   open: boolean;
@@ -32,15 +33,19 @@ export function AccessRequestNotification({
   onDeny,
   onOpenChange,
 }: AccessRequestNotificationProps) {
+  const { t } = useTranslation();
   const [durationSeconds, setDurationSeconds] = useState<number>(DURATION_PRESETS.THIS_APPOINTMENT);
 
   const durationOptions = useMemo(
     () => [
-      { label: 'This appointment (1 hour)', value: DURATION_PRESETS.THIS_APPOINTMENT },
-      { label: '24 hours', value: DURATION_PRESETS.TWENTY_FOUR_HOURS },
-      { label: '1 week', value: DURATION_PRESETS.ONE_WEEK },
+      {
+        label: t('medicalSharing.patient.notification.durationAppointment'),
+        value: DURATION_PRESETS.THIS_APPOINTMENT,
+      },
+      { label: t('medicalSharing.patient.notification.duration24h'), value: DURATION_PRESETS.TWENTY_FOUR_HOURS },
+      { label: t('medicalSharing.patient.notification.durationWeek'), value: DURATION_PRESETS.ONE_WEEK },
     ],
-    []
+    [t]
   );
 
   return (
@@ -49,20 +54,22 @@ export function AccessRequestNotification({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BellRing className="h-4 w-4 text-blue-600" />
-            Medical records access request
+            {t('medicalSharing.patient.notification.title')}
           </DialogTitle>
           <DialogDescription>
-            <span className="font-medium text-foreground">{doctorName}</span> at{' '}
-            <span className="font-medium text-foreground">{clinicName}</span> is requesting temporary access.
+            {t('medicalSharing.patient.notification.requestDescription', {
+              doctorName,
+              clinicName,
+            })}
           </DialogDescription>
         </DialogHeader>
 
         <div className="rounded-md border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
-          Approving grants temporary, revocable access. You can revoke any active share anytime.
+          {t('medicalSharing.patient.notification.info')}
         </div>
 
         <div className="space-y-2">
-          <Label>Access duration</Label>
+          <Label>{t('medicalSharing.patient.notification.durationLabel')}</Label>
           <RadioGroup
             value={String(durationSeconds)}
             onValueChange={(value) => setDurationSeconds(Number(value))}
@@ -80,12 +87,12 @@ export function AccessRequestNotification({
 
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onDeny} disabled={loading}>
-            Deny
+            {t('medicalSharing.patient.notification.deny')}
           </Button>
           <Button onClick={() => onApprove(durationSeconds)} disabled={loading}>
             {loading && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
             <ShieldCheck className="h-4 w-4 mr-1.5" />
-            Approve
+            {t('medicalSharing.patient.notification.approve')}
           </Button>
         </DialogFooter>
       </DialogContent>

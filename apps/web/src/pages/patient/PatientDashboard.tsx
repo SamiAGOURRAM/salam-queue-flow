@@ -4,7 +4,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { queueService } from "@/services/queue";
 import { patientService } from "@/services/patient";
-import { AppointmentStatus } from "@/services/queue";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -392,15 +391,17 @@ export default function PatientDashboard() {
     try {
       await approve(selectedPendingRequest.id, durationSeconds);
       toast({
-        title: 'Access approved',
-        description: `You approved access for ${selectedPendingRequest.granteeName}.`,
+        title: t('medicalSharing.patient.toast.approvedTitle'),
+        description: t('medicalSharing.patient.toast.approvedDescription', {
+          name: selectedPendingRequest.granteeName,
+        }),
       });
       dismissPendingRequest();
       setAccessRequestModalOpen(false);
       setSelectedPendingGrantId(null);
     } catch (approveError) {
       toast({
-        title: 'Approval failed',
+        title: t('medicalSharing.patient.toast.approveFailedTitle'),
         description: approveError instanceof Error ? approveError.message : 'Unexpected error',
         variant: 'destructive',
       });
@@ -413,15 +414,17 @@ export default function PatientDashboard() {
     try {
       await deny(selectedPendingRequest.id);
       toast({
-        title: 'Request denied',
-        description: `Access request from ${selectedPendingRequest.granteeName} was denied.`,
+        title: t('medicalSharing.patient.toast.deniedTitle'),
+        description: t('medicalSharing.patient.toast.deniedDescription', {
+          name: selectedPendingRequest.granteeName,
+        }),
       });
       dismissPendingRequest();
       setAccessRequestModalOpen(false);
       setSelectedPendingGrantId(null);
     } catch (denyError) {
       toast({
-        title: 'Failed to deny request',
+        title: t('medicalSharing.patient.toast.denyFailedTitle'),
         description: denyError instanceof Error ? denyError.message : 'Unexpected error',
         variant: 'destructive',
       });
@@ -432,12 +435,12 @@ export default function PatientDashboard() {
     try {
       await revoke(grantId);
       toast({
-        title: 'Access revoked',
-        description: 'The selected share was revoked successfully.',
+        title: t('medicalSharing.patient.toast.revokeTitle'),
+        description: t('medicalSharing.patient.toast.revokeDescription'),
       });
     } catch (revokeError) {
       toast({
-        title: 'Failed to revoke access',
+        title: t('medicalSharing.patient.toast.revokeFailedTitle'),
         description: revokeError instanceof Error ? revokeError.message : 'Unexpected error',
         variant: 'destructive',
       });
@@ -448,12 +451,12 @@ export default function PatientDashboard() {
     try {
       const revokedCount = await revokeAll();
       toast({
-        title: 'All access revoked',
-        description: `${revokedCount} active share(s) were revoked.`,
+        title: t('medicalSharing.patient.toast.revokeAllTitle'),
+        description: t('medicalSharing.patient.toast.revokeAllDescription', { count: revokedCount }),
       });
     } catch (revokeError) {
       toast({
-        title: 'Failed to revoke all access',
+        title: t('medicalSharing.patient.toast.revokeAllFailedTitle'),
         description: revokeError instanceof Error ? revokeError.message : 'Unexpected error',
         variant: 'destructive',
       });
