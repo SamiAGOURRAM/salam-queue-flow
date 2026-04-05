@@ -55,6 +55,9 @@ $$;
 SELECT
   set_config('test.clinic_a_id',                  gen_random_uuid()::text, true),
   set_config('test.clinic_b_id',                  gen_random_uuid()::text, true),
+  set_config('test.owner_staff_id',               gen_random_uuid()::text, true),
+  set_config('test.patient_id',                   gen_random_uuid()::text, true),
+  set_config('test.appointment_id',               gen_random_uuid()::text, true),
   set_config('test.base_resource_id',             gen_random_uuid()::text, true),
   set_config('test.owner_rpc_resource_id',        gen_random_uuid()::text, true),
   set_config('test.owner_insert_resource_id',     gen_random_uuid()::text, true),
@@ -81,11 +84,62 @@ VALUES
   (current_setting('test.staff_user_id')::uuid,    'staff',        current_setting('test.clinic_a_id')::uuid),
   (current_setting('test.outsider_user_id')::uuid,  'clinic_owner', current_setting('test.clinic_b_id')::uuid);
 
+INSERT INTO public.clinic_staff (id, clinic_id, user_id, role, is_active)
+VALUES (
+  current_setting('test.owner_staff_id')::uuid,
+  current_setting('test.clinic_a_id')::uuid,
+  current_setting('test.owner_user_id')::uuid,
+  'doctor',
+  true
+);
+
+INSERT INTO public.patients (
+  id,
+  display_name,
+  full_name_encrypted,
+  phone_number_encrypted,
+  phone_number_hash,
+  source,
+  created_by
+)
+VALUES (
+  current_setting('test.patient_id')::uuid,
+  'RLS Verify Patient',
+  public.encrypt_patient_pii('RLS Verify Patient'),
+  public.encrypt_patient_pii('+212600000099'),
+  public.hash_phone_number('+212600000099'),
+  'app',
+  current_setting('test.owner_user_id')::uuid
+);
+
 INSERT INTO public.clinic_resources (id, clinic_id, name, resource_type, capacity, is_active, display_order, notes)
 VALUES (
   current_setting('test.base_resource_id')::uuid,
   current_setting('test.clinic_a_id')::uuid,
   'RLS Base Resource', 'room', 1, true, 0, 'seed for RLS checks'
+);
+
+INSERT INTO public.appointments (
+  id,
+  clinic_id,
+  patient_id,
+  staff_id,
+  appointment_date,
+  appointment_type,
+  status,
+  is_present,
+  queue_position
+)
+VALUES (
+  current_setting('test.appointment_id')::uuid,
+  current_setting('test.clinic_a_id')::uuid,
+  current_setting('test.patient_id')::uuid,
+  current_setting('test.owner_staff_id')::uuid,
+  CURRENT_DATE,
+  'consultation',
+  'waiting',
+  true,
+  1
 );
 
 -- ── 4. Switch to authenticated role ─────────────────────────────────────────
@@ -280,7 +334,7 @@ BEGIN
 END;
 $$;
 
-    -- ── Test 9: Outsider delete is blocked (no visible target rows) ─────────────
+  -- ── Test 9: Outsider delete is blocked (no visible target rows) ─────────────
 
 SELECT set_config('request.jwt.claim.sub', current_setting('test.outsider_user_id'), true);
 
@@ -322,9 +376,95 @@ BEGIN
 END;
 $$;
 
+-- ── Test 11: Owner can assign resource on appointment update ───────────────
+
+SELECT set_config('request.jwt.claim.sub', current_setting('test.owner_user_id'), true);
+
+DO $$
+DECLARE
+  v_rows integer;
+  v_resource_id uuid;
+BEGIN
+  UPDATE public.appointments
+  SET resource_id = current_setting('test.base_resource_id')::uuid
+  WHERE id = current_setting('test.appointment_id')::uuid;
+
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+
+  IF v_rows <> 1 THEN
+    RAISE EXCEPTION 'owner_appointment_resource_update failed: expected 1 updated row, got %', v_rows;
+  END IF;
+
+  SELECT resource_id
+  INTO v_resource_id
+  FROM public.appointments
+  WHERE id = current_setting('test.appointment_id')::uuid;
+
+  IF v_resource_id IS DISTINCT FROM current_setting('test.base_resource_id')::uuid THEN
+    RAISE EXCEPTION 'owner_appointment_resource_update failed: resource_id mismatch';
+  END IF;
+
+  RAISE NOTICE 'PASS owner_appointment_resource_update';
+END;
+$$;
+
+-- ── Test 12: Staff can reassign appointment resource ───────────────────────
+
+SELECT set_config('request.jwt.claim.sub', current_setting('test.staff_user_id'), true);
+
+DO $$
+DECLARE
+  v_rows integer;
+  v_resource_id uuid;
+BEGIN
+  UPDATE public.appointments
+  SET resource_id = current_setting('test.owner_rpc_resource_id')::uuid
+  WHERE id = current_setting('test.appointment_id')::uuid;
+
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+
+  IF v_rows <> 1 THEN
+    RAISE EXCEPTION 'staff_appointment_resource_update failed: expected 1 updated row, got %', v_rows;
+  END IF;
+
+  SELECT resource_id
+  INTO v_resource_id
+  FROM public.appointments
+  WHERE id = current_setting('test.appointment_id')::uuid;
+
+  IF v_resource_id IS DISTINCT FROM current_setting('test.owner_rpc_resource_id')::uuid THEN
+    RAISE EXCEPTION 'staff_appointment_resource_update failed: resource_id mismatch';
+  END IF;
+
+  RAISE NOTICE 'PASS staff_appointment_resource_update';
+END;
+$$;
+
+-- ── Test 13: Outsider cannot update appointment resource ────────────────────
+
+SELECT set_config('request.jwt.claim.sub', current_setting('test.outsider_user_id'), true);
+
+DO $$
+DECLARE
+  v_rows integer;
+BEGIN
+  UPDATE public.appointments
+  SET resource_id = NULL
+  WHERE id = current_setting('test.appointment_id')::uuid;
+
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+
+  IF v_rows <> 0 THEN
+    RAISE EXCEPTION 'outsider_appointment_resource_update_blocked failed: expected 0 updated rows, got %', v_rows;
+  END IF;
+
+  RAISE NOTICE 'PASS outsider_appointment_resource_update_blocked';
+END;
+$$;
+
 DO $$
 BEGIN
-  RAISE NOTICE 'All clinic_resources RLS checks passed.';
+  RAISE NOTICE 'All clinic_resources + appointment resource RLS checks passed.';
 END;
 $$;
 
