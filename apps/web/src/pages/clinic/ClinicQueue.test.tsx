@@ -7,6 +7,7 @@ import ClinicQueue from "./ClinicQueue";
 const mocks = vi.hoisted(() => ({
   useAuth: vi.fn(),
   useClinicPermissions: vi.fn(),
+  useClinicResources: vi.fn(),
   getStaffByClinicAndUser: vi.fn(),
   getStaffByClinic: vi.fn(),
   addStaff: vi.fn(),
@@ -19,6 +20,10 @@ vi.mock("@/hooks/useAuth", () => ({
 
 vi.mock("@/hooks/useClinicPermissions", () => ({
   useClinicPermissions: mocks.useClinicPermissions,
+}));
+
+vi.mock("@/hooks/useClinicResources", () => ({
+  useClinicResources: mocks.useClinicResources,
 }));
 
 vi.mock("@/services/staff", () => ({
@@ -112,6 +117,10 @@ vi.mock("@/components/clinic/EndDayConfirmationDialog", () => ({
   ),
 }));
 
+vi.mock("@/components/clinic/ResourceOccupancyPanel", () => ({
+  ResourceOccupancyPanel: () => <div data-testid="resource-occupancy-panel">Resource Occupancy</div>,
+}));
+
 describe("ClinicQueue action flows", () => {
   const setPermissionContext = ({ isOwner = false } = {}) => {
     mocks.useClinicPermissions.mockReturnValue({
@@ -131,6 +140,12 @@ describe("ClinicQueue action flows", () => {
     });
 
     setPermissionContext();
+
+    mocks.useClinicResources.mockReturnValue({
+      resources: [],
+      loading: false,
+      refresh: vi.fn(),
+    });
 
     mocks.getStaffByClinicAndUser.mockResolvedValue({ id: "staff-1" });
     mocks.getStaffByClinic.mockResolvedValue([]);

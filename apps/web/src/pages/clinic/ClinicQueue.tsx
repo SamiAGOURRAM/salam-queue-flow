@@ -1,7 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useClinicPermissions } from "@/hooks/useClinicPermissions";
+import { useClinicResources } from "@/hooks/useClinicResources";
 import { staffService } from "@/services/staff";
+import type { QueueEntry } from "@/services/queue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -16,6 +18,7 @@ import { toast } from "@/hooks/use-toast";
 import { BookAppointmentDialog } from "@/components/clinic/BookAppointmentDialog";
 import { EnhancedQueueManager } from "@/components/clinic/EnhancedQueueManager";
 import { EndDayConfirmationDialog } from "@/components/clinic/EndDayConfirmationDialog";
+import { ResourceOccupancyPanel } from "@/components/clinic/ResourceOccupancyPanel";
 import { logger } from "@/services/shared/logging/Logger";
 import { format } from "date-fns";
 
@@ -38,7 +41,9 @@ export default function ClinicQueue() {
   const [bookingMode, setBookingMode] = useState<'scheduled' | 'walkin'>('scheduled');
   const [showEndDay, setShowEndDay] = useState(false);
   const [queueRefreshKey, setQueueRefreshKey] = useState(0);
+  const [queueSchedule, setQueueSchedule] = useState<QueueEntry[]>([]);
   const [queueSummary, setQueueSummary] = useState({ waiting: 0, inProgress: 0, absent: 0, completed: 0 });
+  const { resources, loading: resourcesLoading, refresh: refreshResources } = useClinicResources(clinic?.id);
 
   const fetchClinicAndStaffData = useCallback(async () => {
     if (!user || !scopedClinic?.id) return;
@@ -144,6 +149,7 @@ export default function ClinicQueue() {
     setShowBookAppointment(false);
     setBookingMode('scheduled');
     setQueueRefreshKey(prev => prev + 1);
+    void refreshResources();
     toast({
       title: "Success",
       description: "The queue has been updated.",
@@ -205,6 +211,14 @@ export default function ClinicQueue() {
         </div>
       </div>
 
+      {resources.length > 0 && (
+        <ResourceOccupancyPanel
+          resources={resources}
+          schedule={queueSchedule}
+          loading={resourcesLoading}
+        />
+      )}
+
       {/* Queue Manager */}
       {clinic?.id && user?.id && staffProfile?.id ? (
         <EnhancedQueueManager
@@ -213,6 +227,10 @@ export default function ClinicQueue() {
           userId={user.id}
           staffId={staffProfile.id}
           onSummaryChange={setQueueSummary}
+          onScheduleChange={setQueueSchedule}
+          resources={resources}
+          resourcesLoading={resourcesLoading}
+          refreshResources={refreshResources}
         />
       ) : clinic?.id && user?.id ? (
         <Card className="border border-border bg-card">

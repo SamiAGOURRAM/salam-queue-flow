@@ -2,6 +2,7 @@
  * Slotted Queue View - Premium Timeline Design
  */
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { QueueEntry, AppointmentStatus, SkipReason } from "@/services/queue";
 import { Clock, UserCheck, UserX, CheckCircle2, Play, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -316,9 +317,16 @@ export function SlottedQueueView({
 
             {/* Patient Info */}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">
-                {appointment.patient?.fullName || 'Patient'}
-              </p>
+              <div className="flex items-center gap-2 min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">
+                  {appointment.patient?.fullName || 'Patient'}
+                </p>
+                {appointment.status === AppointmentStatus.IN_PROGRESS && appointment.resource?.name && (
+                  <Badge variant="outline" className="h-5 rounded-full text-[10px] px-2 border-emerald-300/60 text-emerald-700">
+                    {appointment.resource.name}
+                  </Badge>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground truncate">
                 {appointment.appointmentType || 'Appointment'}
               </p>

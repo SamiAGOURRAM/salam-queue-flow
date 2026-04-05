@@ -20,7 +20,7 @@ import {
   Check
 } from "lucide-react";
 import { useQueueService } from "@/hooks/useQueueService";
-import { AppointmentStatus, QueueEntry, QueueMode, SkipReason } from "@/services/queue";
+import { AppointmentStatus, ClinicResourceAvailability, QueueEntry, QueueMode, SkipReason } from "@/services/queue";
 import { formatDistanceToNow, format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { logger } from "@/services/shared/logging/Logger";
@@ -33,12 +33,18 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { BookAppointmentDialog } from "./BookAppointmentDialog";
 import { waitlistService } from "@/services/queue/WaitlistService";
 import { useToast } from "@/hooks/use-toast";
+import { useClinicResources } from "@/hooks/useClinicResources";
+import { ResourceAssignmentDialog } from "./ResourceAssignmentDialog";
 
 interface EnhancedQueueManagerProps {
   clinicId: string;
   userId: string;
   staffId: string;
   onSummaryChange?: (summary: { waiting: number; inProgress: number; absent: number; completed: number }) => void;
+  onScheduleChange?: (schedule: QueueEntry[]) => void;
+  resources?: ClinicResourceAvailability[];
+  resourcesLoading?: boolean;
+  refreshResources?: () => Promise<void>;
 }
 
 type WorkingDayRange = {
@@ -46,7 +52,16 @@ type WorkingDayRange = {
   end: Date;
 };
 
-export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChange }: EnhancedQueueManagerProps) {
+export function EnhancedQueueManager({
+  clinicId,
+  userId,
+  staffId,
+  onSummaryChange,
+  onScheduleChange,
+  resources: externalResources,
+  resourcesLoading: externalResourcesLoading,
+  refreshResources: externalRefreshResources,
+}: EnhancedQueueManagerProps) {
   const [actionLoading, setActionLoading] = useState(false);
   const [clinicConfig, setClinicConfig] = useState<{ gracePeriodMinutes: number; allowWaitlist: boolean; workingDay?: WorkingDayRange | null } | null>(null);
   const [rebookDialog, setRebookDialog] = useState<{ open: boolean; patient: QueueEntry | null }>({ open: false, patient: null });
@@ -61,6 +76,24 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
     autoRefresh: true,
   });
   const { toast } = useToast();
+  const shouldUseInternalResources =
+    externalResources === undefined ||
+    externalResourcesLoading === undefined ||
+    externalRefreshResources === undefined;
+
+  const {
+    resources: hookResources,
+    loading: hookResourcesLoading,
+    refresh: refreshHookResources,
+  } = useClinicResources(shouldUseInternalResources ? clinicId : undefined);
+  const [resourceDialog, setResourceDialog] = useState<{ open: boolean; patient: QueueEntry | null }>({
+    open: false,
+    patient: null,
+  });
+
+  const resources = externalResources ?? hookResources;
+  const resourcesLoading = externalResourcesLoading ?? hookResourcesLoading;
+  const refreshResources = externalRefreshResources ?? refreshHookResources;
 
   const computeWorkingDayRange = (settings?: Record<string, unknown> | null): WorkingDayRange | null => {
     if (!settings) return null;
@@ -139,9 +172,23 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
     }
   }, [summary, onSummaryChange]);
 
-  const handleAction = async (action: Promise<unknown>) => {
+  useEffect(() => {
+    if (onScheduleChange) {
+      onScheduleChange(schedule);
+    }
+  }, [schedule, onScheduleChange]);
+
+  const handleAction = async (
+    action: Promise<unknown>,
+    afterSuccess?: (() => Promise<void>) | (() => void)
+  ) => {
     setActionLoading(true);
-    try { await action; } 
+    try {
+      await action;
+      if (afterSuccess) {
+        await afterSuccess();
+      }
+    }
     catch (error) { 
       logger.error("Queue action failed", error instanceof Error ? error : new Error(String(error)), { clinicId, staffId }); 
     } 
@@ -150,21 +197,47 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
   const [nonPresentDialog, setNonPresentDialog] = useState<{ open: boolean; patient: QueueEntry | null }>({ open: false, patient: null });
   const [queueService] = useState(() => new QueueService());
 
+  const resolveNextPatientCandidate = async () => {
+    const scheduleData = await queueService.getDailySchedule(staffId, new Date().toISOString().split('T')[0]);
+    const strategy = QueueStrategyFactory.getStrategy(scheduleData.queue_mode);
+    const nextPatient = await strategy.getNextPatient(scheduleData.schedule, {
+      currentTime: new Date(),
+      clinicId,
+      staffId,
+    });
+
+    const candidate = nextPatient?.patient;
+    if (candidate && 'appointmentDate' in candidate && 'queuePosition' in candidate) {
+      return candidate;
+    }
+    return null;
+  };
+
   const handleNextPatient = async () => {
     setActionLoading(true);
     try {
+      const candidate = await resolveNextPatientCandidate();
+
+      if (!candidate) {
+        throw new Error('No patients present and waiting in queue');
+      }
+
+      if (!candidate.isPresent) {
+        setNonPresentDialog({ open: true, patient: candidate });
+        return;
+      }
+
+      if (resources.length > 0) {
+        setResourceDialog({ open: true, patient: candidate });
+        return;
+      }
+
       await callNextPatient({ clinicId, staffId, date: new Date(), performedBy: userId, skipAbsentPatients: true });
+      await refreshResources();
     } catch (error) {
       const err = error as Error;
       if (err.message.includes('not physically present')) {
-        const scheduleData = await queueService.getDailySchedule(staffId, new Date().toISOString().split('T')[0]);
-        const strategy = QueueStrategyFactory.getStrategy(scheduleData.queue_mode);
-        const nextPatient = await strategy.getNextPatient(scheduleData.schedule, {
-          currentTime: new Date(),
-          clinicId: clinicId,
-          staffId: staffId,
-        });
-        const candidate = nextPatient?.patient;
+        const candidate = await resolveNextPatientCandidate();
         if (candidate && 'appointmentDate' in candidate && 'queuePosition' in candidate) {
           setNonPresentDialog({ open: true, patient: candidate });
         } else {
@@ -178,14 +251,44 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
     }
   };
 
+  const handleAssignResourceAndCall = async (resourceId?: string) => {
+    setActionLoading(true);
+    try {
+      await callNextPatient({
+        clinicId,
+        staffId,
+        date: new Date(),
+        performedBy: userId,
+        skipAbsentPatients: true,
+        resourceId,
+      });
+      setResourceDialog({ open: false, patient: null });
+      await refreshResources();
+    } catch (error) {
+      logger.error("Failed to assign resource while calling next patient", error instanceof Error ? error : new Error(String(error)), {
+        clinicId,
+        staffId,
+        resourceId,
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleMarkAbsent = (appointmentId: string) => {
     setNonPresentDialog({ open: false, patient: null });
+    setResourceDialog({ open: false, patient: null });
     handleAction(markPatientAbsent({ appointmentId, performedBy: userId, reason: 'Patient not present' }));
   };
-  const handleCompleteAppointment = () => { if (currentPatient) handleAction(completeAppointment(currentPatient.id, userId)); };
+  const handleCompleteAppointment = () => {
+    if (currentPatient) {
+      handleAction(completeAppointment(currentPatient.id, userId), refreshResources);
+    }
+  };
   const handleCheckIn = (appointmentId: string) => handleAction(checkInPatient(appointmentId));
   const handleMarkPresent = (appointmentId: string) => {
     setNonPresentDialog({ open: false, patient: null });
+    setResourceDialog({ open: false, patient: null });
     handleAction(markPatientPresent(appointmentId, userId));
   };
   const handleMarkNotPresent = (appointmentId: string) => handleAction(markPatientNotPresent(appointmentId, userId));
@@ -285,9 +388,16 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
               <Play className="w-3.5 h-3.5 text-white" />
             </div>
             <div className="min-w-0">
-              <p className="font-medium text-foreground truncate">
-                {currentPatient.patient?.fullName || 'Patient'}
-              </p>
+              <div className="flex items-center gap-2 min-w-0">
+                <p className="font-medium text-foreground truncate">
+                  {currentPatient.patient?.fullName || 'Patient'}
+                </p>
+                {currentPatient.resource?.name && (
+                  <Badge variant="outline" className="h-5 rounded-full text-[10px] px-2 border-emerald-300/60 text-emerald-700">
+                    {currentPatient.resource.name}
+                  </Badge>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground truncate">
                 {currentPatient.appointmentType || 'Appointment'}
               </p>
@@ -316,6 +426,7 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
               onClick={handleNextPatient}
               disabled={
                 actionLoading ||
+                resourcesLoading ||
                 (isSlottedMode
                   ? waitingPatients.filter(p => {
                       if (p.isPresent) return true;
@@ -463,6 +574,16 @@ export function EnhancedQueueManager({ clinicId, userId, staffId, onSummaryChang
           </div>
         </Tabs>
       </div>
+
+      <ResourceAssignmentDialog
+        open={resourceDialog.open}
+        onOpenChange={(open) => setResourceDialog(prev => ({ open, patient: open ? prev.patient : null }))}
+        patient={resourceDialog.patient}
+        resources={resources}
+        schedule={schedule}
+        loading={actionLoading || resourcesLoading}
+        onAssign={handleAssignResourceAndCall}
+      />
 
       {/* Dialog for non-present patient */}
       <Dialog open={nonPresentDialog.open} onOpenChange={(open) => setNonPresentDialog({ open, patient: nonPresentDialog.patient })}>

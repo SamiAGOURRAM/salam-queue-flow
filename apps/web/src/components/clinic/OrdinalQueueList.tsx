@@ -2,6 +2,7 @@
  * OrdinalQueueList - Premium Queue Design
  */
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { QueueEntry, AppointmentStatus } from "@/services/queue";
 import { Clock, UserCheck, UserX, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -115,6 +116,11 @@ export function OrdinalQueueList({
                 <p className="text-sm font-medium text-foreground truncate">
                   {patient.patient?.fullName || 'Patient'}
                 </p>
+                {patient.status === AppointmentStatus.IN_PROGRESS && patient.resource?.name && (
+                  <Badge variant="outline" className="h-5 rounded-full text-[10px] px-2 border-emerald-300/60 text-emerald-700">
+                    {patient.resource.name}
+                  </Badge>
+                )}
                 {isNext && (
                   <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500 text-white">
                     NEXT
