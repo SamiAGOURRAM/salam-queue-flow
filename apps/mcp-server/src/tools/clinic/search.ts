@@ -13,6 +13,7 @@ import { getClinicService } from "../../services/index.js";
 import { logger } from "../../utils/logger.js";
 import { ValidationError } from "../../utils/errors.js";
 import type { AuthContext } from "../../middleware/auth/types.js";
+import { buildBookingHref, type DiscoveryCards, type ClinicCardItem, type Clinic } from "@queuemed/core";
 
 // ============================================
 // INPUT SCHEMA
@@ -112,6 +113,50 @@ interface ClinicSearchResult {
     city?: string;
     specialty?: string;
   };
+  /**
+   * Structured, renderable card payload (Phase 2). Present only when there is
+   * at least one result — a zero-result search omits it (NonEmptyArray contract).
+   * Additive: the `clinics` array above stays the text/JSON fallback until the
+   * chat transport renders cards (Phase 4).
+   */
+  cards?: DiscoveryCards;
+}
+
+// ============================================
+// CARD MAPPING (pure — unit-tested without a DB)
+// ============================================
+
+/**
+ * The public clinic fields the card payload needs — derived from the canonical
+ * `Clinic` (single source of truth). Using `Pick` means a rename/removal in
+ * `Clinic` breaks here loudly instead of silently drifting, while still asking
+ * for only the fields a card uses (so tests need not build a full `Clinic`).
+ */
+type ClinicRow = Pick<Clinic, "id" | "name" | "specialty" | "city" | "address" | "phoneNumber">;
+
+function toClinicCard(clinic: ClinicRow): ClinicCardItem {
+  return {
+    clinicId: clinic.id,
+    name: clinic.name,
+    specialty: clinic.specialty,
+    city: clinic.city,
+    address: clinic.address,
+    phoneNumber: clinic.phoneNumber,
+    // SECURITY: the deep link is minted in code, never by the model (branded type).
+    bookingHref: buildBookingHref({ clinicId: clinic.id }),
+  };
+}
+
+/**
+ * Build the discovery card payload from search results.
+ * Returns `undefined` for an empty result set — a zero-card payload is not valid
+ * (the `DiscoveryCards.items` contract is a `NonEmptyArray`). Non-emptiness is
+ * proven by control flow (the `first` guard), so no type assertion is needed.
+ */
+export function buildClinicCards(clinics: ClinicRow[]): DiscoveryCards | undefined {
+  const [first, ...rest] = clinics.map(toClinicCard);
+  if (!first) return undefined;
+  return { kind: "clinic_cards", items: [first, ...rest] };
 }
 
 // ============================================
@@ -157,7 +202,11 @@ export async function executeClinicSearch(
   return {
     success: true,
     count: clinics.length,
-    clinics: clinics.map((clinic: { id: string; name: string; specialty?: string; city?: string; address?: string; phoneNumber?: string }) => ({
+    // NOTE: `clinics` is `any` here — `getClinicService()` returns `any` because
+    // `ClinicService` is silently dropped by core's incomplete barrel exports (see
+    // the report's follow-up). The explicit `ClinicRow` annotation restores the
+    // shape locally until core is made NodeNext-resolvable.
+    clinics: clinics.map((clinic: ClinicRow) => ({
       id: clinic.id,
       name: clinic.name,
       specialty: clinic.specialty,
@@ -170,5 +219,6 @@ export async function executeClinicSearch(
       city: params.city,
       specialty: params.specialty,
     },
+    cards: buildClinicCards(clinics),
   };
 }

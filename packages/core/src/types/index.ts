@@ -3,6 +3,13 @@
  */
 
 // ============================================================================
+// DISCOVERY CARD CONTRACT (doctor/clinic cards for the chat UI)
+// ============================================================================
+// Explicit `.js` so NodeNext/Node-ESM consumers can follow this re-export
+// through the emitted .d.ts (see note in ../index.ts).
+export * from './cards.js';
+
+// ============================================================================
 // BOOKING TYPES
 // ============================================================================
 export interface BookingSlot {
