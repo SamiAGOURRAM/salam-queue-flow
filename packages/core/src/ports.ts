@@ -1,5 +1,5 @@
 /**
  * Re-export all ports
  */
-export * from './ports/index';
+export * from './ports/index.js';
 

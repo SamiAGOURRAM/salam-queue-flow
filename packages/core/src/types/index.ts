@@ -168,6 +168,28 @@ export interface Staff {
 export type StaffRole = 'doctor' | 'nurse' | 'receptionist' | 'admin' | 'owner';
 
 // ============================================================================
+// DOCTOR DISCOVERY (public provider listing for patient-facing search)
+// ============================================================================
+/** A public, patient-facing provider listing (active staff at an active clinic). */
+export interface DoctorListing {
+  staffId: string;
+  clinicId: string;
+  fullName: string;
+  role: string;
+  specialization?: string;
+  clinicName: string;
+  clinicSpecialty?: string;
+  city?: string;
+}
+
+export interface DoctorSearchParams {
+  city?: string;
+  specialty?: string;
+  name?: string;
+  limit?: number;
+}
+
+// ============================================================================
 // NOTIFICATION TYPES
 // ============================================================================
 export interface NotificationRequest {

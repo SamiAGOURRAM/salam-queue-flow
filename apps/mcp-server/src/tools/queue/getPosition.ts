@@ -152,7 +152,7 @@ export async function executeQueueGetPosition(
   const position = appointment.queuePosition;
   
   switch (appointment.status) {
-    case "checked_in":
+    case "waiting":
     case "scheduled":
       if (position === 1) {
         message = "You're next! Please be ready.";

@@ -9,25 +9,25 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { 
   IDatabaseClient, 
   SupabaseAdapter 
-} from './ports/database';
+} from './ports/database.js';
 import { 
   ILogger, 
   ConsoleLogger 
-} from './ports/logger';
+} from './ports/logger.js';
 import { 
   IEventBus, 
   InMemoryEventBus 
-} from './ports/eventBus';
+} from './ports/eventBus.js';
 
 // Import services (will be created next)
-import { BookingService } from './services/booking/BookingService';
-import { BookingRepository } from './repositories/booking/BookingRepository';
-import { QueueService } from './services/queue/QueueService';
-import { QueueRepository } from './repositories/queue/QueueRepository';
-import { ClinicService } from './services/clinic/ClinicService';
-import { ClinicRepository } from './repositories/clinic/ClinicRepository';
-import { PatientService } from './services/patient/PatientService';
-import { PatientRepository } from './repositories/patient/PatientRepository';
+import { BookingService } from './services/booking/BookingService.js';
+import { BookingRepository } from './repositories/booking/BookingRepository.js';
+import { QueueService } from './services/queue/QueueService.js';
+import { QueueRepository } from './repositories/queue/QueueRepository.js';
+import { ClinicService } from './services/clinic/ClinicService.js';
+import { ClinicRepository } from './repositories/clinic/ClinicRepository.js';
+import { PatientService } from './services/patient/PatientService.js';
+import { PatientRepository } from './repositories/patient/PatientRepository.js';
 
 /**
  * Container configuration

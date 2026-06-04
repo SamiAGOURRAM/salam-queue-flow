@@ -2,8 +2,8 @@
  * Service exports
  */
 
-export { BookingService } from './booking/BookingService';
-export { QueueService } from './queue/QueueService';
-export { ClinicService } from './clinic/ClinicService';
-export { PatientService } from './patient/PatientService';
+export { BookingService } from './booking/BookingService.js';
+export { QueueService } from './queue/QueueService.js';
+export { ClinicService } from './clinic/ClinicService.js';
+export { PatientService } from './patient/PatientService.js';
 

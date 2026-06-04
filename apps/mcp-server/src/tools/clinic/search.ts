@@ -202,11 +202,7 @@ export async function executeClinicSearch(
   return {
     success: true,
     count: clinics.length,
-    // NOTE: `clinics` is `any` here — `getClinicService()` returns `any` because
-    // `ClinicService` is silently dropped by core's incomplete barrel exports (see
-    // the report's follow-up). The explicit `ClinicRow` annotation restores the
-    // shape locally until core is made NodeNext-resolvable.
-    clinics: clinics.map((clinic: ClinicRow) => ({
+    clinics: clinics.map((clinic) => ({
       id: clinic.id,
       name: clinic.name,
       specialty: clinic.specialty,

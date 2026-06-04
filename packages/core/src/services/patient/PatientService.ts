@@ -2,10 +2,10 @@
  * Patient Service - Business logic for patient management
  */
 
-import type { PatientRepository } from '../../repositories/patient/PatientRepository';
-import type { ILogger } from '../../ports/logger';
-import type { Patient, PatientProfile, QueueEntry } from '../../types';
-import { NotFoundError } from '../../errors';
+import type { PatientRepository } from '../../repositories/patient/PatientRepository.js';
+import type { ILogger } from '../../ports/logger.js';
+import type { Patient, PatientProfile, QueueEntry } from '../../types.js';
+import { NotFoundError } from '../../errors.js';
 
 export class PatientService {
   constructor(

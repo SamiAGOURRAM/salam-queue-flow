@@ -2,10 +2,10 @@
  * Clinic Service - Business logic for clinic management
  */
 
-import type { ClinicRepository, ClinicSearchParams } from '../../repositories/clinic/ClinicRepository';
-import type { ILogger } from '../../ports/logger';
-import type { Clinic, ClinicSettings } from '../../types';
-import { NotFoundError } from '../../errors';
+import type { ClinicRepository, ClinicSearchParams } from '../../repositories/clinic/ClinicRepository.js';
+import type { ILogger } from '../../ports/logger.js';
+import type { Clinic, ClinicSettings, DoctorListing, DoctorSearchParams } from '../../types.js';
+import { NotFoundError } from '../../errors.js';
 
 export class ClinicService {
   constructor(
@@ -57,6 +57,28 @@ export class ClinicService {
       return clinics;
     } catch (error) {
       this.logger.error('Failed to search clinics', error as Error);
+      throw error;
+    } finally {
+      this.logger.clearContext();
+    }
+  }
+
+  /**
+   * Search doctors (active providers at active clinics) for patient discovery.
+   */
+  async searchDoctors(params: DoctorSearchParams): Promise<DoctorListing[]> {
+    this.logger.setContext({
+      service: 'ClinicService',
+      operation: 'searchDoctors'
+    });
+
+    try {
+      this.logger.debug('Searching doctors', params as Record<string, unknown>);
+      const doctors = await this.repository.searchDoctors(params);
+      this.logger.info('Doctors found', { count: doctors.length });
+      return doctors;
+    } catch (error) {
+      this.logger.error('Failed to search doctors', error as Error);
       throw error;
     } finally {
       this.logger.clearContext();

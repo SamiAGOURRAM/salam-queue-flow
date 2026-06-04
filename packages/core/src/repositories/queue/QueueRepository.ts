@@ -2,15 +2,15 @@
  * Queue Repository - Data access for queue management
  */
 
-import { BaseRepository } from '../base/BaseRepository';
-import type { IDatabaseClient } from '../../ports/database';
-import type { ILogger } from '../../ports/logger';
+import { BaseRepository } from '../base/BaseRepository.js';
+import type { IDatabaseClient } from '../../ports/database.js';
+import type { ILogger } from '../../ports/logger.js';
 import {
   AppointmentStatus,
   type QueueEntry,
   type DailyScheduleEntry,
   type CallNextPatientDTO,
-} from '../../types';
+} from '../../types.js';
 
 export class QueueRepository extends BaseRepository {
   constructor(db: IDatabaseClient, logger: ILogger) {

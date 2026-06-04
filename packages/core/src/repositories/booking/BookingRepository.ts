@@ -5,9 +5,9 @@
  * Now uses dependency injection instead of direct imports.
  */
 
-import { BaseRepository } from '../base/BaseRepository';
-import type { IDatabaseClient } from '../../ports/database';
-import type { ILogger } from '../../ports/logger';
+import { BaseRepository } from '../base/BaseRepository.js';
+import type { IDatabaseClient } from '../../ports/database.js';
+import type { ILogger } from '../../ports/logger.js';
 import type {
   BookingRequest,
   BookingResponse,
@@ -15,7 +15,7 @@ import type {
   AppointmentAvailability,
   QueueMode,
   AppointmentType
-} from '../../types';
+} from '../../types.js';
 
 export class BookingRepository extends BaseRepository {
   constructor(db: IDatabaseClient, logger: ILogger) {
@@ -205,7 +205,6 @@ export class BookingRepository extends BaseRepository {
       // Migrate legacy terms to clean standard
       if (mode === 'ordinal_queue') mode = 'fluid';
       if (mode === 'time_grid_fixed') mode = 'slotted';
-      if (mode === 'fixed' || mode === 'hybrid') mode = 'slotted';
 
       this.logDebug('Queue mode processed', { original: data, cleaned: mode });
 

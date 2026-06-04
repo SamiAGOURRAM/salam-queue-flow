@@ -1,5 +1,5 @@
 /**
  * Re-export all repositories
  */
-export * from './repositories/index';
+export * from './repositories/index.js';
 

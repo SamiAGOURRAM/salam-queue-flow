@@ -7,16 +7,16 @@
  * - REST API
  */
 
-import type { BookingRepository } from '../../repositories/booking/BookingRepository';
-import type { IEventBus, DomainEvent } from '../../ports/eventBus';
-import type { ILogger } from '../../ports/logger';
+import type { BookingRepository } from '../../repositories/booking/BookingRepository.js';
+import type { IEventBus, DomainEvent } from '../../ports/eventBus.js';
+import type { ILogger } from '../../ports/logger.js';
 import type {
   BookingRequest,
   BookingResponse,
   AvailableSlotsResponse,
   QueueMode,
   AppointmentType
-} from '../../types';
+} from '../../types.js';
 
 // Domain Events
 interface BookingCreatedEvent extends DomainEvent {
@@ -239,6 +239,54 @@ export class BookingService {
     } finally {
       this.logger.clearContext();
     }
+  }
+
+  /**
+   * Find the next available slot for a clinic, scanning forward from `fromDate`.
+   * Returns an ISO-ish string: `YYYY-MM-DDTHH:mm` for a concrete slotted slot, or
+   * a date-only `YYYY-MM-DD` for a fluid/queue day that is accepting patients.
+   * Returns `null` if nothing is available within `maxDays`.
+   *
+   * `maxDays` is a hard cap (the N+1 guard); `fromDate` is supplied by the caller
+   * (kept out of core) so this stays deterministic and unit-testable.
+   */
+  async getNextAvailableSlot(
+    clinicId: string,
+    fromDate: string,
+    maxDays = 14
+  ): Promise<string | null> {
+    this.logger.setContext({
+      service: 'BookingService',
+      operation: 'getNextAvailableSlot',
+      clinicId
+    });
+
+    try {
+      for (let i = 0; i < maxDays; i++) {
+        const date = this.addDaysUtc(fromDate, i);
+        // Call the repository directly to avoid nested log-context churn per day.
+        const res = await this.repository.getAvailableSlotsForMode(clinicId, date);
+        const slot = res.slots?.find(s => s.available);
+        if (slot) return `${date}T${slot.time}`;
+        // Fluid/queue day with capacity: bookable today, no fixed time.
+        if (res.available && (res.mode === 'fluid' || res.mode === null || res.mode === undefined)) {
+          return date;
+        }
+      }
+      return null;
+    } catch (error) {
+      this.logger.error('Failed to compute next available slot', error as Error);
+      throw error;
+    } finally {
+      this.logger.clearContext();
+    }
+  }
+
+  /** Add `days` to a `YYYY-MM-DD` string in UTC, returning `YYYY-MM-DD`. */
+  private addDaysUtc(dateStr: string, days: number): string {
+    const d = new Date(`${dateStr}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
   }
 
   /**

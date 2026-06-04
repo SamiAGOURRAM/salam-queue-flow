@@ -8,7 +8,7 @@
  * - Event bus implementation (In-memory, Redis, etc.)
  */
 
-export * from './database';
-export * from './logger';
-export * from './eventBus';
+export * from './database.js';
+export * from './logger.js';
+export * from './eventBus.js';
 

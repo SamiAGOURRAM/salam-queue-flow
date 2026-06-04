@@ -1,5 +1,5 @@
 /**
  * Re-export all errors
  */
-export * from './errors/index';
+export * from './errors/index.js';
 

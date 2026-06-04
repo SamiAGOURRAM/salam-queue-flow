@@ -7,9 +7,9 @@
  * - Common error handling
  */
 
-import type { IDatabaseClient } from '../../ports/database';
-import type { ILogger } from '../../ports/logger';
-import { DatabaseError } from '../../errors';
+import type { IDatabaseClient } from '../../ports/database.js';
+import type { ILogger } from '../../ports/logger.js';
+import { DatabaseError } from '../../errors.js';
 
 export abstract class BaseRepository {
   protected readonly db: IDatabaseClient;

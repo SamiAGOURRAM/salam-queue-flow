@@ -37,6 +37,6 @@ export * from './repositories/index.js';
 // ============================================================================
 // SERVICE FACTORY (Convenience for creating services with dependencies)
 // ============================================================================
-export { createServiceContainer } from './container';
-export type { ServiceContainer, ContainerConfig } from './container';
+export { createServiceContainer } from './container.js';
+export type { ServiceContainer, ContainerConfig } from './container.js';
 

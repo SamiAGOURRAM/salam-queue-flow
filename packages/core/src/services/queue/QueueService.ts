@@ -2,16 +2,16 @@
  * Queue Service - Business logic for queue management
  */
 
-import type { QueueRepository } from '../../repositories/queue/QueueRepository';
-import type { IEventBus, DomainEvent } from '../../ports/eventBus';
-import type { ILogger } from '../../ports/logger';
+import type { QueueRepository } from '../../repositories/queue/QueueRepository.js';
+import type { IEventBus, DomainEvent } from '../../ports/eventBus.js';
+import type { ILogger } from '../../ports/logger.js';
 import {
   AppointmentStatus,
   type QueueEntry,
   type DailyScheduleEntry,
   type CallNextPatientDTO,
-} from '../../types';
-import { NotFoundError, BusinessRuleError } from '../../errors';
+} from '../../types.js';
+import { NotFoundError, BusinessRuleError } from '../../errors.js';
 
 // Domain Events
 interface PatientCheckedInEvent extends DomainEvent {

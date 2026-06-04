@@ -2,10 +2,10 @@
  * Patient Repository - Data access for patient management
  */
 
-import { BaseRepository } from '../base/BaseRepository';
-import type { IDatabaseClient } from '../../ports/database';
-import type { ILogger } from '../../ports/logger';
-import { AppointmentStatus, type Patient, type PatientProfile, type QueueEntry } from '../../types';
+import { BaseRepository } from '../base/BaseRepository.js';
+import type { IDatabaseClient } from '../../ports/database.js';
+import type { ILogger } from '../../ports/logger.js';
+import { AppointmentStatus, type Patient, type PatientProfile, type QueueEntry } from '../../types.js';
 
 export class PatientRepository extends BaseRepository {
   constructor(db: IDatabaseClient, logger: ILogger) {
