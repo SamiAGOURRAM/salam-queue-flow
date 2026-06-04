@@ -20,6 +20,7 @@ import {
 // Import tool definitions and executors
 import { clinicSearchTool, executeClinicSearch } from "./clinic/search.js";
 import { clinicGetInfoTool, executeClinicGetInfo } from "./clinic/getInfo.js";
+import { doctorSearchTool, executeDoctorSearch } from "./doctor/search.js";
 import { bookingGetAvailabilityTool, executeBookingGetAvailability } from "./booking/getAvailability.js";
 import { bookingCreateTool, executeBookingCreate } from "./booking/create.js";
 import { bookingCancelTool, executeBookingCancel } from "./booking/cancel.js";
@@ -60,6 +61,7 @@ const tools: Tool[] = [
   // Clinic tools (public)
   clinicSearchTool,
   clinicGetInfoTool,
+  doctorSearchTool,
   
   // Booking tools
   bookingGetAvailabilityTool,
@@ -91,6 +93,7 @@ const executors: Record<string, ToolExecutor> = {
   // Clinic tools
   clinic_search: executeClinicSearch,
   clinic_getInfo: executeClinicGetInfo,
+  doctor_search: executeDoctorSearch,
   
   // Booking tools
   booking_getAvailability: executeBookingGetAvailability,

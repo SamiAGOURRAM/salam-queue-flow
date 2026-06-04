@@ -33,6 +33,7 @@ export const TOOL_PERMISSIONS: Record<string, PermissionLevel> = {
   // Public tools - anyone can use
   "clinic_search": "public",
   "clinic_getInfo": "public",
+  "doctor_search": "public",
   
   // Authenticated tools - any logged-in user
   "booking_getAvailability": "public", // Public but returns more info if authenticated
