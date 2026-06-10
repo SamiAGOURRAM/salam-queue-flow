@@ -1,0 +1,81 @@
+# QueueMed — PRODUCTION-style stack
+#
+#   web         FRONTEND  — Vite SPA compiled to static assets, served by nginx
+#                           on http://localhost:8080
+#   chat-api    BACKEND   — AI chatbot agent (node), http://localhost:8787
+#   mcp-server  BACKEND   — MCP tools over Streamable HTTP (node), :3001
+#
+# Supabase is NOT defined here (managed by the Supabase CLI / hosted project).
+#
+# VITE_* values are read from ./.env by Compose and injected as build args, so
+# they are inlined into the SPA at build time. Rebuild (`--build`) after
+# changing any VITE_* value.
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up --build
+
+name: queuemed-prod
+
+services:
+  web:
+    container_name: queuemed-web-prod
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:-}
+        VITE_CHAT_API_URL: ${VITE_CHAT_API_URL:-http://localhost:8787}
+        VITE_USE_SERVICE_LAYER: ${VITE_USE_SERVICE_LAYER:-true}
+        VITE_USE_API_LAYER: ${VITE_USE_API_LAYER:-false}
+        VITE_APP_VERSION: ${VITE_APP_VERSION:-2.0.0}
+    ports:
+      - "8080:80"
+    depends_on:
+      - chat-api
+    networks:
+      - queuemed
+    restart: unless-stopped
+
+  chat-api:
+    container_name: queuemed-chat-api-prod
+    build:
+      context: .
+      dockerfile: Dockerfile.chat
+    ports:
+      - "8787:8787"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+      CHAT_API_PORT: "8787"
+      MCP_SERVER_URL: http://mcp-server:3001/mcp
+    depends_on:
+      - mcp-server
+    networks:
+      - queuemed
+    restart: unless-stopped
+
+  mcp-server:
+    container_name: queuemed-mcp-server-prod
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    ports:
+      - "3001:3001"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+      SERVER_PORT: "3001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - queuemed
+    restart: unless-stopped
+
+networks:
+  queuemed:
+    driver: bridge

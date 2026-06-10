@@ -29,7 +29,7 @@ const PatientGetAppointmentsInputSchema = z.object({
     .describe("Patient UUID (optional - defaults to authenticated user)"),
   
   status: z
-    .enum(["scheduled", "checked_in", "in_progress", "completed", "cancelled", "no_show"])
+    .enum(["scheduled", "waiting", "in_progress", "completed", "cancelled", "no_show"])
     .optional()
     .describe("Filter by appointment status"),
   
@@ -99,7 +99,7 @@ Access control:
       },
       status: {
         type: "string",
-        enum: ["scheduled", "checked_in", "in_progress", "completed", "cancelled", "no_show"],
+        enum: ["scheduled", "waiting", "in_progress", "completed", "cancelled", "no_show"],
         description: "Filter by status",
       },
       fromDate: {

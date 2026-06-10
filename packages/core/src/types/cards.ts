@@ -35,6 +35,16 @@ export interface ClinicCardItem {
   readonly bookingHref: BookingHref;
 }
 
+/**
+ * The next bookable opportunity at a clinic. Discriminated so a consumer (the
+ * Phase-4 card renderer) can never confuse a concrete slotted time with a
+ * fluid/queue walk-in day — a plain string conflated the two and a renderer
+ * doing `new Date(s)` or `s.split("T")[1]` would silently misbehave on one form.
+ */
+export type NextAvailableSlot =
+  | { readonly kind: "datetime"; readonly value: string } // ISO `YYYY-MM-DDTHH:mm` — a specific slotted time
+  | { readonly kind: "day"; readonly value: string };      // `YYYY-MM-DD` — fluid/queue day, no fixed time
+
 export interface DoctorCardItem {
   /** The staff/provider id — passed as ?staffId to preselect the doctor. */
   readonly doctorId: string;
@@ -43,8 +53,8 @@ export interface DoctorCardItem {
   readonly clinicId: string;
   readonly clinicName: string;
   readonly city?: string;
-  /** ISO 8601 timestamp; optional in v1 (populated in a later phase). */
-  readonly nextAvailableSlot?: string;
+  /** Next bookable opportunity; absent when none was found within the scan window. */
+  readonly nextAvailableSlot?: NextAvailableSlot;
   /** Code-generated deep link into the booking flow. */
   readonly bookingHref: BookingHref;
 }

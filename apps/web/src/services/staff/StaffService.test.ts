@@ -26,6 +26,9 @@ describe('StaffService', () => {
       removeStaff: vi.fn(),
       updateStaff: vi.fn(),
       getStaffById: vi.fn(),
+      resolveQueueScope: vi.fn(),
+      replaceQueueAssignments: vi.fn(),
+      getQueueAssignmentsByClinic: vi.fn(),
     };
     service = new StaffService(mockRepository as StaffRepository);
   });
@@ -325,6 +328,65 @@ describe('StaffService', () => {
       mockRepository.getStaffById = vi.fn().mockRejectedValue(error);
 
       await expect(service.getStaffById(staffId)).rejects.toThrow(NotFoundError);
+    });
+  });
+
+  describe('resolveQueueScope', () => {
+    it('should return parsed queue scope payload', async () => {
+      const staffId = 'staff-123';
+      mockRepository.resolveQueueScope = vi.fn().mockResolvedValue({
+        clinic_id: 'clinic-123',
+        requester_staff_id: staffId,
+        scope_mode: 'restricted',
+        is_clinic_wide: false,
+        is_owner: false,
+        is_provider: false,
+        allowed_staff_ids: ['doctor-1', 'doctor-2'],
+      });
+
+      const result = await service.resolveQueueScope(staffId);
+
+      expect(result.scopeMode).toBe('restricted');
+      expect(result.allowedStaffIds).toEqual(['doctor-1', 'doctor-2']);
+      expect(mockRepository.resolveQueueScope).toHaveBeenCalledWith(staffId);
+    });
+  });
+
+  describe('replaceQueueAssignments', () => {
+    it('should normalize duplicate ids and return updated assignments', async () => {
+      const staffId = 'staff-123';
+      mockRepository.replaceQueueAssignments = vi.fn().mockResolvedValue({
+        clinic_id: 'clinic-123',
+        staff_id: staffId,
+        assigned_staff_ids: ['doctor-1'],
+      });
+
+      const result = await service.replaceQueueAssignments(staffId, ['doctor-1', 'doctor-1']);
+
+      expect(mockRepository.replaceQueueAssignments).toHaveBeenCalledWith(staffId, ['doctor-1']);
+      expect(result.assignedStaffIds).toEqual(['doctor-1']);
+    });
+  });
+
+  describe('getQueueAssignmentsByClinic', () => {
+    it('should group queue assignments by staff id', async () => {
+      mockRepository.getQueueAssignmentsByClinic = vi.fn().mockResolvedValue([
+        {
+          clinic_id: 'clinic-123',
+          staff_id: 'staff-a',
+          assigned_staff_id: 'doctor-1',
+        },
+        {
+          clinic_id: 'clinic-123',
+          staff_id: 'staff-a',
+          assigned_staff_id: 'doctor-2',
+        },
+      ]);
+
+      const result = await service.getQueueAssignmentsByClinic('clinic-123');
+
+      expect(result['staff-a']).toEqual(['doctor-1', 'doctor-2']);
+      expect(mockRepository.getQueueAssignmentsByClinic).toHaveBeenCalledWith('clinic-123');
     });
   });
 });

@@ -1,0 +1,27 @@
+# Keep the build context small and force a clean, Linux-native pnpm install.
+node_modules
+**/node_modules
+dist
+**/dist
+.turbo
+**/.turbo
+.git
+.gitignore
+
+# Never bake secrets into the image — env is injected at runtime via env_file.
+.env
+*.local
+
+# Logs & test artifacts
+*.log
+apps/web/playwright-report
+apps/web/test-results
+
+# Supabase local state (managed by the Supabase CLI, not this image)
+supabase/.branches
+supabase/.temp
+
+# Docker files themselves
+Dockerfile*
+docker-compose*.yml
+.dockerignore

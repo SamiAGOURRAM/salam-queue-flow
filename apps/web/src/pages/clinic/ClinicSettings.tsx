@@ -5,6 +5,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { useClinicPermissions } from "@/hooks/useClinicPermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { clinicService } from "@/services/clinic";
+import { staffService, type StaffProfile } from "@/services/staff";
+import {
+  QueueMode,
+  queueService,
+  previewQueueModeTransition,
+  type QueueModePreviewResult,
+} from "@/services/queue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +43,7 @@ import {
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { normalizeRoleKey, type ClinicRoleDefinition } from "@/lib/clinicRolePermissions";
 import type { Database } from "@/integrations/supabase/types";
 
 interface WorkingDayConfig {
@@ -57,8 +65,6 @@ interface AppointmentType {
   price?: number;
 }
 
-import { QueueMode } from '@/services/queue/models/QueueModels';
-
 interface DailyQueueModes {
   monday: QueueMode;
   tuesday: QueueMode;
@@ -78,6 +84,7 @@ interface PaymentMethods {
 
 type ClinicRow = Database["public"]["Tables"]["clinics"]["Row"];
 type ClinicResourceRow = Database["public"]["Tables"]["clinic_resources"]["Row"];
+type ProfileNameRow = Pick<Database["public"]["Tables"]["profiles"]["Row"], "id" | "full_name">;
 
 interface NewClinicResource {
   name: string;
@@ -97,6 +104,108 @@ interface ClinicSettingsShape {
   daily_queue_modes?: DailyQueueModes;
 }
 
+const DAY_KEYS: Array<keyof DailyQueueModes> = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+];
+
+const DEFAULT_DAILY_QUEUE_MODES: DailyQueueModes = {
+  monday: QueueMode.FLUID,
+  tuesday: QueueMode.FLUID,
+  wednesday: QueueMode.FLUID,
+  thursday: QueueMode.FLUID,
+  friday: QueueMode.FLUID,
+  saturday: QueueMode.SLOTTED,
+  sunday: QueueMode.SLOTTED,
+};
+
+const DEFAULT_APPOINTMENT_TYPE: AppointmentType = {
+  name: "consultation",
+  label: "Consultation",
+  duration: 15,
+};
+
+function isSupportedQueueMode(mode: unknown): mode is QueueMode {
+  return mode === QueueMode.FLUID || mode === QueueMode.SLOTTED || mode === QueueMode.HYBRID;
+}
+
+function getDayKeyFromDate(date: Date): keyof DailyQueueModes {
+  const dayIndex = date.getDay();
+  const orderedDays: Array<keyof DailyQueueModes> = [
+    "sunday",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+  ];
+
+  return orderedDays[dayIndex] || "monday";
+}
+
+function toLocalDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseWorkingHoursOverride(value: unknown): WorkingHours | undefined {
+  if (!isObjectRecord(value)) {
+    return undefined;
+  }
+
+  return value as WorkingHours;
+}
+
+function parseAppointmentTypesOverride(value: unknown): AppointmentType[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const parsed = value
+    .filter((entry): entry is Record<string, unknown> => isObjectRecord(entry))
+    .filter((entry) => typeof entry.name === "string" && typeof entry.duration === "number")
+    .map((entry) => ({
+      name: entry.name as string,
+      label: typeof entry.label === "string" ? entry.label : (entry.name as string),
+      duration: entry.duration as number,
+      price: typeof entry.price === "number" ? entry.price : undefined,
+    }));
+
+  return parsed.length > 0 ? parsed : undefined;
+}
+
+function parseDailyQueueModesOverride(value: unknown): Partial<DailyQueueModes> | undefined {
+  if (!isObjectRecord(value)) {
+    return undefined;
+  }
+
+  const parsed = DAY_KEYS.reduce<Partial<DailyQueueModes>>((acc, dayKey) => {
+    const mode = value[dayKey];
+    if (isSupportedQueueMode(mode)) {
+      acc[dayKey] = mode;
+    }
+    return acc;
+  }, {});
+
+  return Object.keys(parsed).length > 0 ? parsed : undefined;
+}
+
+function cloneAppointmentTypes(types: AppointmentType[]): AppointmentType[] {
+  return types.map((type) => ({ ...type }));
+}
+
 const parseClinicSettings = (settings: ClinicRow["settings"] | null): ClinicSettingsShape => {
   if (!settings || typeof settings !== "object") {
     return {};
@@ -105,16 +214,32 @@ const parseClinicSettings = (settings: ClinicRow["settings"] | null): ClinicSett
 };
 
 const parseQueueMode = (mode: unknown): QueueMode => {
-  if (mode === QueueMode.FLUID || mode === QueueMode.SLOTTED) {
+  if (isSupportedQueueMode(mode)) {
     return mode;
   }
   throw new Error(`Unsupported queue mode in clinic settings: ${String(mode)}`);
 };
 
+function isProviderRole(roleKey: string, roleDefinitions: ClinicRoleDefinition[]): boolean {
+  const normalizedRoleKey = normalizeRoleKey(roleKey || "staff");
+  if (normalizedRoleKey === "doctor") {
+    return true;
+  }
+
+  const role = roleDefinitions.find((roleDefinition) => roleDefinition.key === normalizedRoleKey);
+  return role?.baseRole === "doctor";
+}
+
 export default function ClinicSettings() {
   const { t } = useTranslation();
   const { user, loading } = useAuth();
-  const { clinic: scopedClinic, loading: accessLoading, can } = useClinicPermissions();
+  const {
+    clinic: scopedClinic,
+    loading: accessLoading,
+    can,
+    staffProfile: scopedStaffProfile,
+    roleDefinitions = [],
+  } = useClinicPermissions();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "basic";
@@ -149,15 +274,10 @@ export default function ClinicSettings() {
     online: false,
   });
 
-  const [dailyQueueModes, setDailyQueueModes] = useState<DailyQueueModes>({
-    monday: QueueMode.FLUID,
-    tuesday: QueueMode.FLUID,
-    wednesday: QueueMode.FLUID,
-    thursday: QueueMode.FLUID,
-    friday: QueueMode.FLUID,
-    saturday: QueueMode.SLOTTED,
-    sunday: QueueMode.SLOTTED,
-  });
+  const [dailyQueueModes, setDailyQueueModes] = useState<DailyQueueModes>({ ...DEFAULT_DAILY_QUEUE_MODES });
+  const [previewTargetMode, setPreviewTargetMode] = useState<QueueMode>(QueueMode.SLOTTED);
+  const [queueModePreview, setQueueModePreview] = useState<QueueModePreviewResult | null>(null);
+  const [queueModePreviewLoading, setQueueModePreviewLoading] = useState(false);
 
   const [resources, setResources] = useState<ClinicResourceRow[]>([]);
   const [resourcesLoading, setResourcesLoading] = useState(false);
@@ -170,6 +290,34 @@ export default function ClinicSettings() {
     capacity: 1,
     notes: "",
   });
+
+  const [providerProfiles, setProviderProfiles] = useState<StaffProfile[]>([]);
+  const [providerDisplayNameByStaffId, setProviderDisplayNameByStaffId] = useState<Record<string, string>>({});
+  const [providerOverridesLoading, setProviderOverridesLoading] = useState(false);
+  const [providerSaving, setProviderSaving] = useState(false);
+  const [selectedProviderId, setSelectedProviderId] = useState<string>("");
+  const [useProviderWorkingHoursOverride, setUseProviderWorkingHoursOverride] = useState(false);
+  const [providerWorkingHours, setProviderWorkingHours] = useState<WorkingHours>({});
+  const [useProviderAppointmentTypesOverride, setUseProviderAppointmentTypesOverride] = useState(false);
+  const [providerAppointmentTypes, setProviderAppointmentTypes] = useState<AppointmentType[]>([]);
+  const [useProviderQueueModeOverride, setUseProviderQueueModeOverride] = useState(false);
+  const [providerDailyQueueModes, setProviderDailyQueueModes] = useState<DailyQueueModes>({ ...DEFAULT_DAILY_QUEUE_MODES });
+
+  const isDoctorOverridesTab = activeTab === "doctor-overrides";
+  const ownProviderIds = providerProfiles
+    .filter((provider) => provider.userId === user?.id)
+    .map((provider) => provider.id);
+  const canManageOwnDoctorOverrides = !canManageSettings && ownProviderIds.length > 0;
+  const canEditDoctorOverrides =
+    canManageSettings
+    || (isDoctorOverridesTab && canManageOwnDoctorOverrides && ownProviderIds.includes(selectedProviderId));
+  const isReadOnlySettings = isDoctorOverridesTab ? !canEditDoctorOverrides : !canManageSettings;
+  const canPotentiallyEditOwnDoctorOverrides =
+    !canManageSettings
+    && Boolean(scopedStaffProfile?.id)
+    && scopedStaffProfile?.user_id === user?.id
+    && isProviderRole(scopedStaffProfile?.role || "staff", roleDefinitions)
+    && scopedStaffProfile?.user_id !== clinic?.owner_id;
 
   const resourceTypeOptions = [
     { value: "room", label: t("clinicSettings.resources.types.room", "Room") },
@@ -230,6 +378,10 @@ export default function ClinicSettings() {
           sunday: parseQueueMode(settings.daily_queue_modes.sunday),
         };
         setDailyQueueModes(migratedModes);
+        setPreviewTargetMode(migratedModes[getDayKeyFromDate(new Date())]);
+      } else {
+        setDailyQueueModes({ ...DEFAULT_DAILY_QUEUE_MODES });
+        setPreviewTargetMode(DEFAULT_DAILY_QUEUE_MODES[getDayKeyFromDate(new Date())]);
       }
     }
   }, [scopedClinic]);
@@ -274,6 +426,171 @@ export default function ClinicSettings() {
       fetchResources();
     }
   }, [user, scopedClinic?.id, activeTab, fetchResources]);
+
+  const fetchProviderOverrides = useCallback(async () => {
+    if (!scopedClinic?.id || !clinic || activeTab !== "doctor-overrides") return;
+
+    setProviderOverridesLoading(true);
+    try {
+      const clinicStaff = await staffService.getStaffByClinic(scopedClinic.id);
+      const providers = clinicStaff
+        .filter((member) => isProviderRole(member.role || "staff", roleDefinitions))
+        .filter((member) => member.userId !== clinic.owner_id);
+
+      let editableProviders = canManageSettings
+        ? providers
+        : providers.filter((provider) => provider.userId === user?.id);
+
+      if (!canManageSettings && editableProviders.length === 0 && user?.id) {
+        const fallbackSelfProvider = await staffService.getStaffByClinicAndUser(scopedClinic.id, user.id);
+        if (
+          fallbackSelfProvider
+          && fallbackSelfProvider.userId !== clinic.owner_id
+          && isProviderRole(fallbackSelfProvider.role || "staff", roleDefinitions)
+        ) {
+          editableProviders = [fallbackSelfProvider];
+        }
+      }
+
+      const userIds = [...new Set(editableProviders.map((provider) => provider.userId))];
+      const profileNameByUserId = new Map<string, string>();
+
+      if (userIds.length > 0) {
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", userIds);
+
+        if (profileError) {
+          throw profileError;
+        }
+
+        const profileRows = (profileData as ProfileNameRow[] | null) ?? [];
+        for (const profileRow of profileRows) {
+          const fullName = profileRow.full_name.trim();
+          if (fullName.length > 0) {
+            profileNameByUserId.set(profileRow.id, fullName);
+          }
+        }
+      }
+
+      let fallbackCounter = 1;
+      const displayNameByStaffId = editableProviders.reduce<Record<string, string>>((acc, provider) => {
+        const profileName = profileNameByUserId.get(provider.userId);
+        if (profileName) {
+          acc[provider.id] = profileName;
+          return acc;
+        }
+
+        const specialization = provider.specialization?.trim();
+        if (specialization) {
+          acc[provider.id] = t(
+            "clinicSettings.doctorOverrides.fallbackDoctorWithSpecialty",
+            "Doctor - {{specialty}}",
+            { specialty: specialization }
+          );
+          return acc;
+        }
+
+        acc[provider.id] = t("clinicSettings.doctorOverrides.fallbackDoctorName", "Doctor {{count}}", {
+          count: fallbackCounter,
+        });
+        fallbackCounter += 1;
+        return acc;
+      }, {});
+
+      setProviderProfiles(editableProviders);
+      setProviderDisplayNameByStaffId(displayNameByStaffId);
+      setSelectedProviderId((currentProviderId) => {
+        if (!canManageSettings) {
+          const selfProviderId = editableProviders.find((provider) => provider.userId === user?.id)?.id;
+          if (selfProviderId) {
+            return selfProviderId;
+          }
+
+          if (
+            scopedStaffProfile
+            && scopedStaffProfile.user_id === user?.id
+            && isProviderRole(scopedStaffProfile.role || "staff", roleDefinitions)
+          ) {
+            return scopedStaffProfile.id;
+          }
+        }
+
+        if (editableProviders.some((provider) => provider.id === currentProviderId)) {
+          return currentProviderId;
+        }
+        return editableProviders[0]?.id ?? "";
+      });
+    } catch (error: unknown) {
+      setProviderProfiles([]);
+      setProviderDisplayNameByStaffId({});
+      setSelectedProviderId("");
+      toast({
+        title: t("errors.error", "Error"),
+        description: error instanceof Error
+          ? error.message
+          : t("clinicSettings.doctorOverrides.toasts.loadFailed", "Failed to load doctor settings"),
+        variant: "destructive",
+      });
+    } finally {
+      setProviderOverridesLoading(false);
+    }
+  }, [
+    activeTab,
+    canManageSettings,
+    clinic,
+    roleDefinitions,
+    scopedClinic?.id,
+    scopedStaffProfile,
+    t,
+    user?.id,
+  ]);
+
+  useEffect(() => {
+    if (user && scopedClinic?.id && activeTab === "doctor-overrides") {
+      fetchProviderOverrides();
+    }
+  }, [activeTab, fetchProviderOverrides, scopedClinic?.id, user]);
+
+  useEffect(() => {
+    if (activeTab !== "doctor-overrides") {
+      return;
+    }
+
+    const selectedProvider = providerProfiles.find((provider) => provider.id === selectedProviderId);
+    if (!selectedProvider) {
+      setUseProviderWorkingHoursOverride(false);
+      setProviderWorkingHours({ ...workingHours });
+      setUseProviderAppointmentTypesOverride(false);
+      setProviderAppointmentTypes(
+        cloneAppointmentTypes(appointmentTypes.length > 0 ? appointmentTypes : [DEFAULT_APPOINTMENT_TYPE])
+      );
+      setUseProviderQueueModeOverride(false);
+      setProviderDailyQueueModes({ ...dailyQueueModes });
+      return;
+    }
+
+    const parsedWorkingHours = parseWorkingHoursOverride(selectedProvider.workingHours);
+    const parsedAppointmentTypes = parseAppointmentTypesOverride(selectedProvider.appointmentTypesOverride);
+    const parsedDailyModes = parseDailyQueueModesOverride(selectedProvider.dailyQueueModesOverride);
+
+    setUseProviderWorkingHoursOverride(Boolean(parsedWorkingHours && Object.keys(parsedWorkingHours).length > 0));
+    setProviderWorkingHours(parsedWorkingHours ? { ...parsedWorkingHours } : { ...workingHours });
+
+    setUseProviderAppointmentTypesOverride(Boolean(parsedAppointmentTypes && parsedAppointmentTypes.length > 0));
+    setProviderAppointmentTypes(
+      cloneAppointmentTypes(
+        parsedAppointmentTypes ?? (appointmentTypes.length > 0 ? appointmentTypes : [DEFAULT_APPOINTMENT_TYPE])
+      )
+    );
+
+    setUseProviderQueueModeOverride(Boolean(parsedDailyModes && Object.keys(parsedDailyModes).length > 0));
+    setProviderDailyQueueModes({
+      ...dailyQueueModes,
+      ...(parsedDailyModes ?? {}),
+    });
+  }, [activeTab, appointmentTypes, dailyQueueModes, providerProfiles, selectedProviderId, workingHours]);
 
   const handleSaveBasicInfo = async () => {
     if (!canManageSettings) {
@@ -357,6 +674,84 @@ export default function ClinicSettings() {
       toast({ title: "Error", description: error instanceof Error ? error.message : "Failed to update", variant: "destructive" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveDoctorOverrides = async () => {
+    if (!canEditDoctorOverrides) {
+      toast({ title: "Permission denied", description: "You cannot edit clinic settings.", variant: "destructive" });
+      return;
+    }
+
+    const selectedProvider = providerProfiles.find((provider) => provider.id === selectedProviderId);
+    if (!selectedProvider) {
+      toast({
+        title: t("clinicSettings.doctorOverrides.toasts.doctorNotSelectedTitle", "Doctor not selected"),
+        description: t("clinicSettings.doctorOverrides.toasts.doctorNotSelectedDescription", "Please select a doctor."),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const normalizedAppointmentTypes = useProviderAppointmentTypesOverride
+      ? providerAppointmentTypes
+          .map((type) => ({
+            name: String(type.name || "").trim(),
+            label: String(type.label || type.name || "").trim(),
+            duration: Number.isFinite(type.duration) ? Math.max(5, Math.trunc(type.duration)) : 15,
+            price: typeof type.price === "number" ? type.price : undefined,
+          }))
+          .filter((type) => type.name.length > 0 && type.label.length > 0)
+      : null;
+
+    if (useProviderAppointmentTypesOverride && (!normalizedAppointmentTypes || normalizedAppointmentTypes.length === 0)) {
+      toast({
+        title: t("clinicSettings.doctorOverrides.toasts.invalidAppointmentTypesTitle", "Invalid appointment types"),
+        description: t(
+          "clinicSettings.doctorOverrides.toasts.invalidAppointmentTypesDescription",
+          "Add at least one appointment type for this doctor."
+        ),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const normalizedQueueModes = useProviderQueueModeOverride
+      ? DAY_KEYS.reduce<Partial<DailyQueueModes>>((acc, dayKey) => {
+          const mode = providerDailyQueueModes[dayKey];
+          if (isSupportedQueueMode(mode)) {
+            acc[dayKey] = mode;
+          }
+          return acc;
+        }, {})
+      : null;
+
+    setProviderSaving(true);
+    try {
+      const updatedProvider = await staffService.updateDoctorOverrides(selectedProvider.id, {
+        workingHours: useProviderWorkingHoursOverride ? providerWorkingHours : null,
+        appointmentTypesOverride: normalizedAppointmentTypes,
+        dailyQueueModesOverride: normalizedQueueModes,
+      });
+
+      setProviderProfiles((currentProviders) =>
+        currentProviders.map((provider) => (provider.id === updatedProvider.id ? updatedProvider : provider))
+      );
+
+      toast({
+        title: "Saved",
+        description: t("clinicSettings.doctorOverrides.toasts.savedDescription", "Doctor settings updated"),
+      });
+    } catch (error: unknown) {
+      toast({
+        title: "Error",
+        description: error instanceof Error
+          ? error.message
+          : t("clinicSettings.doctorOverrides.toasts.saveFailed", "Failed to save doctor settings"),
+        variant: "destructive",
+      });
+    } finally {
+      setProviderSaving(false);
     }
   };
 
@@ -576,9 +971,57 @@ export default function ClinicSettings() {
 
   const updateDayQueueMode = (day: keyof DailyQueueModes, mode: QueueMode) => {
     setDailyQueueModes((prev) => ({ ...prev, [day]: mode }));
+    if (day === getDayKeyFromDate(new Date())) {
+      setPreviewTargetMode(mode);
+    }
+    setQueueModePreview(null);
   };
 
-  const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+  const updateProviderDayHours = (day: keyof DailyQueueModes, field: keyof WorkingDayConfig, value: WorkingDayConfig[keyof WorkingDayConfig]) => {
+    setProviderWorkingHours((prev) => ({ ...prev, [day]: { ...prev[day], [field]: value } }));
+  };
+
+  const updateProviderDayQueueMode = (day: keyof DailyQueueModes, mode: QueueMode) => {
+    setProviderDailyQueueModes((prev) => ({ ...prev, [day]: mode }));
+  };
+
+  const handlePreviewQueueMode = async () => {
+    if (!clinic?.id) {
+      return;
+    }
+
+    setQueueModePreviewLoading(true);
+    try {
+      const now = new Date();
+      const scheduleData = await queueService.getDailySchedule(
+        undefined,
+        toLocalDateString(now),
+        true,
+        undefined,
+        clinic.id
+      );
+
+      const preview = previewQueueModeTransition(scheduleData.schedule, previewTargetMode, now);
+      setQueueModePreview(preview);
+
+      if (preview.projectedOrder.length === 0) {
+        toast({
+          title: "No active queue entries",
+          description: "There are no scheduled or waiting patients to simulate right now.",
+        });
+      }
+    } catch (error: unknown) {
+      toast({
+        title: "Preview failed",
+        description: error instanceof Error ? error.message : "Unable to generate queue mode preview.",
+        variant: "destructive",
+      });
+    } finally {
+      setQueueModePreviewLoading(false);
+    }
+  };
+
+  const days = DAY_KEYS;
 
   if (loading || accessLoading) {
     return (
@@ -607,6 +1050,14 @@ export default function ClinicSettings() {
     schedule: { title: "Schedule", description: "Working hours and appointment settings", icon: Clock },
     queue: { title: "Queue Mode", description: "Configure how your queue operates", icon: ListOrdered },
     appointments: { title: "Appointments", description: "Appointment types and durations", icon: CalendarClock },
+    "doctor-overrides": {
+      title: t("clinicSettings.doctorOverrides.tab.title", "Doctor Settings"),
+      description: t(
+        "clinicSettings.doctorOverrides.tab.description",
+        "Set what each doctor can personalize: hours, appointment types, and queue mode."
+      ),
+      icon: Users,
+    },
     resources: {
       title: t("clinicSettings.resources.tab.title", "Resources"),
       description: t("clinicSettings.resources.tab.description", "Rooms and equipment available for care"),
@@ -622,6 +1073,32 @@ export default function ClinicSettings() {
   const inputClass = "h-9 rounded-[4px] border-border/60 focus:border-foreground/40 transition-colors";
   const selectTriggerClass = "h-9 rounded-[4px] border-border/60";
   const pendingDeleteResource = resources.find((resource) => resource.id === resourcePendingDeleteId) ?? null;
+  const selectedProvider = providerProfiles.find((provider) => provider.id === selectedProviderId) ?? null;
+  const workingHoursOverrideEditable = canEditDoctorOverrides && useProviderWorkingHoursOverride;
+  const appointmentTypesOverrideEditable = canEditDoctorOverrides && useProviderAppointmentTypesOverride;
+  const queueModeOverrideEditable = canEditDoctorOverrides && useProviderQueueModeOverride;
+  const getOverrideCardClass = (isEditable: boolean) =>
+    cn(
+      "rounded-[4px] border p-4 space-y-4 transition-colors",
+      isEditable
+        ? "border-success/55 bg-success/5"
+        : "border-border"
+    );
+  const getProviderDisplayName = (provider: StaffProfile): string => {
+    const mappedDisplayName = providerDisplayNameByStaffId[provider.id];
+    if (mappedDisplayName) {
+      return mappedDisplayName;
+    }
+
+    const specialization = provider.specialization?.trim();
+    if (specialization) {
+      return t("clinicSettings.doctorOverrides.fallbackDoctorWithSpecialty", "Doctor - {{specialty}}", {
+        specialty: specialization,
+      });
+    }
+
+    return t("clinicSettings.doctorOverrides.fallbackDoctor", "Doctor");
+  };
 
   return (
     <div className="max-w-3xl">
@@ -634,9 +1111,35 @@ export default function ClinicSettings() {
         <p className="text-sm text-muted-foreground">{currentTab.description}</p>
       </div>
 
+      {isReadOnlySettings && (
+        <div className="mb-5 rounded-[4px] border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+          {isDoctorOverridesTab
+            ? "You have view-only access to clinic settings for this role."
+            : canPotentiallyEditOwnDoctorOverrides
+              ? "This section is owner-only. Use Doctor Settings to edit your personal overrides."
+              : "You have view-only access to clinic settings for this role."}
+          {!isDoctorOverridesTab && canPotentiallyEditOwnDoctorOverrides && (
+            <div className="mt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-[4px]"
+                onClick={() => navigate("/clinic/settings?tab=doctor-overrides")}
+              >
+                Go to Doctor Settings
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* BASIC INFO */}
       {activeTab === "basic" && (
-        <div className="space-y-5">
+        <fieldset
+          disabled={isReadOnlySettings}
+          className={cn("space-y-5", isReadOnlySettings && "pointer-events-none")}
+        >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Clinic Name (English)</Label>
@@ -679,12 +1182,15 @@ export default function ClinicSettings() {
             <Save className="w-4 h-4 mr-2" />
             {saving ? "Saving..." : "Save Changes"}
           </Button>
-        </div>
+        </fieldset>
       )}
 
       {/* SCHEDULE */}
       {activeTab === "schedule" && (
-        <div className="space-y-8">
+        <fieldset
+          disabled={isReadOnlySettings}
+          className={cn("space-y-8", isReadOnlySettings && "pointer-events-none")}
+        >
           {/* Working Hours */}
           <div>
             <h3 className="text-sm font-medium mb-4">Working Hours</h3>
@@ -755,14 +1261,17 @@ export default function ClinicSettings() {
             <Save className="w-4 h-4 mr-2" />
             {saving ? "Saving..." : "Save Schedule"}
           </Button>
-        </div>
+        </fieldset>
       )}
 
       {/* QUEUE MODE */}
       {activeTab === "queue" && (
-        <div className="space-y-6">
+        <fieldset
+          disabled={isReadOnlySettings}
+          className={cn("space-y-6", isReadOnlySettings && "pointer-events-none")}
+        >
           {/* Mode Explanation Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="group relative p-4 bg-muted/40 hover:bg-muted/60 transition-colors">
               <div className="flex items-start gap-3">
                 <div className="w-9 h-9 rounded-[4px] bg-foreground flex items-center justify-center flex-shrink-0">
@@ -785,6 +1294,19 @@ export default function ClinicSettings() {
                   <h4 className="text-sm font-semibold text-foreground">Time Slots</h4>
                   <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
                     Scheduled appointments at specific times. Predictable wait times. Best for planned visits.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="group relative p-4 bg-muted/40 hover:bg-muted/60 transition-colors">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-[4px] bg-foreground flex items-center justify-center flex-shrink-0">
+                  <CalendarClock className="w-4 h-4 text-background" />
+                </div>
+                <div className="min-w-0">
+                  <h4 className="text-sm font-semibold text-foreground">Hybrid</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                    Mixed lane. Keep timed appointments and still accept no-time overflow patients in one queue day.
                   </p>
                 </div>
               </div>
@@ -818,6 +1340,12 @@ export default function ClinicSettings() {
                             Time Slots
                           </span>
                         </SelectItem>
+                        <SelectItem value="hybrid" className="rounded-[2px]">
+                          <span className="flex items-center gap-2">
+                            <CalendarClock className="w-3 h-3" />
+                            Hybrid
+                          </span>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -832,7 +1360,11 @@ export default function ClinicSettings() {
               variant="outline"
               size="sm"
               className="rounded-[4px] text-xs"
-              onClick={() => setDailyQueueModes({ monday: QueueMode.FLUID, tuesday: QueueMode.FLUID, wednesday: QueueMode.FLUID, thursday: QueueMode.FLUID, friday: QueueMode.FLUID, saturday: QueueMode.FLUID, sunday: QueueMode.FLUID })}
+              onClick={() => {
+                setDailyQueueModes({ monday: QueueMode.FLUID, tuesday: QueueMode.FLUID, wednesday: QueueMode.FLUID, thursday: QueueMode.FLUID, friday: QueueMode.FLUID, saturday: QueueMode.FLUID, sunday: QueueMode.FLUID });
+                setPreviewTargetMode(QueueMode.FLUID);
+                setQueueModePreview(null);
+              }}
             >
               <Users className="w-3 h-3 mr-1.5" />
               All Free Queue
@@ -841,23 +1373,99 @@ export default function ClinicSettings() {
               variant="outline"
               size="sm"
               className="rounded-[4px] text-xs"
-              onClick={() => setDailyQueueModes({ monday: QueueMode.SLOTTED, tuesday: QueueMode.SLOTTED, wednesday: QueueMode.SLOTTED, thursday: QueueMode.SLOTTED, friday: QueueMode.SLOTTED, saturday: QueueMode.SLOTTED, sunday: QueueMode.SLOTTED })}
+              onClick={() => {
+                setDailyQueueModes({ monday: QueueMode.SLOTTED, tuesday: QueueMode.SLOTTED, wednesday: QueueMode.SLOTTED, thursday: QueueMode.SLOTTED, friday: QueueMode.SLOTTED, saturday: QueueMode.SLOTTED, sunday: QueueMode.SLOTTED });
+                setPreviewTargetMode(QueueMode.SLOTTED);
+                setQueueModePreview(null);
+              }}
             >
               <Timer className="w-3 h-3 mr-1.5" />
               All Time Slots
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-[4px] text-xs"
+              onClick={() => {
+                setDailyQueueModes({ monday: QueueMode.HYBRID, tuesday: QueueMode.HYBRID, wednesday: QueueMode.HYBRID, thursday: QueueMode.HYBRID, friday: QueueMode.HYBRID, saturday: QueueMode.HYBRID, sunday: QueueMode.HYBRID });
+                setPreviewTargetMode(QueueMode.HYBRID);
+                setQueueModePreview(null);
+              }}
+            >
+              <CalendarClock className="w-3 h-3 mr-1.5" />
+              All Hybrid
+            </Button>
+          </div>
+
+          <div className="rounded-[4px] border border-border p-4 space-y-3 bg-muted/20">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-medium">Mode Preview Simulator</h4>
+                <p className="text-xs text-muted-foreground">
+                  Dry-run queue impact for today before applying a mode change.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Select value={previewTargetMode} onValueChange={(value: QueueMode) => setPreviewTargetMode(value)}>
+                  <SelectTrigger className={cn(selectTriggerClass, "w-36")}> 
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-[4px]">
+                    <SelectItem value="fluid" className="rounded-[2px]">Free Queue</SelectItem>
+                    <SelectItem value="slotted" className="rounded-[2px]">Time Slots</SelectItem>
+                    <SelectItem value="hybrid" className="rounded-[2px]">Hybrid</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-[4px]"
+                  disabled={queueModePreviewLoading || !clinic}
+                  onClick={handlePreviewQueueMode}
+                >
+                  {queueModePreviewLoading ? "Simulating..." : "Preview Today"}
+                </Button>
+              </div>
+            </div>
+
+            {queueModePreview && (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  {queueModePreview.movedCount} patients would move, {queueModePreview.unchangedCount} unchanged.
+                </p>
+                <div className="space-y-1.5">
+                  {queueModePreview.projectedOrder.slice(0, 6).map((entry) => (
+                    <div key={entry.appointmentId} className="flex items-center justify-between rounded-[4px] border border-border/70 px-2.5 py-1.5 text-xs">
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{entry.patientName}</p>
+                        <p className="text-muted-foreground uppercase tracking-wide">{entry.lane} lane{entry.scheduledTime ? ` • ${entry.scheduledTime}` : ""}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium">#{entry.currentPosition} → #{entry.projectedPosition}</p>
+                        <p className={cn("text-[11px]", entry.delta === 0 ? "text-muted-foreground" : entry.delta > 0 ? "text-emerald-600" : "text-amber-600")}>
+                          {entry.delta === 0 ? "no change" : entry.delta > 0 ? `up ${entry.delta}` : `down ${Math.abs(entry.delta)}`}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <Button onClick={handleSaveQueueModes} disabled={saving || !canManageSettings} size="sm" className="rounded-[4px] bg-foreground text-background hover:bg-foreground/90">
             <Save className="w-4 h-4 mr-2" />
             {saving ? "Saving..." : "Save Queue Config"}
           </Button>
-        </div>
+        </fieldset>
       )}
 
       {/* APPOINTMENTS */}
       {activeTab === "appointments" && (
-        <div className="space-y-5">
+        <fieldset
+          disabled={isReadOnlySettings}
+          className={cn("space-y-5", isReadOnlySettings && "pointer-events-none")}
+        >
           {/* Header Row */}
           <div className="grid grid-cols-[1fr,90px,90px,36px] gap-3 text-[11px] uppercase tracking-wide text-muted-foreground font-medium">
             <span>Type Name</span>
@@ -934,12 +1542,316 @@ export default function ClinicSettings() {
             <Save className="w-4 h-4 mr-2" />
             {saving ? "Saving..." : "Save Appointments"}
           </Button>
-        </div>
+        </fieldset>
+      )}
+
+      {/* DOCTOR OVERRIDES */}
+      {activeTab === "doctor-overrides" && (
+        <fieldset
+          disabled={isReadOnlySettings}
+          className={cn("space-y-6", isReadOnlySettings && "pointer-events-none")}
+        >
+          <div className="p-4 bg-muted/40 rounded-[4px] space-y-1">
+            <p className="text-sm text-foreground">
+              {t(
+                "clinicSettings.doctorOverrides.overview",
+                "Start with clinic defaults, then let each doctor use their own setup when needed."
+              )}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "clinicSettings.doctorOverrides.helper",
+                "Allow doctor to use their own working hours, appointment types, and daily queue mode."
+              )}
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{t("clinicSettings.doctorOverrides.doctorLabel", "Doctor")}</Label>
+            <Select value={selectedProviderId} onValueChange={setSelectedProviderId}>
+              <SelectTrigger className={selectTriggerClass}>
+                <SelectValue placeholder={t("clinicSettings.doctorOverrides.selectDoctorPlaceholder", "Select doctor")} />
+              </SelectTrigger>
+              <SelectContent className="rounded-[4px]">
+                {providerProfiles.map((provider) => (
+                  <SelectItem key={provider.id} value={provider.id}>
+                    {getProviderDisplayName(provider)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {providerOverridesLoading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-border border-t-primary" />
+              {t("clinicSettings.doctorOverrides.loading", "Loading doctor settings...")}
+            </div>
+          )}
+
+          {!providerOverridesLoading && providerProfiles.length === 0 && (
+            <div className="rounded-[4px] border border-border p-4 text-sm text-muted-foreground">
+              {t("clinicSettings.doctorOverrides.empty", "No active doctors were found for this clinic.")}
+            </div>
+          )}
+
+          {!providerOverridesLoading && selectedProvider && (
+            <div className="space-y-5">
+              <div className={getOverrideCardClass(workingHoursOverrideEditable)}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">{t("clinicSettings.doctorOverrides.workingHours.title", "Personal Working Hours")}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {t("clinicSettings.doctorOverrides.workingHours.description", "Allow doctor to use their own working hours.")}
+                    </p>
+                  </div>
+                  {workingHoursOverrideEditable && (
+                    <span className="rounded-full border border-success/60 bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">
+                      Editable
+                    </span>
+                  )}
+                  <Switch
+                    checked={useProviderWorkingHoursOverride}
+                    disabled={!canManageSettings}
+                    onCheckedChange={(checked) => {
+                      setUseProviderWorkingHoursOverride(checked);
+                      if (checked && Object.keys(providerWorkingHours).length === 0) {
+                        setProviderWorkingHours({ ...workingHours });
+                      }
+                    }}
+                    className="data-[state=checked]:bg-foreground"
+                  />
+                </div>
+
+                {useProviderWorkingHoursOverride && (
+                  <div className="space-y-1.5">
+                    {days.map((day) => {
+                      const dayData = providerWorkingHours[day] || { closed: false, open: "09:00", close: "18:00" };
+                      const isClosed = dayData.closed ?? false;
+                      return (
+                        <div key={day} className="flex items-center h-9 gap-4">
+                          <span className="w-24 text-sm capitalize text-foreground/80">{day}</span>
+                          <Switch
+                            checked={!isClosed}
+                            onCheckedChange={(checked) => updateProviderDayHours(day, "closed", !checked)}
+                            className="data-[state=checked]:bg-foreground"
+                          />
+                          {!isClosed ? (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Input
+                                type="time"
+                                value={dayData.open || "09:00"}
+                                onChange={(event) => updateProviderDayHours(day, "open", event.target.value)}
+                                className={cn(inputClass, "w-[110px]")}
+                              />
+                              <span className="text-muted-foreground text-xs">→</span>
+                              <Input
+                                type="time"
+                                value={dayData.close || "18:00"}
+                                onChange={(event) => updateProviderDayHours(day, "close", event.target.value)}
+                                className={cn(inputClass, "w-[110px]")}
+                              />
+                            </div>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">Closed</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className={getOverrideCardClass(appointmentTypesOverrideEditable)}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">{t("clinicSettings.doctorOverrides.appointmentTypes.title", "Personal Appointment Types")}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {t(
+                        "clinicSettings.doctorOverrides.appointmentTypes.description",
+                        "Allow doctor to use their own appointment types and visit durations."
+                      )}
+                    </p>
+                  </div>
+                  {appointmentTypesOverrideEditable && (
+                    <span className="rounded-full border border-success/60 bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">
+                      Editable
+                    </span>
+                  )}
+                  <Switch
+                    checked={useProviderAppointmentTypesOverride}
+                    disabled={!canManageSettings}
+                    onCheckedChange={(checked) => {
+                      setUseProviderAppointmentTypesOverride(checked);
+                      if (checked && providerAppointmentTypes.length === 0) {
+                        setProviderAppointmentTypes(
+                          cloneAppointmentTypes(appointmentTypes.length > 0 ? appointmentTypes : [DEFAULT_APPOINTMENT_TYPE])
+                        );
+                      }
+                    }}
+                    className="data-[state=checked]:bg-foreground"
+                  />
+                </div>
+
+                {useProviderAppointmentTypesOverride && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-[1fr,90px,90px,36px] gap-3 text-[11px] uppercase tracking-wide text-muted-foreground font-medium">
+                      <span>Type Name</span>
+                      <span>Duration</span>
+                      <span>Price</span>
+                      <span></span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {providerAppointmentTypes.map((type, index) => (
+                        <div key={`${type.name}-${index}`} className="grid grid-cols-[1fr,90px,90px,36px] gap-3 items-center group">
+                          <Input
+                            value={type.label}
+                            onChange={(event) => {
+                              const nextTypes = cloneAppointmentTypes(providerAppointmentTypes);
+                              nextTypes[index].label = event.target.value;
+                              setProviderAppointmentTypes(nextTypes);
+                            }}
+                            className={inputClass}
+                            placeholder="Type name"
+                          />
+                          <Input
+                            type="number"
+                            min="5"
+                            value={type.duration}
+                            onChange={(event) => {
+                              const nextTypes = cloneAppointmentTypes(providerAppointmentTypes);
+                              nextTypes[index].duration = parseInt(event.target.value, 10) || 15;
+                              setProviderAppointmentTypes(nextTypes);
+                            }}
+                            className={inputClass}
+                          />
+                          <Input
+                            type="number"
+                            value={type.price ?? ""}
+                            onChange={(event) => {
+                              const nextTypes = cloneAppointmentTypes(providerAppointmentTypes);
+                              nextTypes[index].price = event.target.value === "" ? undefined : parseFloat(event.target.value);
+                              setProviderAppointmentTypes(nextTypes);
+                            }}
+                            placeholder="—"
+                            className={inputClass}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              if (providerAppointmentTypes.length <= 1) {
+                                toast({
+                                  title: "Cannot delete",
+                                  description: t(
+                                    "clinicSettings.doctorOverrides.toasts.minAppointmentTypesDescription",
+                                    "At least one appointment type is required."
+                                  ),
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+                              setProviderAppointmentTypes(providerAppointmentTypes.filter((_, itemIndex) => itemIndex !== index));
+                            }}
+                            className="h-9 w-9 rounded-[4px] text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setProviderAppointmentTypes([
+                          ...providerAppointmentTypes,
+                          {
+                            name: `doctor_${Date.now()}`,
+                            duration: 15,
+                            label: "",
+                            price: undefined,
+                          },
+                        ]);
+                      }}
+                      className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      {t("clinicSettings.doctorOverrides.appointmentTypes.add", "Add doctor appointment type")}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className={getOverrideCardClass(queueModeOverrideEditable)}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">{t("clinicSettings.doctorOverrides.queueMode.title", "Personal Queue Mode")}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {t("clinicSettings.doctorOverrides.queueMode.description", "Allow doctor to use their own queue mode by day.")}
+                    </p>
+                  </div>
+                  {queueModeOverrideEditable && (
+                    <span className="rounded-full border border-success/60 bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">
+                      Editable
+                    </span>
+                  )}
+                  <Switch
+                    checked={useProviderQueueModeOverride}
+                    disabled={!canManageSettings}
+                    onCheckedChange={(checked) => {
+                      setUseProviderQueueModeOverride(checked);
+                      if (checked) {
+                        setProviderDailyQueueModes((currentModes) => ({ ...dailyQueueModes, ...currentModes }));
+                      }
+                    }}
+                    className="data-[state=checked]:bg-foreground"
+                  />
+                </div>
+
+                {useProviderQueueModeOverride && (
+                  <div className="space-y-1.5">
+                    {days.map((day) => (
+                      <div key={day} className="flex items-center h-9 gap-4">
+                        <span className="w-24 text-sm capitalize text-foreground/80">{day}</span>
+                        <Select value={providerDailyQueueModes[day]} onValueChange={(value: QueueMode) => updateProviderDayQueueMode(day, value)}>
+                          <SelectTrigger className={cn(selectTriggerClass, "w-36")}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-[4px]">
+                            <SelectItem value="fluid" className="rounded-[2px]">Free Queue</SelectItem>
+                            <SelectItem value="slotted" className="rounded-[2px]">Time Slots</SelectItem>
+                            <SelectItem value="hybrid" className="rounded-[2px]">Hybrid</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <Button
+                onClick={handleSaveDoctorOverrides}
+                disabled={providerSaving || !canEditDoctorOverrides}
+                size="sm"
+                className="rounded-[4px] bg-foreground text-background hover:bg-foreground/90"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {providerSaving
+                  ? t("clinicSettings.doctorOverrides.actions.saving", "Saving...")
+                  : t("clinicSettings.doctorOverrides.actions.save", "Save Doctor Settings")}
+              </Button>
+            </div>
+          )}
+        </fieldset>
       )}
 
       {/* RESOURCES */}
       {activeTab === "resources" && (
-        <div className="space-y-6">
+        <fieldset
+          disabled={isReadOnlySettings}
+          className={cn("space-y-6", isReadOnlySettings && "pointer-events-none")}
+        >
           <div className="p-4 bg-muted/40 rounded-[4px]">
             <p className="text-sm text-foreground">
               {t(
@@ -1183,12 +2095,15 @@ export default function ClinicSettings() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-        </div>
+        </fieldset>
       )}
 
       {/* PAYMENT */}
       {activeTab === "payment" && (
-        <div className="space-y-5">
+        <fieldset
+          disabled={isReadOnlySettings}
+          className={cn("space-y-5", isReadOnlySettings && "pointer-events-none")}
+        >
           <div className="space-y-3">
             {[
               { key: 'cash', label: 'Cash', description: 'Accept cash payments' },
@@ -1214,7 +2129,7 @@ export default function ClinicSettings() {
             <Save className="w-4 h-4 mr-2" />
             {saving ? "Saving..." : "Save Payments"}
           </Button>
-        </div>
+        </fieldset>
       )}
     </div>
   );

@@ -5,8 +5,13 @@
 import { BaseRepository } from '../base/BaseRepository.js';
 import type { IDatabaseClient } from '../../ports/database.js';
 import type { ILogger } from '../../ports/logger.js';
-import type { Clinic, ClinicSettings, DoctorListing, DoctorSearchParams } from '../../types.js';
+import type { Clinic, ClinicSettings, DoctorListing, DoctorSearchParams, Tables } from '../../types.js';
 import { NotFoundError } from '../../errors.js';
+
+/** Row shapes for searchDoctors, derived from the generated schema (only the selected columns). */
+type ClinicRow = Pick<Tables<'clinics'>, 'id' | 'name' | 'specialty' | 'city'>;
+type StaffRow = Pick<Tables<'clinic_staff'>, 'id' | 'clinic_id' | 'user_id' | 'role' | 'specialization'>;
+type ProfileRow = Pick<Tables<'profiles'>, 'id' | 'full_name'>;
 
 export interface ClinicSearchParams {
   city?: string;
@@ -18,13 +23,14 @@ export interface ClinicSearchParams {
 
 /**
  * Whether a staff row should surface as a bookable "doctor" in patient discovery.
- * Ported from the web DoctorDirectory (apps/web/.../booking/DoctorDirectory.tsx)
- * so server- and client-side discovery agree on who counts as a provider.
+ * ROLE-BASED only: the role must say "doctor" or be a known clinical role. A free-text
+ * `specialization` is NOT sufficient (a receptionist with a specialization must not be
+ * bookable). Kept in parity with the web DoctorDirectory.
  */
-function isDoctorLikeRole(role: string, specialization: string | null | undefined): boolean {
+function isDoctorLikeRole(role: string | null | undefined): boolean {
+  if (!role) return false;
   const normalized = role.toLowerCase();
   if (normalized.includes('doctor')) return true;
-  if (specialization) return true;
   const clinicalRoles = new Set([
     'surgeon', 'dentist', 'radiologist', 'anesthesiologist', 'physiotherapist',
     'cardiologist', 'neurologist', 'pediatrician', 'orthopedist', 'dermatologist',
@@ -121,27 +127,31 @@ export class ClinicRepository extends BaseRepository {
       throw new Error(clinicsError.message || 'Failed to search doctors');
     }
     const clinicsById = new Map(
-      (clinicsData || []).map((c: Record<string, unknown>) => [c.id as string, c]),
+      ((clinicsData ?? []) as ClinicRow[]).map((c) => [c.id, c]),
     );
     if (clinicsById.size === 0) return [];
 
     // 2) Active staff at those clinics; keep only doctor-like roles.
+    // Bounded fetch: the JS-side `limit` is applied after doctor/name filtering,
+    // so cap the DB read to avoid pulling an unbounded staff set into memory.
+    const MAX_STAFF_SCAN = 200;
     const { data: staffData, error: staffError } = await client
       .from('clinic_staff')
       .select('id, clinic_id, user_id, role, specialization')
       .eq('is_active', true)
-      .in('clinic_id', [...clinicsById.keys()]);
+      .in('clinic_id', [...clinicsById.keys()])
+      .limit(MAX_STAFF_SCAN);
     if (staffError) {
       this.logError('Failed to search doctors (staff)', new Error(staffError.message), params as Record<string, unknown>);
       throw new Error(staffError.message || 'Failed to search doctors');
     }
-    const doctorStaff = (staffData || []).filter((s: Record<string, unknown>) =>
-      isDoctorLikeRole(s.role as string, s.specialization as string | null | undefined),
+    const doctorStaff = ((staffData ?? []) as StaffRow[]).filter((s) =>
+      isDoctorLikeRole(s.role),
     );
     if (doctorStaff.length === 0) return [];
 
     // 3) Provider names.
-    const userIds = [...new Set(doctorStaff.map((s: Record<string, unknown>) => s.user_id as string))];
+    const userIds = [...new Set(doctorStaff.map((s) => s.user_id))];
     const { data: profilesData, error: profilesError } = await client
       .from('profiles')
       .select('id, full_name')
@@ -151,26 +161,26 @@ export class ClinicRepository extends BaseRepository {
       throw new Error(profilesError.message || 'Failed to search doctors');
     }
     const nameByUserId = new Map(
-      (profilesData || []).map((p: Record<string, unknown>) => [p.id as string, (p.full_name as string | null) ?? '']),
+      ((profilesData ?? []) as ProfileRow[]).map((p) => [p.id, p.full_name ?? '']),
     );
 
     // 4) Join + name filter + limit.
     const nameFilter = params.name?.toLowerCase();
     const listings: DoctorListing[] = [];
     for (const s of doctorStaff) {
-      const clinic = clinicsById.get(s.clinic_id as string);
+      const clinic = clinicsById.get(s.clinic_id);
       if (!clinic) continue;
-      const fullName = (nameByUserId.get(s.user_id as string) ?? '').trim();
+      const fullName = (nameByUserId.get(s.user_id) ?? '').trim();
       if (nameFilter && !fullName.toLowerCase().includes(nameFilter)) continue;
       listings.push({
-        staffId: s.id as string,
-        clinicId: clinic.id as string,
+        staffId: s.id,
+        clinicId: clinic.id,
         fullName: fullName || 'Doctor',
-        role: s.role as string,
-        specialization: (s.specialization as string | null) || undefined,
-        clinicName: clinic.name as string,
-        clinicSpecialty: (clinic.specialty as string | null) || undefined,
-        city: (clinic.city as string | null) || undefined,
+        role: s.role,
+        specialization: s.specialization || undefined,
+        clinicName: clinic.name,
+        clinicSpecialty: clinic.specialty || undefined,
+        city: clinic.city || undefined,
       });
       if (params.limit && listings.length >= params.limit) break;
     }

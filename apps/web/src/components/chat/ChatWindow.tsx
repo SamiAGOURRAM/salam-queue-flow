@@ -85,6 +85,7 @@ export function ChatWindow({ isOpen, onClose }: ChatWindowProps) {
         text: response.message,
         sender: "assistant",
         timestamp: response.timestamp,
+        cards: response.cards,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -145,7 +146,7 @@ export function ChatWindow({ isOpen, onClose }: ChatWindowProps) {
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
         <div className="space-y-4">
           {messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
+            <MessageBubble key={message.id} message={message} onCardNavigate={onClose} />
           ))}
           {isLoading && (
             <div className="flex items-center gap-2 text-gray-500">
@@ -181,7 +182,7 @@ export function ChatWindow({ isOpen, onClose }: ChatWindowProps) {
           </Button>
         </div>
         <p className="text-xs text-gray-500 mt-2 text-center">
-          Powered by CUGA IBM
+          Powered by QueueMed AI
         </p>
       </div>
     </div>

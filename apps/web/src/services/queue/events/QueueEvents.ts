@@ -20,6 +20,14 @@ export enum QueueEventType {
   APPOINTMENT_STATUS_CHANGED = 'queue.appointment.status_changed',
   QUEUE_REORDERED = 'queue.reordered',
   PATIENT_SKIPPED = 'queue.patient.skipped',
+  TURN_APPROACHING = 'queue.turn.approaching',
+  SLOT_FREED = 'queue.slot.freed',
+  GRACE_PERIOD_EXPIRED = 'queue.grace.expired',
+  GRACE_PERIOD_ENDING = 'queue.grace.ending',
+  WAITLIST_OFFER_SENT = 'queue.waitlist.offer.sent',
+  WAITLIST_OFFER_ACCEPTED = 'queue.waitlist.offer.accepted',
+  WAITLIST_OFFER_DECLINED = 'queue.waitlist.offer.declined',
+  WAITLIST_OFFER_EXPIRED = 'queue.waitlist.offer.expired',
 }
 
 // ============================================
@@ -178,6 +186,115 @@ export interface PatientSkippedEvent extends QueueDomainEvent {
   };
 }
 
+/**
+ * Turn Approaching Event
+ * Triggered when a patient crosses into the front-of-queue threshold.
+ */
+export interface TurnApproachingEvent extends QueueDomainEvent {
+  eventType: QueueEventType.TURN_APPROACHING;
+  payload: {
+    appointmentId: string;
+    patientId: string;
+    clinicId: string;
+    previousPosition: number;
+    newPosition: number;
+    estimatedWaitMinutes?: number;
+  };
+}
+
+/**
+ * Slot Freed Event
+ * Triggered when a gap opens due to cancellation, no-show, or early completion.
+ */
+export interface SlotFreedEvent extends QueueDomainEvent {
+  eventType: QueueEventType.SLOT_FREED;
+  payload: {
+    appointmentId: string;
+    clinicId: string;
+    staffId?: string;
+    gapStartTime: string;
+    gapEndTime: string;
+    reason?: string;
+  };
+}
+
+/**
+ * Grace Period Expired Event
+ */
+export interface GracePeriodExpiredEvent extends QueueDomainEvent {
+  eventType: QueueEventType.GRACE_PERIOD_EXPIRED;
+  payload: {
+    appointmentId: string;
+    patientId: string;
+    clinicId: string;
+    gracePeriodEndedAt: string;
+  };
+}
+
+/**
+ * Grace Period Ending Event
+ * Triggered shortly before the grace period expires (e.g. 5 min before).
+ */
+export interface GracePeriodEndingEvent extends QueueDomainEvent {
+  eventType: QueueEventType.GRACE_PERIOD_ENDING;
+  payload: {
+    appointmentId: string;
+    patientId: string;
+    clinicId: string;
+    gracePeriodEndsAt: string;
+    remainingMinutes: number;
+  };
+}
+
+/**
+ * Waitlist Offer Events
+ */
+export interface WaitlistOfferSentEvent extends QueueDomainEvent {
+  eventType: QueueEventType.WAITLIST_OFFER_SENT;
+  payload: {
+    waitlistId: string;
+    appointmentId: string;
+    patientId: string;
+    clinicId: string;
+    offeredSlotStart: string;
+    offeredSlotEnd: string;
+    expiresAt: string;
+  };
+}
+
+export interface WaitlistOfferAcceptedEvent extends QueueDomainEvent {
+  eventType: QueueEventType.WAITLIST_OFFER_ACCEPTED;
+  payload: {
+    waitlistId: string;
+    appointmentId: string;
+    patientId: string;
+    clinicId: string;
+    respondedAt: string;
+  };
+}
+
+export interface WaitlistOfferDeclinedEvent extends QueueDomainEvent {
+  eventType: QueueEventType.WAITLIST_OFFER_DECLINED;
+  payload: {
+    waitlistId: string;
+    appointmentId: string;
+    patientId: string;
+    clinicId: string;
+    declinedAt: string;
+  };
+}
+
+export interface WaitlistOfferExpiredEvent extends QueueDomainEvent {
+  eventType: QueueEventType.WAITLIST_OFFER_EXPIRED;
+  payload: {
+    waitlistId: string;
+    appointmentId: string;
+    patientId: string;
+    clinicId: string;
+    expiredAt: string;
+  };
+}
+
 // ============================================
 // EVENT FACTORY FUNCTIONS
 // ============================================
@@ -314,6 +431,33 @@ export class QueueEventFactory {
     };
   }
 
+  static createTurnApproachingEvent(params: {
+    clinicId: string;
+    appointmentId: string;
+    patientId: string;
+    previousPosition: number;
+    newPosition: number;
+    changedBy?: string;
+    estimatedWaitMinutes?: number;
+  }): TurnApproachingEvent {
+    return {
+      eventId: EventBus.generateEventId(),
+      eventType: QueueEventType.TURN_APPROACHING,
+      timestamp: new Date(),
+      userId: params.changedBy,
+      clinicId: params.clinicId,
+      appointmentId: params.appointmentId,
+      payload: {
+        appointmentId: params.appointmentId,
+        patientId: params.patientId,
+        clinicId: params.clinicId,
+        previousPosition: params.previousPosition,
+        newPosition: params.newPosition,
+        estimatedWaitMinutes: params.estimatedWaitMinutes,
+      },
+    };
+  }
+
   static createAppointmentStatusChangedEvent(
     entry: QueueEntry,
     previousStatus: AppointmentStatus,
@@ -357,6 +501,169 @@ export class QueueEventFactory {
         skipReason,
         skipCount: entry.skipCount,
         skippedBy,
+      },
+    };
+  }
+
+  static createSlotFreedEvent(params: {
+    appointmentId: string;
+    clinicId: string;
+    staffId?: string;
+    gapStartTime: string;
+    gapEndTime: string;
+    reason?: string;
+  }): SlotFreedEvent {
+    return {
+      eventId: EventBus.generateEventId(),
+      eventType: QueueEventType.SLOT_FREED,
+      timestamp: new Date(),
+      userId: params.staffId,
+      clinicId: params.clinicId,
+      appointmentId: params.appointmentId,
+      payload: {
+        appointmentId: params.appointmentId,
+        clinicId: params.clinicId,
+        staffId: params.staffId,
+        gapStartTime: params.gapStartTime,
+        gapEndTime: params.gapEndTime,
+        reason: params.reason,
+      },
+    };
+  }
+
+  static createGracePeriodExpiredEvent(params: {
+    appointmentId: string;
+    patientId: string;
+    clinicId: string;
+    gracePeriodEndedAt: string;
+  }): GracePeriodExpiredEvent {
+    return {
+      eventId: EventBus.generateEventId(),
+      eventType: QueueEventType.GRACE_PERIOD_EXPIRED,
+      timestamp: new Date(),
+      clinicId: params.clinicId,
+      appointmentId: params.appointmentId,
+      payload: {
+        appointmentId: params.appointmentId,
+        patientId: params.patientId,
+        clinicId: params.clinicId,
+        gracePeriodEndedAt: params.gracePeriodEndedAt,
+      },
+    };
+  }
+
+  static createGracePeriodEndingEvent(params: {
+    appointmentId: string;
+    patientId: string;
+    clinicId: string;
+    gracePeriodEndsAt: string;
+    remainingMinutes: number;
+  }): GracePeriodEndingEvent {
+    return {
+      eventId: EventBus.generateEventId(),
+      eventType: QueueEventType.GRACE_PERIOD_ENDING,
+      timestamp: new Date(),
+      clinicId: params.clinicId,
+      appointmentId: params.appointmentId,
+      payload: {
+        appointmentId: params.appointmentId,
+        patientId: params.patientId,
+        clinicId: params.clinicId,
+        gracePeriodEndsAt: params.gracePeriodEndsAt,
+        remainingMinutes: params.remainingMinutes,
+      },
+    };
+  }
+
+  static createWaitlistOfferSentEvent(params: {
+    waitlistId: string;
+    appointmentId: string;
+    patientId: string;
+    clinicId: string;
+    offeredSlotStart: string;
+    offeredSlotEnd: string;
+    expiresAt: string;
+  }): WaitlistOfferSentEvent {
+    return {
+      eventId: EventBus.generateEventId(),
+      eventType: QueueEventType.WAITLIST_OFFER_SENT,
+      timestamp: new Date(),
+      clinicId: params.clinicId,
+      appointmentId: params.appointmentId,
+      payload: {
+        waitlistId: params.waitlistId,
+        appointmentId: params.appointmentId,
+        patientId: params.patientId,
+        clinicId: params.clinicId,
+        offeredSlotStart: params.offeredSlotStart,
+        offeredSlotEnd: params.offeredSlotEnd,
+        expiresAt: params.expiresAt,
+      },
+    };
+  }
+
+  static createWaitlistOfferAcceptedEvent(params: {
+    waitlistId: string;
+    appointmentId: string;
+    patientId: string;
+    clinicId: string;
+  }): WaitlistOfferAcceptedEvent {
+    return {
+      eventId: EventBus.generateEventId(),
+      eventType: QueueEventType.WAITLIST_OFFER_ACCEPTED,
+      timestamp: new Date(),
+      clinicId: params.clinicId,
+      appointmentId: params.appointmentId,
+      payload: {
+        waitlistId: params.waitlistId,
+        appointmentId: params.appointmentId,
+        patientId: params.patientId,
+        clinicId: params.clinicId,
+        respondedAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  static createWaitlistOfferDeclinedEvent(params: {
+    waitlistId: string;
+    appointmentId: string;
+    patientId: string;
+    clinicId: string;
+  }): WaitlistOfferDeclinedEvent {
+    return {
+      eventId: EventBus.generateEventId(),
+      eventType: QueueEventType.WAITLIST_OFFER_DECLINED,
+      timestamp: new Date(),
+      clinicId: params.clinicId,
+      appointmentId: params.appointmentId,
+      payload: {
+        waitlistId: params.waitlistId,
+        appointmentId: params.appointmentId,
+        patientId: params.patientId,
+        clinicId: params.clinicId,
+        declinedAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  static createWaitlistOfferExpiredEvent(params: {
+    waitlistId: string;
+    appointmentId: string;
+    patientId: string;
+    clinicId: string;
+  }): WaitlistOfferExpiredEvent {
+    return {
+      eventId: EventBus.generateEventId(),
+      eventType: QueueEventType.WAITLIST_OFFER_EXPIRED,
+      timestamp: new Date(),
+      clinicId: params.clinicId,
+      appointmentId: params.appointmentId,
+      payload: {
+        waitlistId: params.waitlistId,
+        appointmentId: params.appointmentId,
+        patientId: params.patientId,
+        clinicId: params.clinicId,
+        expiredAt: new Date().toISOString(),
       },
     };
   }

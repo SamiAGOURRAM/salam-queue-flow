@@ -14,8 +14,12 @@ import type {
   AvailableSlotsResponse,
   AppointmentAvailability,
   QueueMode,
-  AppointmentType
+  AppointmentType,
+  Tables
 } from '../../types.js';
+
+/** The clinic columns `getClinicDetails` actually selects. */
+export type ClinicDetails = Pick<Tables<'clinics'>, 'id' | 'name' | 'specialty' | 'settings'>;
 
 export class BookingRepository extends BaseRepository {
   constructor(db: IDatabaseClient, logger: ILogger) {
@@ -81,7 +85,7 @@ export class BookingRepository extends BaseRepository {
   /**
    * Get clinic details for booking
    */
-  async getClinicDetails(clinicId: string) {
+  async getClinicDetails(clinicId: string): Promise<ClinicDetails> {
     const client = this.db.getClient();
     const { data, error } = await client
       .from('clinics')
@@ -93,7 +97,7 @@ export class BookingRepository extends BaseRepository {
       this.logError('Failed to get clinic details', new Error(error.message), { clinicId });
       throw error;
     }
-    return data;
+    return data as ClinicDetails;
   }
 
   /**
@@ -205,6 +209,7 @@ export class BookingRepository extends BaseRepository {
       // Migrate legacy terms to clean standard
       if (mode === 'ordinal_queue') mode = 'fluid';
       if (mode === 'time_grid_fixed') mode = 'slotted';
+      if (mode === 'fixed') mode = 'slotted';
 
       this.logDebug('Queue mode processed', { original: data, cleaned: mode });
 

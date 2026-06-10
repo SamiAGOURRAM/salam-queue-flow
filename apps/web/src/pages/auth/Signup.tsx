@@ -285,8 +285,8 @@ export default function Signup() {
                 {/* Terms */}
                 <p className="text-[11px] text-gray-500 text-center leading-tight">
                   By signing up, you agree to QueueMed's{" "}
-                  <Link to="/terms" className="underline hover:text-gray-700">Terms</Link> and{" "}
-                  <Link to="/privacy" className="underline hover:text-gray-700">Privacy Policy</Link>.
+                  <Link to="/welcome#terms-of-service" className="underline hover:text-gray-700">Terms</Link> and{" "}
+                  <Link to="/welcome#privacy-policy" className="underline hover:text-gray-700">Privacy Policy</Link>.
                 </p>
               </form>
 

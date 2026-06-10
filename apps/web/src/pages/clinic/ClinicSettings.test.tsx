@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ClinicSettings from "./ClinicSettings";
+import { permissionsFromBaseRole, type ClinicRoleDefinition } from "@/lib/clinicRolePermissions";
 
 type ResourceRow = {
   id: string;
@@ -25,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   toast: vi.fn(),
   from: vi.fn(),
   rpc: vi.fn(),
+  activeTab: "resources",
 }));
 
 const translate = (key: string, defaultValue?: string, options?: Record<string, unknown>) => {
@@ -43,7 +45,7 @@ vi.mock("react-router-dom", async () => {
   return {
     ...actual,
     useNavigate: () => mocks.navigate,
-    useSearchParams: () => [new URLSearchParams("tab=resources"), vi.fn()],
+    useSearchParams: () => [new URLSearchParams(`tab=${mocks.activeTab}`), vi.fn()],
   };
 });
 
@@ -220,10 +222,25 @@ const baseResource: ResourceRow = {
   created_by: "user-1",
 };
 
-const setPermissionContext = ({ canManage = true }: { canManage?: boolean } = {}) => {
+const setPermissionContext = ({
+  canManage = true,
+  roleDefinitions,
+}: {
+  canManage?: boolean;
+  roleDefinitions?: ClinicRoleDefinition[];
+} = {}) => {
   mocks.useClinicPermissions.mockReturnValue({
     clinic: { id: "clinic-1" },
     loading: false,
+    roleDefinitions: roleDefinitions ?? [
+      {
+        key: "doctor",
+        label: "Doctor",
+        baseRole: "doctor",
+        permissions: permissionsFromBaseRole("doctor"),
+        isSystem: true,
+      },
+    ],
     can: (permission: string) => {
       if (permission === "view_clinic_settings") {
         return true;
@@ -296,9 +313,131 @@ const setupSupabase = ({
   };
 };
 
+const setupDoctorOverridesSupabase = (
+  doctorUserId: string,
+  role = "doctor",
+  options?: {
+    includeDuplicateOwnProvider?: boolean;
+    withProfileName?: boolean;
+  }
+) => {
+  const clinicSingle = vi.fn().mockResolvedValue({ data: baseClinic, error: null });
+  const clinicsEq = vi.fn(() => ({ single: clinicSingle }));
+  const clinicsSelect = vi.fn(() => ({ eq: clinicsEq }));
+
+  const primaryStaffRow = {
+    id: "staff-doctor-1",
+    clinic_id: "clinic-1",
+    user_id: doctorUserId,
+    role,
+    specialization: "Cardiology",
+    license_number: null,
+    working_hours: null,
+    appointment_types_override: [{ name: "consultation", label: "Consultation", duration: 20 }],
+    daily_queue_modes_override: null,
+    average_consultation_duration: null,
+    patients_per_day_avg: null,
+    is_active: true,
+    created_at: "2026-04-04T10:00:00.000Z",
+    updated_at: "2026-04-04T10:00:00.000Z",
+  };
+
+  const secondaryStaffRow = {
+    ...primaryStaffRow,
+    id: "staff-doctor-2",
+    specialization: "Neurology",
+  };
+
+  const staffRows = options?.includeDuplicateOwnProvider
+    ? [primaryStaffRow, secondaryStaffRow]
+    : [primaryStaffRow];
+
+  const clinicStaffOrder = vi.fn().mockResolvedValue({ data: staffRows, error: null });
+  const clinicStaffEqIsActive = vi.fn(() => ({ order: clinicStaffOrder }));
+  const clinicStaffMaybeSingleByUser = vi.fn().mockResolvedValue({ data: staffRows[0], error: null });
+  const clinicStaffEqUserId = vi.fn(() => ({ maybeSingle: clinicStaffMaybeSingleByUser }));
+  const clinicStaffSingle = vi.fn().mockResolvedValue({ data: staffRows[0], error: null });
+  const clinicStaffSelectEq = vi.fn((column: string) => {
+    if (column === "clinic_id") {
+      return {
+        eq: vi.fn((innerColumn: string) => {
+          if (innerColumn === "is_active") {
+            return clinicStaffEqIsActive();
+          }
+
+          if (innerColumn === "user_id") {
+            return clinicStaffEqUserId();
+          }
+
+          throw new Error(`Unexpected clinic_staff nested eq column: ${innerColumn}`);
+        }),
+      };
+    }
+
+    if (column === "id") {
+      return { single: clinicStaffSingle };
+    }
+
+    throw new Error(`Unexpected clinic_staff select eq column: ${column}`);
+  });
+  const clinicStaffSelect = vi.fn(() => ({ eq: clinicStaffSelectEq }));
+
+  const profilesIn = vi.fn().mockResolvedValue({
+    data: options?.withProfileName === false
+      ? []
+      : [{ id: doctorUserId, full_name: "Dr Editable" }],
+    error: null,
+  });
+  const profilesSelect = vi.fn(() => ({ in: profilesIn }));
+
+  mocks.from.mockImplementation((tableName: string) => {
+    if (tableName === "clinics") {
+      return {
+        select: clinicsSelect,
+      };
+    }
+
+    if (tableName === "clinic_staff") {
+      return {
+        select: clinicStaffSelect,
+      };
+    }
+
+    if (tableName === "profiles") {
+      return {
+        select: profilesSelect,
+      };
+    }
+
+    throw new Error(`Unexpected table queried in doctor-overrides test: ${tableName}`);
+  });
+
+  mocks.rpc.mockImplementation((functionName: string, payload: Record<string, unknown>) => {
+    if (functionName === "update_staff_doctor_overrides") {
+      return Promise.resolve({
+        data: {
+          ...staffRows.find((row) => row.id === payload.p_staff_id),
+          working_hours: payload.p_working_hours ?? null,
+          appointment_types_override: payload.p_appointment_types_override ?? null,
+          daily_queue_modes_override: payload.p_daily_queue_modes_override ?? null,
+          updated_at: "2026-04-05T10:00:00.000Z",
+        },
+        error: null,
+      });
+    }
+
+    return Promise.resolve({ data: null, error: null });
+  });
+
+  return {
+    staffRows,
+  };
+};
+
 describe("ClinicSettings resources", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.activeTab = "resources";
 
     mocks.useAuth.mockReturnValue({
       user: { id: "user-1" },
@@ -418,5 +557,105 @@ describe("ClinicSettings resources", () => {
 
     await userEvent.click(addButton);
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("lets a doctor edit own overrides even without manage clinic settings", async () => {
+    const doctorUserId = "doctor-user-1";
+    mocks.activeTab = "doctor-overrides";
+
+    mocks.useAuth.mockReturnValue({
+      user: { id: doctorUserId },
+      loading: false,
+    });
+
+    setPermissionContext({ canManage: false });
+    setupDoctorOverridesSupabase(doctorUserId);
+
+    render(<ClinicSettings />);
+
+    const saveButton = await screen.findByRole("button", { name: "Save Doctor Settings" });
+
+    expect(
+      screen.queryByText("You have view-only access to clinic settings for this role.")
+    ).not.toBeInTheDocument();
+    expect(saveButton).toBeEnabled();
+
+    await userEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(mocks.rpc).toHaveBeenCalledWith(
+        "update_staff_doctor_overrides",
+        expect.objectContaining({
+          p_staff_id: "staff-doctor-1",
+        })
+      );
+    });
+  });
+
+  it("treats custom doctor base roles as editable provider overrides", async () => {
+    const doctorUserId = "doctor-user-1";
+    mocks.activeTab = "doctor-overrides";
+
+    mocks.useAuth.mockReturnValue({
+      user: { id: doctorUserId },
+      loading: false,
+    });
+
+    setPermissionContext({
+      canManage: false,
+      roleDefinitions: [
+        {
+          key: "medecin",
+          label: "Medecin",
+          baseRole: "doctor",
+          permissions: permissionsFromBaseRole("doctor"),
+          isSystem: false,
+        },
+      ],
+    });
+    setupDoctorOverridesSupabase(doctorUserId, "medecin");
+
+    render(<ClinicSettings />);
+
+    const saveButton = await screen.findByRole("button", { name: "Save Doctor Settings" });
+    expect(saveButton).toBeEnabled();
+  });
+
+  it("keeps doctor override editing enabled when selecting another own provider profile", async () => {
+    const doctorUserId = "doctor-user-1";
+    mocks.activeTab = "doctor-overrides";
+
+    mocks.useAuth.mockReturnValue({
+      user: { id: doctorUserId },
+      loading: false,
+    });
+
+    setPermissionContext({ canManage: false });
+    setupDoctorOverridesSupabase(doctorUserId, "doctor", {
+      includeDuplicateOwnProvider: true,
+      withProfileName: false,
+    });
+
+    render(<ClinicSettings />);
+
+    const saveButton = await screen.findByRole("button", { name: "Save Doctor Settings" });
+    expect(saveButton).toBeEnabled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Doctor - Neurology" }));
+
+    await waitFor(() => {
+      expect(saveButton).toBeEnabled();
+    });
+
+    await userEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(mocks.rpc).toHaveBeenCalledWith(
+        "update_staff_doctor_overrides",
+        expect.objectContaining({
+          p_staff_id: "staff-doctor-2",
+        })
+      );
+    });
   });
 });

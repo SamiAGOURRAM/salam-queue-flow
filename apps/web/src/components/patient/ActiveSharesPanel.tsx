@@ -62,6 +62,7 @@ export function ActiveSharesPanel({
           className="rounded-full"
           onClick={onRevokeAll}
           disabled={loading || activeShares.length === 0}
+          data-testid="revoke-all-shares"
         >
           <ShieldAlert className="h-4 w-4 mr-1" />
           {t('medicalSharing.patient.activeShares.revokeAll')}
@@ -74,7 +75,11 @@ export function ActiveSharesPanel({
             {t('medicalSharing.patient.activeShares.pendingTitle')}
           </p>
           {pendingRequests.map((request) => (
-            <div key={request.id} className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-900 dark:bg-amber-950/20">
+            <div
+              key={request.id}
+              className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-900 dark:bg-amber-950/20"
+              data-testid={`pending-request-${request.id}`}
+            >
               <div className="min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">{request.granteeName}</p>
                 <p className="text-xs text-muted-foreground truncate">{request.clinicName}</p>
@@ -84,6 +89,7 @@ export function ActiveSharesPanel({
                 size="sm"
                 className="border-amber-300 hover:bg-amber-100 dark:border-amber-800 dark:hover:bg-amber-900/40"
                 onClick={() => onReviewRequest(request.id)}
+                data-testid={`review-request-${request.id}`}
               >
                 {t('medicalSharing.patient.activeShares.review')}
               </Button>
@@ -109,7 +115,11 @@ export function ActiveSharesPanel({
       ) : (
         <div className="mt-4 space-y-2">
           {activeShares.map((share) => (
-            <div key={share.id} className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
+            <div
+              key={share.id}
+              className="flex items-center justify-between gap-3 rounded-xl border border-border p-3"
+              data-testid={`active-share-${share.id}`}
+            >
               <div className="min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">{share.granteeName}</p>
                 <p className="text-xs text-muted-foreground truncate">{share.clinicName}</p>
@@ -127,6 +137,7 @@ export function ActiveSharesPanel({
                   className="text-red-600 border-red-200 hover:bg-red-50"
                   onClick={() => onRevoke(share.id)}
                   disabled={loading}
+                  data-testid={`revoke-share-${share.id}`}
                 >
                   {t('medicalSharing.patient.activeShares.revoke')}
                 </Button>

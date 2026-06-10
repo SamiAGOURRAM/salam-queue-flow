@@ -1,5 +1,6 @@
 import { Brain, MessageSquare, BarChart3, Smartphone, Shield, Zap } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Link } from "react-router-dom";
 
 const features = [
   {
@@ -95,13 +96,13 @@ const Features = () => {
             Ready to transform your waiting room experience?
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
-            <a 
-              href="#" 
+            <Link
+              to="/welcome#features"
               className="inline-flex items-center gap-2 text-primary font-semibold hover:gap-3 transition-all"
             >
               Explore All Features
               <span className="text-xl">→</span>
-            </a>
+            </Link>
           </div>
         </div>
       </div>

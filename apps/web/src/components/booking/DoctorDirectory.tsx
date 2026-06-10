@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import type { DoctorListing } from "@queuemed/core";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,16 +13,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Search, MapPin, Building2, Stethoscope, Calendar, ArrowRight, User } from "lucide-react";
 
-interface DoctorListing {
-  staffId: string;
-  clinicId: string;
-  fullName: string;
-  role: string;
-  specialization: string | null;
-  clinicName: string;
-  clinicSpecialty: string;
-  city: string;
-}
 
 function formatRole(role: string, fallbackRoleLabel: string): string {
   const normalized = role.replace(/_/g, " ").trim();
@@ -33,10 +24,9 @@ function formatRole(role: string, fallbackRoleLabel: string): string {
     .join(" ");
 }
 
-function isDoctorLikeRole(role: string, specialization: string | null): boolean {
+function isDoctorLikeRole(role: string): boolean {
   const normalized = role.toLowerCase();
   if (normalized.includes("doctor")) return true;
-  if (specialization) return true;
 
   const clinicalRoles = new Set([
     "surgeon",
@@ -107,7 +97,7 @@ const DoctorDirectory = () => {
       for (const staff of staffRows) {
         const clinic = clinicsById.get(staff.clinic_id);
         if (!clinic) continue;
-        if (!isDoctorLikeRole(staff.role, staff.specialization)) continue;
+        if (!isDoctorLikeRole(staff.role)) continue;
 
         const profile = profilesById.get(staff.user_id);
         const fullName =
@@ -119,7 +109,7 @@ const DoctorDirectory = () => {
           clinicId: clinic.id,
           fullName,
           role: formatRole(staff.role, t("doctorDirectory.fallbackRole", "Doctor")),
-          specialization: staff.specialization,
+          specialization: staff.specialization ?? undefined,
           clinicName: clinic.name,
           clinicSpecialty: clinic.specialty,
           city: clinic.city,
@@ -132,7 +122,9 @@ const DoctorDirectory = () => {
   });
 
   const cities = useMemo(
-    () => [...new Set(doctors.map((doctor) => doctor.city))].sort((a, b) => a.localeCompare(b)),
+    () => [...new Set(doctors.map((doctor) => doctor.city))]
+      .filter((value): value is string => Boolean(value))
+      .sort((a, b) => a.localeCompare(b)),
     [doctors],
   );
 

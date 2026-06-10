@@ -73,6 +73,32 @@ export class WaitlistRepository {
   }
 
   /**
+   * Get a waitlist entry by ID
+   */
+  async getWaitlistEntryById(id: string): Promise<WaitlistEntry | null> {
+    try {
+      logger.debug('Fetching waitlist entry by id', { id });
+
+      const { data, error } = await supabase
+        .from('waitlist')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (error) {
+        logger.error('Failed to fetch waitlist entry by id', error, { id });
+        throw new DatabaseError('Failed to fetch waitlist entry by id', error);
+      }
+
+      return data ? this.mapToWaitlistEntry(data) : null;
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error fetching waitlist entry by id', error as Error, { id });
+      throw new DatabaseError('Unexpected error fetching waitlist entry by id', error as Error);
+    }
+  }
+
+  /**
    * Update waitlist entry status
    */
   async updateStatus(id: string, status: WaitlistEntry['status']): Promise<void> {
@@ -93,7 +119,41 @@ export class WaitlistRepository {
     }
   }
 
+  /**
+   * Atomically claim a waitlist entry for promotion.
+   * Returns null when another process already claimed/finalized the entry.
+   */
+  async claimForPromotion(id: string): Promise<WaitlistEntry | null> {
+    try {
+      const { data, error } = await supabase
+        .from('waitlist')
+        .update({
+          status: WaitlistStatus.PROMOTED,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .in('status', [WaitlistStatus.WAITING, WaitlistStatus.NOTIFIED])
+        .select('*')
+        .maybeSingle();
+
+      if (error) {
+        logger.error('Failed to claim waitlist entry for promotion', error, { id });
+        throw new DatabaseError('Failed to claim waitlist entry for promotion', error);
+      }
+
+      return data ? this.mapToWaitlistEntry(data) : null;
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error claiming waitlist entry for promotion', error as Error, {
+        id,
+      });
+      throw new DatabaseError('Unexpected error claiming waitlist entry for promotion', error as Error);
+    }
+  }
+
   private mapToWaitlistEntry(row: any): WaitlistEntry {
+    const status = row.status === 'booked' ? WaitlistStatus.PROMOTED : row.status;
+
     return {
       id: row.id,
       clinicId: row.clinic_id,
@@ -102,7 +162,7 @@ export class WaitlistRepository {
       requestedTimeRangeStart: row.requested_time_range_start,
       requestedTimeRangeEnd: row.requested_time_range_end,
       priorityScore: row.priority_score,
-      status: row.status,
+      status,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
       notes: row.notes

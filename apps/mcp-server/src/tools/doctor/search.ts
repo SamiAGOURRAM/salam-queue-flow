@@ -20,6 +20,7 @@ import {
   type DiscoveryCards,
   type DoctorCardItem,
   type DoctorListing,
+  type NextAvailableSlot,
 } from "@queuemed/core";
 
 // ============================================
@@ -88,7 +89,7 @@ interface DoctorSearchResult {
 // CARD MAPPING (pure — unit-tested without a DB)
 // ============================================
 
-function toDoctorCard(d: DoctorListing, slotByClinic: Map<string, string | null>): DoctorCardItem {
+function toDoctorCard(d: DoctorListing, slotByClinic: Map<string, NextAvailableSlot | null>): DoctorCardItem {
   return {
     doctorId: d.staffId,
     fullName: d.fullName,
@@ -109,7 +110,7 @@ function toDoctorCard(d: DoctorListing, slotByClinic: Map<string, string | null>
  */
 export function buildDoctorCards(
   doctors: DoctorListing[],
-  slotByClinic: Map<string, string | null>,
+  slotByClinic: Map<string, NextAvailableSlot | null>,
 ): DiscoveryCards | undefined {
   const [first, ...rest] = doctors.map((d) => toDoctorCard(d, slotByClinic));
   if (!first) return undefined;
@@ -148,8 +149,11 @@ export async function executeDoctorSearch(
 
   // Next available slot is clinic+date level, so compute ONCE per unique clinic
   // (deduped) and share across that clinic's doctors — avoids an N+1 scan.
-  const today = new Date().toISOString().slice(0, 10);
-  const slotByClinic = new Map<string, string | null>();
+  // Civil "today" in the clinic market's timezone (not UTC) so the next-slot scan
+  // anchors on the right day around midnight. `en-CA` formats as YYYY-MM-DD;
+  // `Africa/Casablanca` tracks Morocco's civil offset (incl. Ramadan shifts).
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Casablanca" }).format(new Date());
+  const slotByClinic = new Map<string, NextAvailableSlot | null>();
   for (const clinicId of new Set(doctors.map((d) => d.clinicId))) {
     slotByClinic.set(clinicId, await bookingService.getNextAvailableSlot(clinicId, today));
   }

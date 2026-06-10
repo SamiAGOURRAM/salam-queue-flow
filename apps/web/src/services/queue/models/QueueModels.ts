@@ -17,6 +17,14 @@ export enum AppointmentStatus {
   RESCHEDULED = 'rescheduled',
 }
 
+export enum PaymentStatus {
+  UNPAID = 'unpaid',
+  PAID = 'paid',
+  PARTIALLY_PAID = 'partially_paid',
+  REFUNDED = 'refunded',
+  WAIVED = 'waived',
+}
+
 export enum AppointmentType {
   CONSULTATION = 'consultation',
   FOLLOW_UP = 'follow_up',
@@ -50,6 +58,19 @@ export enum QueueActionType {
 export enum QueueMode {
   SLOTTED = 'slotted',
   FLUID = 'fluid',
+  HYBRID = 'hybrid',
+}
+
+export type QueueScopeMode = 'clinic' | 'provider' | 'restricted';
+
+export interface ResolvedQueueScope {
+  clinicId: string;
+  requesterStaffId?: string;
+  scopeMode: QueueScopeMode;
+  isClinicWide: boolean;
+  isOwner: boolean;
+  isProvider: boolean;
+  allowedStaffIds: string[];
 }
 
 export enum WaitlistStatus {
@@ -126,6 +147,11 @@ export interface QueueEntry {
   overrideBy?: string;
   checkedInAt?: Date; // Set when staff calls "Call Next" (patient enters consultation room)
   actualEndTime?: Date; // Set when staff completes appointment
+  billingAmount?: number;
+  currency?: string;
+  paymentStatus?: PaymentStatus;
+  paidAt?: Date;
+  paymentMethod?: string;
   estimatedDurationMinutes?: number;
   estimatedWaitTime?: number;
   predictionMode?: EstimationMode;
@@ -140,6 +166,7 @@ export interface QueueEntry {
   priorityScore?: number;
   isGapFiller?: boolean;
   promotedFromWaitlist?: boolean;
+  queueStatusToken?: string;
   lateArrivalConverted?: boolean;
   originalSlotTime?: Date;
 
@@ -235,6 +262,36 @@ export interface QueueSummary {
   noShow: number;
   averageWaitTime: number;
   currentQueueLength: number;
+}
+
+export interface QueueBreakState {
+  breakId: string;
+  clinicId: string;
+  staffId: string;
+  startedBy: string;
+  reason?: string | null;
+  durationMinutes: number;
+  startedAt: string;
+  endsAt: string;
+  endedAt?: string | null;
+  remainingSeconds: number;
+  pushedSchedule: boolean;
+  shiftedAppointmentsCount: number;
+}
+
+export interface PublicQueueStatus {
+  appointmentId: string;
+  clinicId: string;
+  clinicName: string;
+  queuePosition: number;
+  status: AppointmentStatus;
+  appointmentDate: string | null;
+  scheduledTime: string | null;
+  predictedStartTime: string | null;
+  predictedWaitTime: number | null;
+  appointmentType: AppointmentType;
+  checkedInAt: string | null;
+  updatedAt: string | null;
 }
 
 // ============================================
@@ -363,6 +420,10 @@ export interface CreateQueueEntryDTO {
   endTime?: string; // ISO string timestamp - used by createQueueEntryViaRpc
   isWalkIn?: boolean;
   reasonForVisit?: string;
+  isGapFiller?: boolean;
+  promotedFromWaitlist?: boolean;
+  billingAmount?: number;
+  currency?: string;
 }
 
 /**
@@ -384,6 +445,21 @@ export interface UpdateQueueEntryDTO {
   // RFC Fields
   priorityScore?: number;
   isGapFiller?: boolean;
+  promotedFromWaitlist?: boolean;
+  billingAmount?: number | null;
+  currency?: string;
+  paymentStatus?: PaymentStatus;
+  paidAt?: string | null;
+  paymentMethod?: string | null;
+}
+
+export interface UpdateAppointmentPaymentDTO {
+  appointmentId: string;
+  paymentStatus: PaymentStatus;
+  paymentMethod?: string | null;
+  paidAt?: string | null;
+  billingAmount?: number;
+  currency?: string;
 }
 
 /**
@@ -394,12 +470,14 @@ export interface MarkAbsentDTO {
   performedBy: string;
   reason?: string;
   gracePeriodMinutes?: number; // Default: 15 minutes
+  allowedStaffIds?: string[];
 }
 
 export interface ResolveAbsentDTO {
   appointmentId: string;
   performedBy: string;
   resolution: 'rebooked' | 'waitlist';
+  allowedStaffIds?: string[];
 }
 
 /**
@@ -407,11 +485,40 @@ export interface ResolveAbsentDTO {
  */
 export interface CallNextPatientDTO {
   clinicId: string;
-  staffId: string; // Mandatory now for schedule fetching
+  staffId?: string;
   date: Date;
   performedBy: string;
   skipAbsentPatients?: boolean; // Default: true
   resourceId?: string;
+  useClinicWide?: boolean;
+  allowedStaffIds?: string[];
+}
+
+export interface CallSpecificPatientDTO {
+  appointmentId: string;
+  clinicId: string;
+  staffId?: string;
+  performedBy: string;
+  reason?: string;
+  resourceId?: string;
+  useClinicWide?: boolean;
+  allowedStaffIds?: string[];
+}
+
+export interface StartQueueBreakDTO {
+  clinicId: string;
+  staffId: string;
+  durationMinutes: number;
+  performedBy: string;
+  reason?: string;
+  pushSchedule?: boolean;
+}
+
+export interface EndQueueBreakDTO {
+  clinicId: string;
+  staffId: string;
+  performedBy: string;
+  reason?: string;
 }
 
 /**
@@ -422,6 +529,7 @@ export interface ReorderQueueDTO {
   newPosition: number;
   performedBy: string;
   reason: string;
+  allowedStaffIds?: string[];
 }
 
 /**

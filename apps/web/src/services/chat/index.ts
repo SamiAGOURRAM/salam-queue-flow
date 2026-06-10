@@ -6,35 +6,27 @@ export type { IChatService, ChatMessage, ChatContext, ChatResponse } from "./Cha
 
 // Export classes
 export { MockChatService } from "./MockChatService";
-export { CugaChatService } from "./CugaChatService";
+export { ApiChatService } from "./ApiChatService";
 
-// Synchronous version for React components
 import { MockChatService } from "./MockChatService";
-import { CugaChatService } from "./CugaChatService";
+import { ApiChatService } from "./ApiChatService";
 import type { IChatService } from "./ChatService";
 
 /**
- * Factory function to create the appropriate chat service
- * Uses CUGA if enabled and configured, otherwise falls back to mock
+ * Factory: use the real chat-api agent backend when a URL is configured,
+ * otherwise fall back to the offline mock responder.
  */
 export function createChatService(): IChatService {
-  const useCuga = import.meta.env.VITE_CUGA_ENABLED === "true";
-  // We only strictly require API URL. Key might be optional for local dev.
-  const hasCugaConfig = !!import.meta.env.VITE_CUGA_API_URL;
+  const apiUrl = import.meta.env.VITE_CHAT_API_URL;
 
-  if (useCuga) {
-    if (hasCugaConfig) {
-      try {
-        return new CugaChatService();
-      } catch (error) {
-        console.warn("Failed to initialize CUGA service, falling back to mock:", error);
-        return new MockChatService();
-      }
-    } else {
-      console.warn("CUGA enabled but VITE_CUGA_API_URL is missing. Falling back to mock.");
+  if (apiUrl) {
+    try {
+      return new ApiChatService(apiUrl);
+    } catch (error) {
+      console.warn("Failed to initialize ApiChatService, falling back to mock:", error);
+      return new MockChatService();
     }
   }
 
   return new MockChatService();
 }
-

@@ -16,6 +16,7 @@ export default defineConfig(({ mode }) => ({
       // Enable importing from @queuemed/core
       "@queuemed/core": path.resolve(__dirname, "../../packages/core/src"),
     },
+    dedupe: ["react", "react-dom"],
   },
   // Optimize deps for workspace packages
   optimizeDeps: {

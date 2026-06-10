@@ -16,6 +16,7 @@ import {
 } from '../shared/errors';
 import {
   AppointmentStatus,
+  PaymentStatus,
   AppointmentType,
   QueueActionType,
   QueueMode,
@@ -24,6 +25,7 @@ import {
   type CreateQueueEntryDTO,
   type MarkAbsentDTO,
   type CallNextPatientDTO,
+  type CallSpecificPatientDTO,
   type ReorderQueueDTO,
 } from './models/QueueModels';
 import { createMockQueueEntry } from '../../test/utils/testHelpers';
@@ -46,18 +48,26 @@ describe('QueueService', () => {
     mockRepository = {
       getDailySchedule: vi.fn(),
       getQueueEntryById: vi.fn(),
+      getOrCreateQueueStatusToken: vi.fn(),
+      getPublicQueueStatus: vi.fn(),
       createQueueEntryViaRpc: vi.fn(),
+      callPatientIfPresent: vi.fn(),
       updateQueueEntry: vi.fn(),
+      updateAppointmentPaymentStatus: vi.fn(),
       assignResourceAndCallPatient: vi.fn(),
       checkInPatient: vi.fn(),
       markPatientReturned: vi.fn(),
       createAbsentPatient: vi.fn(),
+      markAbsentPatientAutoCancelled: vi.fn(),
       createQueueOverride: vi.fn(),
       getNextQueuePosition: vi.fn(),
       getClinicEstimationConfigByStaffId: vi.fn(),
       getAvailableClinicResources: vi.fn(),
       recordActualWaitTime: vi.fn(),
       recordWaitTimePredictions: vi.fn(),
+      startQueueBreak: vi.fn(),
+      endQueueBreak: vi.fn(),
+      getActiveQueueBreak: vi.fn(),
     };
     service = new QueueService(mockRepository as QueueRepository);
   });
@@ -83,7 +93,7 @@ describe('QueueService', () => {
 
       expect(result.queue_mode).toBe(QueueMode.SLOTTED);
       expect(result.schedule).toHaveLength(2);
-      expect(mockRepository.getDailySchedule).toHaveBeenCalledWith(staffId, targetDate);
+      expect(mockRepository.getDailySchedule).toHaveBeenCalledWith(staffId, targetDate, true, undefined, undefined);
       expect(logger.debug).toHaveBeenCalled();
     });
 
@@ -118,6 +128,57 @@ describe('QueueService', () => {
       mockRepository.getQueueEntryById = vi.fn().mockResolvedValue(null);
 
       await expect(service.getQueueEntry(appointmentId)).rejects.toThrow(NotFoundError);
+    });
+  });
+
+  describe('getQueueStatusToken', () => {
+    it('should return queue status token', async () => {
+      const appointmentId = 'app-123';
+      const token = 'token-123';
+
+      mockRepository.getOrCreateQueueStatusToken = vi.fn().mockResolvedValue(token);
+
+      const result = await service.getQueueStatusToken(appointmentId);
+
+      expect(result).toBe(token);
+      expect(mockRepository.getOrCreateQueueStatusToken).toHaveBeenCalledWith(appointmentId);
+    });
+
+    it('should throw ValidationError when appointment id is empty', async () => {
+      await expect(service.getQueueStatusToken('')).rejects.toThrow(ValidationError);
+      expect(mockRepository.getOrCreateQueueStatusToken).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getPublicQueueStatus', () => {
+    it('should return public queue status when token exists', async () => {
+      const token = 'public-token-123';
+      const mockStatus = {
+        appointmentId: 'app-123',
+        clinicId: 'clinic-123',
+        clinicName: 'Test Clinic',
+        queuePosition: 3,
+        status: AppointmentStatus.WAITING,
+        appointmentDate: '2025-04-07',
+        scheduledTime: '10:30:00',
+        predictedStartTime: null,
+        predictedWaitTime: 25,
+        appointmentType: AppointmentType.CONSULTATION,
+        checkedInAt: null,
+        updatedAt: '2025-04-07T10:00:00.000Z',
+      };
+
+      mockRepository.getPublicQueueStatus = vi.fn().mockResolvedValue(mockStatus);
+
+      const result = await service.getPublicQueueStatus(token);
+
+      expect(result).toEqual(mockStatus);
+      expect(mockRepository.getPublicQueueStatus).toHaveBeenCalledWith(token);
+    });
+
+    it('should throw ValidationError when token is empty', async () => {
+      await expect(service.getPublicQueueStatus('')).rejects.toThrow(ValidationError);
+      expect(mockRepository.getPublicQueueStatus).not.toHaveBeenCalled();
     });
   });
 
@@ -286,7 +347,7 @@ describe('QueueService', () => {
       mockRepository.getClinicEstimationConfigByStaffId = vi.fn().mockResolvedValue({
         mlEnabled: false,
       });
-      mockRepository.updateQueueEntry = vi.fn().mockResolvedValue({
+      mockRepository.callPatientIfPresent = vi.fn().mockResolvedValue({
         ...waitingPatient,
         status: AppointmentStatus.IN_PROGRESS,
         checkedInAt: new Date(),
@@ -297,7 +358,11 @@ describe('QueueService', () => {
       const result = await service.callNextPatient(dto);
 
       expect(result.status).toBe(AppointmentStatus.IN_PROGRESS);
-      expect(mockRepository.updateQueueEntry).toHaveBeenCalled();
+      expect(mockRepository.callPatientIfPresent).toHaveBeenCalledWith(
+        'app-1',
+        expect.any(String),
+        'user-123'
+      );
       expect(mockRepository.createQueueOverride).toHaveBeenCalled();
       expect(eventBus.publish).toHaveBeenCalled();
     });
@@ -336,7 +401,7 @@ describe('QueueService', () => {
 
       expect(result.status).toBe(AppointmentStatus.IN_PROGRESS);
       expect(mockRepository.assignResourceAndCallPatient).toHaveBeenCalledWith('app-1', 'resource-1', 'user-123');
-      expect(mockRepository.updateQueueEntry).not.toHaveBeenCalled();
+      expect(mockRepository.callPatientIfPresent).not.toHaveBeenCalled();
       expect(mockRepository.createQueueOverride).toHaveBeenCalled();
       expect(eventBus.publish).toHaveBeenCalled();
     });
@@ -358,6 +423,176 @@ describe('QueueService', () => {
       });
 
       await expect(service.callNextPatient(dto)).rejects.toThrow(NotFoundError);
+    });
+  });
+
+  describe('callSpecificPatient', () => {
+    it('should call a selected waiting patient', async () => {
+      const dto: CallSpecificPatientDTO = {
+        appointmentId: 'app-2',
+        clinicId: 'clinic-123',
+        staffId: 'staff-123',
+        performedBy: 'user-123',
+      };
+
+      const targetPatient = createMockQueueEntry({
+        id: dto.appointmentId,
+        clinicId: dto.clinicId,
+        staffId: dto.staffId,
+        status: AppointmentStatus.WAITING,
+        isPresent: true,
+        queuePosition: 2,
+      });
+
+      mockRepository.getQueueEntryById = vi.fn().mockResolvedValue(targetPatient);
+      mockRepository.getDailySchedule = vi.fn().mockResolvedValue({
+        queue_mode: QueueMode.SLOTTED,
+        schedule: [targetPatient],
+      });
+      mockRepository.callPatientIfPresent = vi.fn().mockResolvedValue({
+        ...targetPatient,
+        status: AppointmentStatus.IN_PROGRESS,
+      });
+      mockRepository.createQueueOverride = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(eventBus.publish).mockResolvedValue(undefined);
+
+      const result = await service.callSpecificPatient(dto);
+
+      expect(result.status).toBe(AppointmentStatus.IN_PROGRESS);
+      expect(mockRepository.callPatientIfPresent).toHaveBeenCalledWith(
+        dto.appointmentId,
+        expect.any(String),
+        dto.performedBy
+      );
+      expect(mockRepository.createQueueOverride).toHaveBeenCalled();
+      expect(eventBus.publish).toHaveBeenCalled();
+    });
+
+    it('should throw ConflictError if another patient is already in progress', async () => {
+      const dto: CallSpecificPatientDTO = {
+        appointmentId: 'app-2',
+        clinicId: 'clinic-123',
+        staffId: 'staff-123',
+        performedBy: 'user-123',
+      };
+
+      const activePatient = createMockQueueEntry({
+        id: 'app-1',
+        clinicId: dto.clinicId,
+        staffId: dto.staffId,
+        status: AppointmentStatus.IN_PROGRESS,
+        isPresent: true,
+      });
+      const targetPatient = createMockQueueEntry({
+        id: dto.appointmentId,
+        clinicId: dto.clinicId,
+        staffId: dto.staffId,
+        status: AppointmentStatus.WAITING,
+        isPresent: true,
+      });
+
+      mockRepository.getQueueEntryById = vi.fn().mockResolvedValue(targetPatient);
+      mockRepository.getDailySchedule = vi.fn().mockResolvedValue({
+        queue_mode: QueueMode.SLOTTED,
+        schedule: [activePatient, targetPatient],
+      });
+
+      await expect(service.callSpecificPatient(dto)).rejects.toThrow(ConflictError);
+      expect(mockRepository.callPatientIfPresent).not.toHaveBeenCalled();
+    });
+
+    it('should throw BusinessRuleError for not present patient', async () => {
+      const dto: CallSpecificPatientDTO = {
+        appointmentId: 'app-2',
+        clinicId: 'clinic-123',
+        staffId: 'staff-123',
+        performedBy: 'user-123',
+      };
+
+      const targetPatient = createMockQueueEntry({
+        id: dto.appointmentId,
+        clinicId: dto.clinicId,
+        staffId: dto.staffId,
+        status: AppointmentStatus.WAITING,
+        isPresent: false,
+      });
+
+      mockRepository.getQueueEntryById = vi.fn().mockResolvedValue(targetPatient);
+
+      await expect(service.callSpecificPatient(dto)).rejects.toThrow(BusinessRuleError);
+      expect(mockRepository.getDailySchedule).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('queue break mode', () => {
+    it('should start queue break with validated payload', async () => {
+      const breakState = {
+        breakId: 'break-1',
+        clinicId: 'clinic-123',
+        staffId: 'staff-123',
+        startedBy: 'user-123',
+        reason: 'Doctor break',
+        durationMinutes: 15,
+        startedAt: '2026-01-01T10:00:00.000Z',
+        endsAt: '2026-01-01T10:15:00.000Z',
+        remainingSeconds: 900,
+        pushedSchedule: true,
+        shiftedAppointmentsCount: 2,
+      };
+
+      mockRepository.startQueueBreak = vi.fn().mockResolvedValue(breakState);
+
+      const result = await service.startQueueBreak({
+        clinicId: 'clinic-123',
+        staffId: 'staff-123',
+        durationMinutes: 15,
+        performedBy: 'user-123',
+        reason: 'Doctor break',
+      });
+
+      expect(result).toEqual(breakState);
+      expect(mockRepository.startQueueBreak).toHaveBeenCalledWith(
+        'clinic-123',
+        'staff-123',
+        15,
+        'user-123',
+        'Doctor break',
+        true
+      );
+    });
+
+    it('should throw ValidationError for invalid break duration', async () => {
+      await expect(
+        service.startQueueBreak({
+          clinicId: 'clinic-123',
+          staffId: 'staff-123',
+          durationMinutes: 0,
+          performedBy: 'user-123',
+        })
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it('should fetch active break state', async () => {
+      const breakState = {
+        breakId: 'break-1',
+        clinicId: 'clinic-123',
+        staffId: 'staff-123',
+        startedBy: 'user-123',
+        reason: null,
+        durationMinutes: 15,
+        startedAt: '2026-01-01T10:00:00.000Z',
+        endsAt: '2026-01-01T10:15:00.000Z',
+        remainingSeconds: 300,
+        pushedSchedule: true,
+        shiftedAppointmentsCount: 1,
+      };
+
+      mockRepository.getActiveQueueBreak = vi.fn().mockResolvedValue(breakState);
+
+      const result = await service.getActiveQueueBreak('clinic-123', 'staff-123');
+
+      expect(result).toEqual(breakState);
+      expect(mockRepository.getActiveQueueBreak).toHaveBeenCalledWith('clinic-123', 'staff-123');
     });
   });
 
@@ -390,7 +625,14 @@ describe('QueueService', () => {
       const result = await service.markPatientAbsent(dto);
 
       expect(result.isPresent).toBe(false);
-      expect(mockRepository.createAbsentPatient).toHaveBeenCalled();
+      expect(mockRepository.createAbsentPatient).toHaveBeenCalledWith(
+        'app-123',
+        mockEntry.clinicId,
+        mockEntry.patientId,
+        dto.performedBy,
+        dto.reason,
+        expect.any(Date)
+      );
       expect(mockRepository.createQueueOverride).toHaveBeenCalled();
       expect(eventBus.publish).toHaveBeenCalled();
     });
@@ -478,6 +720,52 @@ describe('QueueService', () => {
     });
   });
 
+  describe('autoMarkNoShow', () => {
+    it('should auto-transition absent appointment to no-show', async () => {
+      const appointmentId = 'app-123';
+      const existingEntry = createMockQueueEntry({
+        id: appointmentId,
+        status: AppointmentStatus.WAITING,
+        isPresent: false,
+        markedAbsentAt: new Date(Date.now() - 20 * 60 * 1000),
+      });
+      const updatedEntry = createMockQueueEntry({
+        ...existingEntry,
+        status: AppointmentStatus.NO_SHOW,
+        returnedAt: new Date(),
+      });
+
+      mockRepository.getQueueEntryById = vi.fn().mockResolvedValue(existingEntry);
+      mockRepository.updateQueueEntry = vi.fn().mockResolvedValue(updatedEntry);
+      mockRepository.markAbsentPatientAutoCancelled = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(eventBus.publish).mockResolvedValue(undefined);
+
+      const result = await service.autoMarkNoShow(appointmentId);
+
+      expect(result?.status).toBe(AppointmentStatus.NO_SHOW);
+      expect(mockRepository.updateQueueEntry).toHaveBeenCalled();
+      expect(mockRepository.markAbsentPatientAutoCancelled).toHaveBeenCalledWith(appointmentId);
+      expect(eventBus.publish).toHaveBeenCalled();
+    });
+
+    it('should return null when appointment is already finalized', async () => {
+      const appointmentId = 'app-123';
+      const existingEntry = createMockQueueEntry({
+        id: appointmentId,
+        status: AppointmentStatus.COMPLETED,
+      });
+
+      mockRepository.getQueueEntryById = vi.fn().mockResolvedValue(existingEntry);
+
+      const result = await service.autoMarkNoShow(appointmentId);
+
+      expect(result).toBeNull();
+      expect(mockRepository.updateQueueEntry).not.toHaveBeenCalled();
+      expect(mockRepository.markAbsentPatientAutoCancelled).not.toHaveBeenCalled();
+      expect(eventBus.publish).not.toHaveBeenCalled();
+    });
+  });
+
   describe('completeAppointment', () => {
     it('should complete appointment and calculate wait time', async () => {
       const appointmentId = 'app-123';
@@ -521,6 +809,51 @@ describe('QueueService', () => {
       await expect(service.completeAppointment(appointmentId, 'user-123')).rejects.toThrow(
         ConflictError
       );
+    });
+
+    it('should auto-mark zero-amount completed appointments as paid', async () => {
+      const appointmentId = 'app-123';
+      const performedBy = 'user-123';
+      const checkedInAt = new Date(Date.now() - 600000);
+
+      const existingEntry = createMockQueueEntry({
+        id: appointmentId,
+        status: AppointmentStatus.IN_PROGRESS,
+        checkedInAt,
+      });
+
+      const completedEntry = createMockQueueEntry({
+        id: appointmentId,
+        status: AppointmentStatus.COMPLETED,
+        checkedInAt,
+        actualEndTime: new Date(),
+        billingAmount: 0,
+        paymentStatus: PaymentStatus.UNPAID,
+      });
+
+      const paidEntry = createMockQueueEntry({
+        ...completedEntry,
+        paymentStatus: PaymentStatus.PAID,
+        paymentMethod: 'cash',
+        paidAt: new Date(),
+      });
+
+      mockRepository.getQueueEntryById = vi.fn().mockResolvedValue(existingEntry);
+      mockRepository.updateQueueEntry = vi.fn().mockResolvedValue(completedEntry);
+      mockRepository.updateAppointmentPaymentStatus = vi.fn().mockResolvedValue(paidEntry);
+      mockRepository.recordActualWaitTime = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(eventBus.publish).mockResolvedValue(undefined);
+
+      const result = await service.completeAppointment(appointmentId, performedBy);
+
+      expect(mockRepository.updateAppointmentPaymentStatus).toHaveBeenCalledWith(
+        expect.objectContaining({
+          appointmentId,
+          paymentStatus: PaymentStatus.PAID,
+          paymentMethod: 'cash',
+        })
+      );
+      expect(result.paymentStatus).toBe(PaymentStatus.PAID);
     });
   });
 

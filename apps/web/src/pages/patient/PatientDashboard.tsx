@@ -14,7 +14,8 @@ import {
   MessageSquare,
   XCircle,
   ChevronRight,
-  Plus
+  Plus,
+  Link
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -106,6 +107,7 @@ export default function PatientDashboard() {
     date: string;
     time: string;
   } | null>(null);
+  const [copyingLinkAppointmentId, setCopyingLinkAppointmentId] = useState<string | null>(null);
   const [selectedPendingGrantId, setSelectedPendingGrantId] = useState<string | null>(null);
   const [accessRequestModalOpen, setAccessRequestModalOpen] = useState(false);
 
@@ -304,15 +306,53 @@ export default function PatientDashboard() {
     setCancelDialogOpen(true);
   };
 
+  const handleCopyQueueStatusLink = async (appointmentId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCopyingLinkAppointmentId(appointmentId);
+
+    try {
+      const token = await queueService.getQueueStatusToken(appointmentId);
+      const publicLink = `${window.location.origin}/queue-status/${token}`;
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(publicLink);
+        toast({
+          title: "Link copied",
+          description: "Public queue status link copied to clipboard.",
+        });
+      } else {
+        toast({
+          title: "Queue status link",
+          description: publicLink,
+        });
+      }
+    } catch (error) {
+      logger.error("Error generating public queue status link", error instanceof Error ? error : new Error(String(error)), {
+        appointmentId,
+        userId: user?.id,
+      });
+      toast({
+        title: "Link generation failed",
+        description: "Unable to create queue status link right now.",
+        variant: "destructive",
+      });
+    } finally {
+      setCopyingLinkAppointmentId(null);
+    }
+  };
+
   const getUpcomingAppointments = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
     return appointments.filter(apt => {
-      const aptDate = new Date(apt.appointment_date);
-      const isFutureOrToday = aptDate >= today;
       const isActiveStatus = ['scheduled', 'waiting', 'confirmed', 'in_progress'].includes(apt.status);
-      return isFutureOrToday && isActiveStatus;
+      if (!isActiveStatus) return false;
+      
+      // Active queue/scheduled appointments are always "upcoming" regardless of
+      // scheduled date — a patient still needs to act on an in-queue or future
+      // appointment even if the original date has passed (e.g. midnight rollover).
+      return true;
     });
   };
 
@@ -670,6 +710,13 @@ export default function PatientDashboard() {
                       )}
                     </div>
                     <div className="flex items-center gap-3">
+                      <button
+                        onClick={(e) => handleCopyQueueStatusLink(apt.id, e)}
+                        className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
+                      >
+                        <Link className="w-3.5 h-3.5" />
+                        {copyingLinkAppointmentId === apt.id ? 'Copying...' : 'Copy queue link'}
+                      </button>
                       <button
                         onClick={(e) => confirmCancel(
                           apt.id, 

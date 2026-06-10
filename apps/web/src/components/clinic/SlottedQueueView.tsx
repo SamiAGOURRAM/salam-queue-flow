@@ -8,6 +8,7 @@ import { Clock, UserCheck, UserX, CheckCircle2, Play, MoreHorizontal } from "luc
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useMemo } from "react";
+import type { NoShowCountdownState } from "@/hooks/useNoShowDetection";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,10 +23,13 @@ interface SlottedQueueViewProps {
   onMarkAbsent?: (appointmentId: string) => void;
   onMarkPresent?: (appointmentId: string) => void;
   onMarkNotPresent?: (appointmentId: string) => void;
+  onCallPatient?: (appointmentId: string) => void;
+  onOpenAppointment?: (appointmentId: string) => void;
   actionLoading?: boolean;
   gracePeriodMinutes?: number;
   workingDayStart?: Date | null;
   workingDayEnd?: Date | null;
+  countdownByAppointmentId?: Record<string, NoShowCountdownState>;
 }
 
 export function SlottedQueueView({
@@ -35,13 +39,33 @@ export function SlottedQueueView({
   onMarkAbsent,
   onMarkPresent,
   onMarkNotPresent,
+  onCallPatient,
+  onOpenAppointment,
   actionLoading = false,
   gracePeriodMinutes = 15,
   workingDayStart,
   workingDayEnd,
+  countdownByAppointmentId = {},
 }: SlottedQueueViewProps) {
   const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const parseTimeParts = (value: string): { hours: number; minutes: number; seconds: number } | null => {
+    const match = value.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    if (!match) return null;
+
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    const seconds = Number(match[3] ?? '0');
+
+    if (
+      Number.isNaN(hours) || Number.isNaN(minutes) || Number.isNaN(seconds) ||
+      hours < 0 || hours > 23 || minutes < 0 || minutes > 59 || seconds < 0 || seconds > 59
+    ) {
+      return null;
+    }
+
+    return { hours, minutes, seconds };
+  };
 
   const getAppointmentWindow = (appointment: QueueEntry): { startTime: Date; endTime: Date } | null => {
     if (!appointment.scheduledTime) return null;
@@ -51,11 +75,11 @@ export function SlottedQueueView({
       : new Date(appointment.appointmentDate);
     if (Number.isNaN(appointmentDate.getTime())) return null;
 
-    const dateStr = appointmentDate.toISOString().split('T')[0];
-    const normalizedTime = appointment.scheduledTime.length === 5
-      ? `${appointment.scheduledTime}:00`
-      : appointment.scheduledTime;
-    const startTime = new Date(`${dateStr}T${normalizedTime}`);
+    const parsedTime = parseTimeParts(appointment.scheduledTime);
+    if (!parsedTime) return null;
+
+    const startTime = new Date(appointmentDate);
+    startTime.setHours(parsedTime.hours, parsedTime.minutes, parsedTime.seconds, 0);
     if (Number.isNaN(startTime.getTime())) return null;
 
     const durationMinutes = appointment.estimatedDurationMinutes && appointment.estimatedDurationMinutes > 0
@@ -66,25 +90,46 @@ export function SlottedQueueView({
     return { startTime, endTime };
   };
 
-  // Get today's appointments
-  const todayAppointments = useMemo(() => {
+  // The schedule is already day-scoped by backend RPC; avoid re-filtering by local "today"
+  // because timezone conversions can hide valid entries.
+  const slottedAppointments = useMemo(() => {
     return schedule
       .filter(apt => {
         const appointmentWindow = getAppointmentWindow(apt);
-        if (!appointmentWindow) return false;
-
-        const aptDate = appointmentWindow.startTime;
-        return aptDate.getDate() === today.getDate() &&
-               aptDate.getMonth() === today.getMonth() &&
-               aptDate.getFullYear() === today.getFullYear() &&
-               apt.skipReason !== SkipReason.PATIENT_ABSENT;
+        return Boolean(appointmentWindow);
       })
       .sort((a, b) => {
         const timeA = getAppointmentWindow(a)?.startTime.getTime() ?? Infinity;
         const timeB = getAppointmentWindow(b)?.startTime.getTime() ?? Infinity;
         return timeA - timeB;
       });
-  }, [schedule, today]);
+  }, [schedule]);
+
+  const overflowAppointments = useMemo(() => {
+    return schedule
+      .filter((appointment) => {
+        const hasScheduledWindow = Boolean(getAppointmentWindow(appointment));
+        if (hasScheduledWindow) {
+          return false;
+        }
+
+        return [
+          AppointmentStatus.SCHEDULED,
+          AppointmentStatus.WAITING,
+          AppointmentStatus.IN_PROGRESS,
+        ].includes(appointment.status);
+      })
+      .sort((a, b) => {
+        const scoreA = a.priorityScore || 0;
+        const scoreB = b.priorityScore || 0;
+
+        if (scoreA !== scoreB) {
+          return scoreB - scoreA;
+        }
+
+        return (a.queuePosition ?? Number.MAX_SAFE_INTEGER) - (b.queuePosition ?? Number.MAX_SAFE_INTEGER);
+      });
+  }, [schedule]);
 
   // Get status config for appointment
   const getStatusConfig = (apt: QueueEntry) => {
@@ -147,15 +192,19 @@ export function SlottedQueueView({
     }> = [];
 
     // Sort appointments by start time
-    const sortedAppts = [...todayAppointments].sort((a, b) => {
+    const sortedAppts = [...slottedAppointments].sort((a, b) => {
       const timeA = getAppointmentWindow(a)?.startTime.getTime() ?? Infinity;
       const timeB = getAppointmentWindow(b)?.startTime.getTime() ?? Infinity;
       return timeA - timeB;
     });
 
-    const defaultStart = new Date(today);
+    const referenceDate = sortedAppts[0]?.appointmentDate
+      ? new Date(sortedAppts[0].appointmentDate)
+      : now;
+
+    const defaultStart = new Date(referenceDate);
     defaultStart.setHours(9, 0, 0, 0);
-    const defaultEnd = new Date(today);
+    const defaultEnd = new Date(referenceDate);
     defaultEnd.setHours(18, 0, 0, 0);
     
     const workStart = workingDayStart ? new Date(workingDayStart) : defaultStart;
@@ -243,9 +292,11 @@ export function SlottedQueueView({
     }
 
     return items;
-  }, [todayAppointments, workingDayStart, workingDayEnd, today]);
+  }, [slottedAppointments, workingDayStart, workingDayEnd, now]);
 
-  if (gridItems.length === 0 || (gridItems.length === 1 && gridItems[0].type === 'gap')) {
+  const hasTimelineAppointments = !(gridItems.length === 0 || (gridItems.length === 1 && gridItems[0].type === 'gap'));
+
+  if (!hasTimelineAppointments && overflowAppointments.length === 0) {
     return (
       <div className="text-center py-12">
         <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
@@ -258,7 +309,7 @@ export function SlottedQueueView({
 
   return (
     <div className="space-y-1">
-      {gridItems.map((item, index) => {
+      {hasTimelineAppointments && gridItems.map((item, index) => {
         if (item.type === 'gap') {
           const gapMins = item.durationSlots ? item.durationSlots * 30 : 0;
           if (gapMins < 30) return null; // Don't show tiny gaps
@@ -286,10 +337,17 @@ export function SlottedQueueView({
         const endTime = item.endTime!;
         const isCurrent = appointment.id === currentPatient?.id;
         const isPast = endTime < now && appointment.status !== AppointmentStatus.IN_PROGRESS;
+        const isAbsent = appointment.skipReason === SkipReason.PATIENT_ABSENT && !appointment.returnedAt;
+        const graceCountdown = countdownByAppointmentId[appointment.id];
         const canMarkPresent = !appointment.isPresent &&
           (appointment.status === AppointmentStatus.WAITING || appointment.status === AppointmentStatus.SCHEDULED);
-        const canMarkAbsent = appointment.status === AppointmentStatus.WAITING ||
-          appointment.status === AppointmentStatus.SCHEDULED;
+        const canMarkAbsent = !isAbsent && (appointment.status === AppointmentStatus.WAITING ||
+          appointment.status === AppointmentStatus.SCHEDULED);
+        const canCallNow =
+          !currentPatient &&
+          Boolean(onCallPatient) &&
+          appointment.isPresent &&
+          (appointment.status === AppointmentStatus.WAITING || appointment.status === AppointmentStatus.SCHEDULED);
 
         return (
           <div
@@ -316,21 +374,75 @@ export function SlottedQueueView({
             <div className={cn("w-2 h-2 rounded-full flex-shrink-0", statusConfig.dot)} />
 
             {/* Patient Info */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">
-                  {appointment.patient?.fullName || 'Patient'}
+            {onOpenAppointment ? (
+              <button
+                type="button"
+                onClick={() => onOpenAppointment(appointment.id)}
+                className="flex-1 min-w-0 text-left rounded px-1 py-0.5 -mx-1 hover:bg-background/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {appointment.patient?.fullName || 'Patient'}
+                  </p>
+                  {appointment.status === AppointmentStatus.IN_PROGRESS && appointment.resource?.name && (
+                    <Badge variant="outline" className="h-5 rounded-full text-[10px] px-2 border-emerald-300/60 text-emerald-700">
+                      {appointment.resource.name}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground truncate">
+                  {appointment.appointmentType || 'Appointment'}
                 </p>
-                {appointment.status === AppointmentStatus.IN_PROGRESS && appointment.resource?.name && (
-                  <Badge variant="outline" className="h-5 rounded-full text-[10px] px-2 border-emerald-300/60 text-emerald-700">
-                    {appointment.resource.name}
+                {graceCountdown && (
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "mt-1 h-5 rounded-full text-[10px] px-2 font-medium",
+                      graceCountdown.urgency === 'expired' && "border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 bg-red-100/60 dark:bg-red-950/50",
+                      graceCountdown.urgency === 'expiring' && "border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 bg-amber-100/60 dark:bg-amber-950/50",
+                      graceCountdown.urgency === 'normal' && "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-slate-100/60 dark:bg-slate-900/50"
+                    )}
+                  >
+                    <Clock className="h-3 w-3 mr-1" />
+                    {graceCountdown.isExpired
+                      ? 'Grace expired'
+                      : `Grace ${graceCountdown.label} left`}
+                  </Badge>
+                )}
+              </button>
+            ) : (
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {appointment.patient?.fullName || 'Patient'}
+                  </p>
+                  {appointment.status === AppointmentStatus.IN_PROGRESS && appointment.resource?.name && (
+                    <Badge variant="outline" className="h-5 rounded-full text-[10px] px-2 border-emerald-300/60 text-emerald-700">
+                      {appointment.resource.name}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground truncate">
+                  {appointment.appointmentType || 'Appointment'}
+                </p>
+                {graceCountdown && (
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "mt-1 h-5 rounded-full text-[10px] px-2 font-medium",
+                      graceCountdown.urgency === 'expired' && "border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 bg-red-100/60 dark:bg-red-950/50",
+                      graceCountdown.urgency === 'expiring' && "border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 bg-amber-100/60 dark:bg-amber-950/50",
+                      graceCountdown.urgency === 'normal' && "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-slate-100/60 dark:bg-slate-900/50"
+                    )}
+                  >
+                    <Clock className="h-3 w-3 mr-1" />
+                    {graceCountdown.isExpired
+                      ? 'Grace expired'
+                      : `Grace ${graceCountdown.label} left`}
                   </Badge>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground truncate">
-                {appointment.appointmentType || 'Appointment'}
-              </p>
-            </div>
+            )}
 
             {/* Status Badge */}
             <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded", statusConfig.text, statusConfig.bg)}>
@@ -370,6 +482,12 @@ export function SlottedQueueView({
                           Mark Present
                         </DropdownMenuItem>
                       )}
+                      {canCallNow && onCallPatient && (
+                        <DropdownMenuItem onClick={() => onCallPatient(appointment.id)}>
+                          <Play className="h-4 w-4 mr-2" />
+                          Call Now
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem
                         onClick={() => onMarkAbsent(appointment.id)}
                         className="text-red-600"
@@ -395,6 +513,154 @@ export function SlottedQueueView({
           </div>
         );
       })}
+
+      {overflowAppointments.length > 0 && (
+        <div className="mt-4 border-t border-border/60 pt-3 space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5">
+                Overflow Lane
+              </Badge>
+              <p className="text-xs text-muted-foreground">
+                Hybrid queue patients without fixed time
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {overflowAppointments.length} waiting
+            </p>
+          </div>
+
+          {overflowAppointments.map((appointment) => {
+            const statusConfig = getStatusConfig(appointment);
+            const isAbsent = appointment.skipReason === SkipReason.PATIENT_ABSENT && !appointment.returnedAt;
+            const graceCountdown = countdownByAppointmentId[appointment.id];
+            const canMarkPresent = !appointment.isPresent &&
+              (appointment.status === AppointmentStatus.WAITING || appointment.status === AppointmentStatus.SCHEDULED);
+            const canMarkAbsent = !isAbsent && (appointment.status === AppointmentStatus.WAITING ||
+              appointment.status === AppointmentStatus.SCHEDULED);
+            const canCallNow =
+              !currentPatient &&
+              Boolean(onCallPatient) &&
+              appointment.isPresent &&
+              (appointment.status === AppointmentStatus.WAITING || appointment.status === AppointmentStatus.SCHEDULED);
+
+            return (
+              <div
+                key={`overflow-${appointment.id}`}
+                className={cn(
+                  "flex items-center gap-3 p-3 rounded-lg border transition-all",
+                  statusConfig.bg,
+                  statusConfig.border
+                )}
+              >
+                <div className="w-16 flex-shrink-0">
+                  <p className="text-[10px] text-muted-foreground">FIFO</p>
+                  <p className="text-xs font-medium text-foreground">
+                    #{appointment.queuePosition ?? '-'}
+                  </p>
+                </div>
+
+                <div className={cn("w-2 h-2 rounded-full flex-shrink-0", statusConfig.dot)} />
+
+                {onOpenAppointment ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenAppointment(appointment.id)}
+                    className="flex-1 min-w-0 text-left rounded px-1 py-0.5 -mx-1 hover:bg-background/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {appointment.patient?.fullName || 'Patient'}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {appointment.appointmentType || 'Appointment'}
+                    </p>
+                    {graceCountdown && (
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "mt-1 h-5 rounded-full text-[10px] px-2 font-medium",
+                          graceCountdown.urgency === 'expired' && "border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 bg-red-100/60 dark:bg-red-950/50",
+                          graceCountdown.urgency === 'expiring' && "border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 bg-amber-100/60 dark:bg-amber-950/50",
+                          graceCountdown.urgency === 'normal' && "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-slate-100/60 dark:bg-slate-900/50"
+                        )}
+                      >
+                        <Clock className="h-3 w-3 mr-1" />
+                        {graceCountdown.isExpired
+                          ? 'Grace expired'
+                          : `Grace ${graceCountdown.label} left`}
+                      </Badge>
+                    )}
+                  </button>
+                ) : (
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {appointment.patient?.fullName || 'Patient'}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {appointment.appointmentType || 'Appointment'}
+                    </p>
+                  </div>
+                )}
+
+                <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded", statusConfig.text, statusConfig.bg)}>
+                  {statusConfig.label}
+                </span>
+
+                {appointment.status !== AppointmentStatus.COMPLETED &&
+                 appointment.status !== AppointmentStatus.CANCELLED && (
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {canMarkPresent && onMarkPresent && (
+                      <Button
+                        onClick={() => onMarkPresent(appointment.id)}
+                        disabled={actionLoading}
+                        size="sm"
+                        className="h-7 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                      >
+                        <UserCheck className="h-3 w-3 mr-1" />
+                        Present
+                      </Button>
+                    )}
+                    {canMarkAbsent && onMarkAbsent && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {!appointment.isPresent && onMarkPresent && (
+                            <DropdownMenuItem onClick={() => onMarkPresent(appointment.id)}>
+                              <UserCheck className="h-4 w-4 mr-2" />
+                              Mark Present
+                            </DropdownMenuItem>
+                          )}
+                          {canCallNow && onCallPatient && (
+                            <DropdownMenuItem onClick={() => onCallPatient(appointment.id)}>
+                              <Play className="h-4 w-4 mr-2" />
+                              Call Now
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem
+                            onClick={() => onMarkAbsent(appointment.id)}
+                            className="text-red-600"
+                          >
+                            <UserX className="h-4 w-4 mr-2" />
+                            Mark Absent
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

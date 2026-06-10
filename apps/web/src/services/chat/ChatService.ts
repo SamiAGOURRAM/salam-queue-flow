@@ -2,12 +2,15 @@
  * ChatService - Interface for chatbot communication
  * This abstract interface allows for easy swapping between different AI providers
  */
+import type { DiscoveryCards } from "@queuemed/core";
 
 export interface ChatMessage {
   id: string;
   text: string;
   sender: "user" | "assistant";
   timestamp: Date;
+  /** Optional structured discovery cards rendered as clickable doctor/clinic cards. */
+  cards?: DiscoveryCards;
 }
 
 export interface ChatContext {
@@ -21,6 +24,8 @@ export interface ChatContext {
 export interface ChatResponse {
   message: string;
   timestamp: Date;
+  /** Optional structured discovery cards returned by the agent's discovery tools. */
+  cards?: DiscoveryCards;
 }
 
 export interface IChatService {

@@ -1,0 +1,41 @@
+# syntax=docker/dockerfile:1
+#
+# PRODUCTION image for the web frontend.
+# Multi-stage: build the Vite SPA, then serve the static output with nginx.
+#
+# NOTE: Vite inlines VITE_* variables at BUILD time, so they are passed as
+# build args (wired from .env in docker-compose.prod.yml) and promoted to ENV
+# so Vite can read them during `pnpm build`.
+
+# ---- build stage ----
+FROM node:20-bookworm-slim AS build
+ENV CI=true
+RUN corepack enable
+WORKDIR /app
+
+COPY . .
+RUN pnpm install --frozen-lockfile
+
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_PUBLISHABLE_KEY
+ARG VITE_CUGA_ENABLED
+ARG VITE_CUGA_API_URL
+ARG VITE_USE_SERVICE_LAYER
+ARG VITE_USE_API_LAYER
+ARG VITE_APP_VERSION
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
+    VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY \
+    VITE_CUGA_ENABLED=$VITE_CUGA_ENABLED \
+    VITE_CUGA_API_URL=$VITE_CUGA_API_URL \
+    VITE_USE_SERVICE_LAYER=$VITE_USE_SERVICE_LAYER \
+    VITE_USE_API_LAYER=$VITE_USE_API_LAYER \
+    VITE_APP_VERSION=$VITE_APP_VERSION
+
+RUN pnpm --filter @queuemed/web build
+
+# ---- runtime stage ----
+FROM nginx:1.27-alpine AS runtime
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/apps/web/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

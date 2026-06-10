@@ -13,7 +13,12 @@ export type ClinicPermissionKey =
   | 'view_team'
   | 'view_clinic_settings'
   | 'manage_clinic_settings'
-  | 'manage_roles';
+  | 'manage_roles'
+  | 'view_medical_records'
+  | 'manage_medical_records'
+  | 'view_analytics'
+  | 'view_billing'
+  | 'manage_billing';
 
 export type ClinicRolePermissions = Record<ClinicPermissionKey, boolean>;
 
@@ -39,6 +44,11 @@ const PERMISSION_KEYS: ClinicPermissionKey[] = [
   'view_clinic_settings',
   'manage_clinic_settings',
   'manage_roles',
+  'view_medical_records',
+  'manage_medical_records',
+  'view_analytics',
+  'view_billing',
+  'manage_billing',
 ];
 
 export const CLINIC_PERMISSION_LABELS: Record<ClinicPermissionKey, string> = {
@@ -55,6 +65,11 @@ export const CLINIC_PERMISSION_LABELS: Record<ClinicPermissionKey, string> = {
   view_clinic_settings: 'View clinic settings',
   manage_clinic_settings: 'Edit clinic settings',
   manage_roles: 'Manage roles and permissions',
+  view_medical_records: 'View patient medical records',
+  manage_medical_records: 'Create and edit medical records',
+  view_analytics: 'View clinic analytics and reports',
+  view_billing: 'View billing and revenue data',
+  manage_billing: 'Manage payment status and billing updates',
 };
 
 const DEFAULT_STAFF_PERMISSIONS: ClinicRolePermissions = {
@@ -71,6 +86,11 @@ const DEFAULT_STAFF_PERMISSIONS: ClinicRolePermissions = {
   view_clinic_settings: false,
   manage_clinic_settings: false,
   manage_roles: false,
+  view_medical_records: false,
+  manage_medical_records: false,
+  view_analytics: false,
+  view_billing: false,
+  manage_billing: false,
 };
 
 const DEFAULT_DOCTOR_PERMISSIONS: ClinicRolePermissions = {
@@ -87,6 +107,11 @@ const DEFAULT_DOCTOR_PERMISSIONS: ClinicRolePermissions = {
   view_clinic_settings: true,
   manage_clinic_settings: false,
   manage_roles: false,
+  view_medical_records: true,
+  manage_medical_records: true,
+  view_analytics: false,
+  view_billing: false,
+  manage_billing: false,
 };
 
 const OWNER_PERMISSIONS: ClinicRolePermissions = PERMISSION_KEYS.reduce((acc, key) => {

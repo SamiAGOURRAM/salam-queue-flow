@@ -2,7 +2,7 @@ import { QueueRepository } from './repositories/QueueRepository';
 import { WaitlistService } from './WaitlistService';
 import { QueueService } from './QueueService';
 import { logger } from '../shared/logging/Logger';
-import { AppointmentStatus, Disruption, QueueEntry } from './models/QueueModels';
+import { AppointmentStatus, QueueEntry } from './models/QueueModels';
 
 /**
  * Gap Manager Service
@@ -39,13 +39,27 @@ export class GapManagerService {
     );
 
     if (earlyBirds.length > 0) {
-      // Sort by arrival time (FIFO) or priority
+      // Sort by priority score (descending), then by queue position (ascending) as tiebreaker
+      earlyBirds.sort((a, b) => {
+        const scoreA = a.priorityScore ?? 0;
+        const scoreB = b.priorityScore ?? 0;
+        if (scoreB !== scoreA) return scoreB - scoreA;
+        return a.queuePosition - b.queuePosition;
+      });
       const bestCandidate = earlyBirds[0];
       logger.info('Found early bird to fill gap', { candidateId: bestCandidate.id });
+
+      const isConfirmed = this.confirmEarlyBirdPromotion(bestCandidate, gapStartTime);
+      if (!isConfirmed) {
+        logger.info('Skipped early bird promotion because confirmation was not granted', {
+          candidateId: bestCandidate.id,
+          clinicId,
+          staffId,
+        });
+        return;
+      }
       
       // Promote early bird to this slot
-      // Ideally we'd ask for confirmation, but for "Fluid" modes we might auto-fill
-      // For now, we'll just log the recommendation or auto-swap if configured
       await this.fillGapWithAppointment(bestCandidate, gapStartTime);
       return;
     }
@@ -74,7 +88,7 @@ export class GapManagerService {
     // Update the appointment to the new earlier time
     // This effectively "fills" the gap
     await this.queueRepository.updateQueueEntry(appointment.id, {
-        scheduledTime: newStartTime.toISOString().substring(11, 16),
+        scheduledTime: this.formatTimeHHmm(newStartTime),
         isGapFiller: true,
         priorityScore: (appointment.priorityScore || 0) + 20 // Bonus for being a gap filler
     });
@@ -92,6 +106,31 @@ export class GapManagerService {
     const parsed = new Date(`${dateStr}T${normalizedTime}`);
 
     return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  private formatTimeHHmm(date: Date): string {
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  }
+
+  private confirmEarlyBirdPromotion(candidate: QueueEntry, gapStartTime: Date): boolean {
+    if (typeof window === 'undefined' || typeof window.confirm !== 'function') {
+      return false;
+    }
+
+    const patientName = candidate.patient?.fullName || 'this patient';
+    const gapTime = this.formatTimeHHmm(gapStartTime);
+
+    try {
+      return window.confirm(`Promote ${patientName} to fill the ${gapTime} gap now?`);
+    } catch (error) {
+      logger.warn('Unable to display early bird confirmation prompt', {
+        candidateId: candidate.id,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    }
   }
 }
 

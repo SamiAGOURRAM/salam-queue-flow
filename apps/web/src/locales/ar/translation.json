@@ -1,24 +1,57 @@
 {
   "landing": {
     "nav": {
+      "findClinics": "لقى العيادات",
       "clinics": "العيادات",
       "about": "علاش",
+      "help": "المساعدة",
+      "logIn": "دخول",
+      "signUp": "دير كونت",
+      "signOut": "خروج",
       "forClinics": "للعيادات",
       "signIn": "دخول",
-      "signUp": "دير كونت"
+      "avgRating": "المعدل"
     },
     "hero": {
-      "title": "الصحة ديالك،",
-      "titleHighlight": "بسهولة",
-      "subtitle": "لقى أحسن الطبيبة، حجز الرونديفو فدقائق، وتجنّب الصف مع أذكى پلاتفورم صحية فالمغرب.",
-      "searchPlaceholder": "قلّب على تخصص أو طبيب...",
-      "locationPlaceholder": "المدينة أو الحي",
-      "searchButton": "قلّب"
+      "title1": "الصحة ديالك،",
+      "title2": "على",
+      "title3": "الوقت ديالك",
+      "subtitle": "لقى أحسن العيادات، حجز الموعد بسرعة، وتفادى الانتظار."
+    },
+    "search": {
+      "specialtyPlaceholder": "التخصص ولا سميت العيادة",
+      "locationPlaceholder": "المدينة ولا الحي",
+      "searchButton": "قلّب على العيادات",
+      "browseAll": "شوف جميع العيادات مع الفيلترات",
+      "myAppointments": "المواعيد ديالي",
+      "signIn": "دخول"
+    },
+    "location": {
+      "morocco": "المغرب",
+      "changeLocation": "بدّل المدينة"
+    },
+    "spotlight": {
+      "liveLabel": "وضع الصف مباشر",
+      "averageWaitDescription": "متوسط وقت الانتظار فالعيادات الشريكة",
+      "waitUnavailable": "غادي يبان متوسط الانتظار ملي العيادات تشارك معطيات الجدولة أكثر",
+      "title": "كنحيدو قاعات الانتظار",
+      "description": "QueueMed كينسق وقت الوصول ديالك مع موعدك بدقة. بلا جلوس طويل فالقاعات.",
+      "partnerClinics": "عيادات شريكة",
+      "patientReviews": "تقييمات المرضى",
+      "avgRating": "المعدل",
+      "noRating": "--",
+      "findClinic": "لقى عيادة"
+    },
+    "accessibility": {
+      "heroImageAlt": "استقبال عيادة عصرية مع مريض داخل",
+      "generalCareAlt": "خدمات الطب العام",
+      "dentalAlt": "خدمات طب الأسنان",
+      "specialistsAlt": "خدمات التخصصات الطبية"
     },
     "stats": {
       "verifiedClinics": "عيادات موثوقة",
-      "patientsServed": "المرضى لي خدمنا",
-      "avgRating": "المعدل"
+      "avgRating": "المعدل",
+      "patientsServed": "المرضى لي تخدمات معاهم"
     },
     "suggestions": {
       "title": "شنو كتحتاج؟",
@@ -27,19 +60,31 @@
       "cardiology": "القلب",
       "pediatrics": "طب الأطفال",
       "dermatology": "الجلد",
-      "ophthalmology": "العينين"
+      "ophthalmology": "العينين",
+      "generalCare": "طب عام",
+      "generalCareDesc": "فحوصات روتينية، استشارات، ووقاية",
+      "dental": "طب الأسنان",
+      "dentalDesc": "تنظيف، حشوات، وتبييض وصحة الفم",
+      "specialists": "التخصصات",
+      "specialistsDesc": "القلب، الأعصاب، العظام، وأكثر",
+      "details": "التفاصيل"
     },
     "account": {
       "title": "دير الصحة ديالك بسهولة",
       "description": "دخل للكونت ديالك باش تشوف الرونديفوات ديالك، الطبيبة لي كتبغي، والتاريخ الطبي ديالك.",
       "signInButton": "دخول للكونت ديالك",
-      "signUpButton": "دير كونت جديد"
+      "signUpButton": "دير كونت جديد",
+      "signIn": "دخول",
+      "createAccount": "دير كونت",
+      "dashboardLabel": "لوحة الصحة ديالك"
     },
     "forClinics": {
       "title": "عندك عيادة؟",
       "description": "انضم لشبكتنا، جذب مرضى جداد، ودير الرونديفوات بسهولة مع لوحة التحكم ديالنا.",
       "registerButton": "سجّل العيادة ديالك",
-      "learnMore": "شوف أكثر"
+      "learnMore": "شوف أكثر",
+      "register": "سجّل العيادة ديالك",
+      "dashboardLabel": "لوحة العيادة"
     },
     "footer": {
       "description": "أذكى پلاتفورم للرونديفوات الطبية فالمغرب.",
@@ -57,6 +102,15 @@
       "privacy": "الخصوصية",
       "terms": "الشروط",
       "cookies": "الكوكيز",
+      "aboutUs": "علاش",
+      "products": "المنتجات",
+      "findClinics": "لقى العيادات",
+      "forClinics": "للعيادات",
+      "api": "واجهة البرمجة",
+      "support": "الدعم",
+      "helpCenter": "مركز المساعدة",
+      "contactUs": "تواصل معانا",
+      "safety": "السلامة",
       "copyright": "© 2025 QueueMed. كاع الحقوق محفوظة."
     }
   },
@@ -188,17 +242,51 @@
     "tryAdjustingFilters": "جرّب تبدّل البحث ديالك",
     "findPerfectProvider": "لقى الطبيب المناسب ليك",
     "searchPlaceholder": "قلّب بالسمية، التخصص، أو المكان...",
+    "selectDate": "التاريخ",
+    "timeSlots": {
+      "any": "أي وقت",
+      "morning": "الصباح",
+      "afternoon": "العشية",
+      "evening": "المساء",
+      "morningShort": "ص",
+      "afternoonShort": "ع",
+      "eveningShort": "م"
+    },
     "bookAppointment": "حجز رونديفو",
     "bookNow": "حجز دابا",
+    "book": "حجز",
+    "details": "التفاصيل",
+    "backToClinics": "رجوع للعيادات",
     "openNow": "محلول دابا",
     "newClinic": "عيادة جديدة",
     "allSpecialtiesText": "كاع التخصصات",
     "allSpecialtiesDesc": "لقى الطبيبة فكاع المجالات",
     "instantBooking": "ريزيرڤاسيون بزربا",
     "instantBookingDesc": "مابغاش تصبر",
+    "instantConfirmation": "تأكيد فوري",
+    "reviewCount": "({{count}} تقييم)",
+    "availableServices": "الخدمات المتاحة",
+    "free": "مجاني",
+    "clinicInfo": "معلومات العيادة",
+    "appointmentRequired": "خاص موعد",
+    "maxQueue": "أقصى صف",
+    "patientCount": "{{count}} مرضى",
+    "bufferTime": "وقت الفاصل",
+    "bufferTimeMinutes": "{{count}} دقيقة بين المواعيد",
+    "ourTeam": "الفريق ديالنا",
+    "staffMember": "عضو فالفريق",
+    "readyToBook": "واجد للحجز؟",
+    "readyToBookDescription": "حجز الموعد ديالك دابا وتفادى الانتظار.",
+    "paymentMethodsNotConfigured": "طرق الأداء مازال ما تضبطاتش فهاد العيادة.",
+    "preferencesNotConfigured": "إعدادات العيادة مازال ما تضبطاتش.",
+    "fallbackName": "العيادة",
+    "fallbackSpecialty": "التخصص غير متوفر",
+    "fallbackCity": "المدينة غير متوفرة",
     "minRating": "أقل تقييم",
+    "minRatingTag": "{{rating}}+ نجمات",
     "allRatings": "كاع التقييمات",
-    "popularSpecialties": "التخصصات المشهورة"
+    "popularSpecialties": "التخصصات المشهورة",
+    "notFoundDescription": "العيادة اللي كتقلب عليها ما بقاتش متاحة ولا تحيدات."
   },
   "doctorDirectory": {
     "title": "شوف الطبيبة",
@@ -239,7 +327,16 @@
     "hours": "الساعات",
     "today": "اليوم",
     "schedule": "البروݣرام",
-    "workingHours": "ساعات الخدمة"
+    "workingHours": "ساعات الخدمة",
+    "days": {
+      "sunday": "الأحد",
+      "monday": "الإثنين",
+      "tuesday": "الثلاثاء",
+      "wednesday": "الأربعاء",
+      "thursday": "الخميس",
+      "friday": "الجمعة",
+      "saturday": "السبت"
+    }
   },
   "favorites": {
     "addedToFavorites": "تزاد للمفضلات",
@@ -256,6 +353,38 @@
     "tryAgain": "عافاك جرّب من جديد",
     "somethingWentWrong": "شي حاجة خربقات"
   },
+  "publicQueueStatus": {
+    "loading": "كيتحمّل وضع الصف...",
+    "unavailableTitle": "وضع الصف غير متاح",
+    "backToHome": "رجوع للرئيسية",
+    "liveStatus": "وضع الصف مباشر",
+    "currentPosition": "الموقع الحالي",
+    "autoRefresh": "كتتجدد تلقائيا كل 20 ثانية",
+    "clinic": "العيادة",
+    "estimatedTime": "الوقت المتوقع",
+    "appointmentDate": "تاريخ الموعد",
+    "visitType": "نوع الزيارة",
+    "updatedAt": "آخر تحديث {{time}}",
+    "refresh": "تحديث",
+    "calculating": "كيتحسب...",
+    "notAvailable": "غير متاح",
+    "justNow": "دابا",
+    "status": {
+      "scheduled": "محدد",
+      "waiting": "فالصف",
+      "inProgress": "دورك دابا",
+      "completed": "مكمل",
+      "cancelled": "ملغي",
+      "noShow": "ماجاش",
+      "unknown": "غير معروف"
+    },
+    "errors": {
+      "missingToken": "رمز تتبع الصف ناقص.",
+      "invalidLink": "رابط تتبع الصف غير صالح ولا سالى.",
+      "loadFailed": "ماقدرناش نحمّلو وضع الصف دابا. عافاك عاود حاول.",
+      "linkExpired": "هاد الرابط ما بقا صالحش."
+    }
+  },
   "appointments": {
     "hero": {
       "journey": "الصحة ديالك",
@@ -263,6 +392,7 @@
       "tagline": "دير الزيارات ديالك بزربا ولقى طبيبة جداد."
     },
     "total": "مجموع الرونديفوات",
+    "count": "لقينا {{count}} موعد",
     "count_zero": "مالقيناش رونديفو",
     "count_one": "لقينا رونديفو واحد",
     "count_two": "لقينا جوج رونديفوات",
@@ -319,7 +449,194 @@
     "favoritesTitle": "العيادات المفضلة ديالي",
     "removeFavoriteError": "المفضل ماتحيّدش: {{error}}"
   },
+  "clinicLayout": {
+    "loading": "كيتحمّل...",
+    "nav": {
+      "dashboard": "لوحة التحكم",
+      "liveQueue": "الصف المباشر",
+      "calendar": "الكالوندريي",
+      "templates": "القوالب",
+      "medications": "الأدوية",
+      "team": "الفريق",
+      "profile": "البروفيل",
+      "settings": "الپاراميترات",
+      "signOut": "خروج"
+    },
+    "settingsTabs": {
+      "general": "عام",
+      "schedule": "البرنامج",
+      "queueMode": "مود الصف",
+      "appointments": "المواعيد",
+      "doctorOverrides": "إعدادات الطبيب",
+      "resources": "الموارد",
+      "payments": "الدفع"
+    },
+    "search": {
+      "placeholder": "قلّب فصفحات العيادة...",
+      "settingsPrefix": "الپاراميترات",
+      "noResultsTitle": "ما لقيناش نتيجة",
+      "noResultsDescription": "جرّب: لوحة التحكم، الصف، الكالوندريي، القوالب، الأدوية، الفريق، البروفيل ولا الپاراميترات."
+    },
+    "header": {
+      "openCalendar": "حل الكالوندريي",
+      "emailSupport": "راسل الدعم",
+      "online": "متصل",
+      "userFallback": "مستخدم",
+      "clinicFallback": "QueueMed"
+    }
+  },
+  "clinicDashboard": {
+    "stats": {
+      "queue": "الصف",
+      "queueDescription": "المرضى كيتسناو دابا",
+      "active": "نشط",
+      "activeDescription": "فحص جاري دابا",
+      "completed": "مكمّل",
+      "completedDescription": "المواعيد اللي تسالاو اليوم",
+      "avgWait": "متوسط الانتظار",
+      "avgWaitDescription": "متوسط وقت انتظار المرضى"
+    },
+    "chart": {
+      "title": "نظرة على المواعيد",
+      "completed": "مكمّل",
+      "missed": "متغيب",
+      "filters": {
+        "7d": "7ي",
+        "30d": "30ي",
+        "90d": "3ش",
+        "1y": "1س"
+      }
+    },
+    "quickActions": {
+      "title": "إجراءات سريعة",
+      "manageQueue": "تسيير الصف",
+      "manageQueueDescription": "نظّم تدفق المرضى",
+      "calendar": "الكالوندريي",
+      "calendarDescription": "شوف البرنامج",
+      "team": "الفريق",
+      "teamDescription": "دبّر الطاقم",
+      "settings": "الپاراميترات",
+      "settingsDescription": "ضبط العيادة"
+    },
+    "liveQueue": {
+      "title": "الصف المباشر",
+      "patientCount_one": "{{count}} مريض",
+      "patientCount_other": "{{count}} مرضى",
+      "viewAll": "شوف الكل",
+      "loading": "كيتحمّل الصف...",
+      "emptyTitle": "ماكاين حتى مريض فالصف",
+      "emptyDescription": "الصف ديالك خاوي دابا",
+      "addPatient": "زيد مريض",
+      "morePatients": "+{{count}} مرضى آخرين فالصف"
+    },
+    "table": {
+      "position": "#",
+      "patient": "المريض",
+      "type": "النوع",
+      "time": "الوقت",
+      "status": "الحالة",
+      "consultationFallback": "استشارة",
+      "patientFallback": "مريض",
+      "initialFallback": "م"
+    },
+    "status": {
+      "inProgress": "فالفحص",
+      "waiting": "كيتسنى"
+    },
+    "waitTime": {
+      "none": "--",
+      "minutes": "{{count}} د",
+      "hoursMinutes": "{{hours}} س {{minutes}} د"
+    }
+  },
+  "clinicQueue": {
+    "loading": {
+      "queueInfo": "كيتحمّلو معلومات الصف...",
+      "queue": "كيتحمّل الصف..."
+    },
+    "access": {
+      "noClinicTitle": "ماعندكش ولوج للعيادة",
+      "noClinicDescription": "الكونت ديالك ما مربوطش بأي عيادة.",
+      "permissionTitle": "إذن مطلوب",
+      "permissionDescription": "الدور ديالك ماكيخليكش تسيّر الصف المباشر."
+    },
+    "toasts": {
+      "errorTitle": "خطأ",
+      "successTitle": "نجاح",
+      "queueUpdated": "الصف تجدد بنجاح."
+    },
+    "header": {
+      "title": "الصف المباشر",
+      "book": "حجز",
+      "walkIn": "بلا موعد",
+      "endDay": "سدّ النهار"
+    },
+    "scope": {
+      "label": "عرض الصف",
+      "clinic": "العرض العام",
+      "personal": "الصف ديالي"
+    },
+    "doctorQueues": {
+      "title": "صفوف الأطباء",
+      "doctorOption": "صف {{name}}",
+      "openDoctorQueue": "حلّ صف {{name}}",
+      "viewingNow": "الصف النشط",
+      "fallbackDoctor": "طبيب {{count}}"
+    },
+    "staffProfile": {
+      "title": "خاص بروفيل ديال الموظف",
+      "ownerDescription": "بصفتك مالك العيادة خاصك بروفيل موظف باش تسيّر الصف.",
+      "staffDescription": "خاص بروفيل موظف. تواصل مع مسؤول العيادة."
+    },
+    "booking": {
+      "walkInReason": "مريض بلا موعد",
+      "walkInTitle": "زيد مريض بلا موعد",
+      "walkInDescription": "برمج مريض جا بلا موعد."
+    }
+  },
   "clinicSettings": {
+    "doctorOverrides": {
+      "tab": {
+        "title": "إعدادات الطبيب",
+        "description": "حدّد شنو يقدر كل طبيب يخصص: الساعات، أنواع المواعيد، ومود الصف."
+      },
+      "overview": "بدا بإعدادات العيادة، ومن بعد خليه الطبيب يستعمل الإعدادات ديالو إلا احتاج.",
+      "helper": "خلي الطبيب يستعمل الساعات ديالو، أنواع المواعيد ديالو، ومود الصف ديالو حسب النهار.",
+      "doctorLabel": "الطبيب",
+      "selectDoctorPlaceholder": "اختار الطبيب",
+      "loading": "كيتحمّلو إعدادات الطبيب...",
+      "empty": "ما لقيناش طبيب نشط فهاد العيادة.",
+      "fallbackDoctor": "طبيب",
+      "fallbackDoctorWithSpecialty": "طبيب - {{specialty}}",
+      "fallbackDoctorName": "طبيب {{count}}",
+      "workingHours": {
+        "title": "ساعات شخصية",
+        "description": "خلي الطبيب يستعمل الساعات ديالو."
+      },
+      "appointmentTypes": {
+        "title": "أنواع مواعيد شخصية",
+        "description": "خلي الطبيب يستعمل أنواع المواعيد والمدة ديالو.",
+        "add": "زيد نوع موعد للطبيب"
+      },
+      "queueMode": {
+        "title": "مود صف شخصي",
+        "description": "خلي الطبيب يستعمل مود الصف ديالو حسب كل نهار."
+      },
+      "actions": {
+        "save": "سجّل إعدادات الطبيب",
+        "saving": "كيتسجّل..."
+      },
+      "toasts": {
+        "loadFailed": "ماقدرناش نحمّلو إعدادات الطبيب",
+        "doctorNotSelectedTitle": "الطبيب ما تختارش",
+        "doctorNotSelectedDescription": "عافاك اختار طبيب.",
+        "invalidAppointmentTypesTitle": "أنواع المواعيد غير صالحة",
+        "invalidAppointmentTypesDescription": "زيد على الأقل نوع موعد واحد لهاد الطبيب.",
+        "minAppointmentTypesDescription": "خاص على الأقل نوع موعد واحد.",
+        "savedDescription": "تحدثات إعدادات الطبيب",
+        "saveFailed": "ماقدرناش نسجلو إعدادات الطبيب"
+      }
+    },
     "resources": {
       "tab": {
         "title": "الموارد",
@@ -422,9 +739,483 @@
         "revokeAllDescription": "تحيدو {{count}} مشاركة نشيطة.",
         "revokeAllFailedTitle": "ماقدرناش نحيدو جميع الولوجات"
       }
+    },
+    "doctor": {
+      "requestDialog": {
+        "title": "طلب السجل الطبي",
+        "descriptionWithPatient": "طلب الولوج للمريض {{patientName}}.",
+        "descriptionDefault": "طلب ولوج مؤقت لتاريخ المريض الطبي.",
+        "intro": "غادي يتبعت كود تحقق لمرة وحدة للمريض. الولوج محدود فالوقت ويمكن سحبو.",
+        "patientCodeLabel": "كود المريض",
+        "accessDurationLabel": "مدة الولوج",
+        "accessScopeLabel": "نطاق الولوج",
+        "patientHasAppHint": "المريض يقدر حتى يوافق من التطبيق. كود OTP باقي متاح كخيار احتياطي.",
+        "patientNoAppHint": "طلب من المريض يقرا الكود ديال 6 ارقام من SMS ولا email.",
+        "actions": {
+          "sendAccessCode": "صيفط كود الولوج",
+          "resendCode": "عاود صيفط الكود",
+          "verifyAndOpen": "تحقق وحل السجل"
+        },
+        "durationOptions": {
+          "thisAppointment": "هاد الموعد (ساعة)",
+          "hours24": "24 ساعة",
+          "oneWeek": "اسبوع"
+        },
+        "scopeOptions": {
+          "thisAppointment": "هاد الموعد فقط",
+          "fullHistory": "التاريخ الطبي كامل"
+        },
+        "toasts": {
+          "missingContextTitle": "مايمكنش نطلبو الولوج",
+          "missingContextDescription": "المعطيات ديال المريض ولا الموعد ناقصة.",
+          "deliveryPendingTitle": "ارسال الكود باقي معلق",
+          "deliveryPendingDescription": "الارسال ماكملش. تقدر تعاود المحاولة.",
+          "codeSentTitle": "تصيفط كود الولوج",
+          "codeSentDescription": "تصيفط كود لمرة وحدة عبر {{channel}}.",
+          "requestFailedTitle": "فشل طلب السجل الطبي",
+          "unexpectedError": "خطأ غير متوقع",
+          "waitBeforeRetryTitle": "تسنى شوية قبل ما تعاود",
+          "retryInSeconds": "عاود المحاولة من بعد {{seconds}} ثانية.",
+          "cooldownActiveDescription": "مهلة اعادة الارسال مزال خدامة.",
+          "newCodeSentTitle": "تصيفط كود جديد",
+          "newCodeSentDescription": "طلب من المريض الكود الجديد ديال 6 ارقام.",
+          "resendFailedTitle": "فشل اعادة ارسال الكود",
+          "enterCodeTitle": "دخل كود من 6 ارقام",
+          "enterCodeDescription": "عافاك دخل الكود كامل اللي عطاه المريض.",
+          "invalidCodeTitle": "الكود غير صحيح",
+          "attemptsRemainingDescription": "بقاو {{count}} محاولة.",
+          "verifyCodeDescription": "تأكد من الكود وعاود حاول.",
+          "codeLockedTitle": "دخول الكود تسد",
+          "retryAfterTimeDescription": "عاود المحاولة من بعد {{time}}.",
+          "validateFailedTitle": "ماقدرناش نتحققو من الكود",
+          "tryAgainDescription": "عافاك عاود حاول.",
+          "unlockedTitle": "تحل السجل الطبي",
+          "unlockedDescription": "الولوج ولى نشيط لمدة الاختيار ديالك.",
+          "validateRequestFailedTitle": "فشل التحقق من الكود"
+        }
+      },
+      "sharedRecords": {
+        "title": "السجل الطبي المشترك",
+        "expiryUnknown": "غير معروف",
+        "expired": "منتهي",
+        "minRemaining": "{{count}}د",
+        "hourMinRemaining": "{{hours}}س {{minutes}}د",
+        "accessWithPatient": "{{patientName}} - الولوج كيسالي ف {{expires}}",
+        "accessWithoutPatient": "الولوج كيسالي ف {{expires}}",
+        "accessExpired": "الولوج منتهي",
+        "expiresIn": "كيسالي ف {{expires}}",
+        "loading": "كيتحمّلو السجلات المشتركة...",
+        "empty": "ماكاين حتى موعد سابق لهذا المريض.",
+        "diagnosisBadge": "تشخيص",
+        "prescriptionBadge": "وصفة",
+        "labsBadge": "مختبر",
+        "procedureReportsBadge": "تقارير",
+        "notesBadge": "ملاحظات",
+        "selectAppointment": "اختار موعد باش تشوف التفاصيل.",
+        "reasonForVisit": "سبب الزيارة",
+        "clinicalNotes": "ملاحظات سريرية",
+        "diagnoses": "التشخيصات",
+        "noVisibleDiagnoses": "ماكاين حتى تشخيص ظاهر.",
+        "prescriptions": "الوصفات",
+        "noVisiblePrescriptions": "ماكاين حتى وصفة ظاهرة.",
+        "labResults": "نتائج المختبر",
+        "noVisibleLabResults": "ماكاين حتى نتيجة مختبر ظاهرة.",
+        "procedureReports": "تقارير الإجراءات",
+        "noVisibleProcedureReports": "ماكاين حتى تقرير إجراء ظاهر.",
+        "errors": {
+          "loadHistory": "ماقدرناش نحملو السجلات المشتركة",
+          "loadDetail": "ماقدرناش نحملو تفاصيل السجل"
+        }
+      },
+      "medicationCatalog": {
+        "badge": "كاتالوغ الأدوية",
+        "title": "تسيير الأدوية",
+        "description": "راجع الأدوية اللي تعلمها النظام من الوصفات، جمع اختلافات التسميات عبر alias، وحيّد التكرارات بلا ما تضيع المعطيات الطبية.",
+        "missingContext": "كاتالوغ الأدوية ما متاحش حيث معلومات العيادة ولا المستخدم ناقصة.",
+        "searchPlaceholder": "قلّب بالاسم الرئيسي ولا الاسم البديل",
+        "showInactive": "بيّن غير النشط",
+        "listTitle": "عناصر الكاتالوغ",
+        "stats": "{{active}} نشط من أصل {{total}} عناصر",
+        "usage": "تستعمل {{count}} مرة",
+        "lastUsed": "آخر استعمال {{date}}",
+        "lastUsedNever": "ما تستعملش من قبل",
+        "empty": "ما كاين حتى دواء بهاد الفيلتر.",
+        "status": {
+          "active": "نشط",
+          "inactive": "غير نشط"
+        },
+        "fields": {
+          "name": "الاسم الرئيسي",
+          "namePlaceholder": "مثال: Amoxicilline",
+          "aliases": "الأسماء البديلة",
+          "aliasesPlaceholder": "دخل الأسماء البديلة مفصولين بفاصلة"
+        },
+        "actions": {
+          "refresh": "عاود التحديث",
+          "deactivate": "عطّل",
+          "activate": "فعّل",
+          "save": "سجل التغييرات",
+          "saving": "كيتسجل..."
+        },
+        "toasts": {
+          "nameRequired": "اسم الدواء ضروري.",
+          "updated": "تحدّث عنصر كاتالوغ الأدوية.",
+          "updateFailed": "ما قدرناش نحدّثو عنصر كاتالوغ الأدوية.",
+          "activated": "تفعّل عنصر الدواء.",
+          "deactivated": "تعطّل عنصر الدواء."
+        }
+      },
+      "consultation": {
+        "title": "ملاحظات الاستشارة",
+        "subtitle": "كمّل وسجّل الدوسي الطبي ديال {{patientName}}.",
+        "genericPatient": "هاد المريض",
+        "tabs": {
+          "notes": "الملاحظات",
+          "diagnoses": "التشخيصات",
+          "ordonnance": "الوصفة",
+          "labs": "التحاليل",
+          "report": "التقرير",
+          "referrals": "الإحالات"
+        },
+        "actions": {
+          "retryLoad": "عاود جرب",
+          "savingSection": "كيتسجل...",
+          "saveNotes": "سجل الملاحظات",
+          "addDiagnosis": "زيد تشخيص",
+          "saveDiagnoses": "سجل التشخيصات",
+          "addPrescription": "زيد دوا",
+          "saveOrdonnance": "احفظ الوصفة",
+          "printOrdonnance": "طبع",
+          "insertPrescriptionPreset": "أدرج قالب وصفة",
+          "addLabResult": "زيد نتيجة",
+          "saveLabResults": "سجل نتائج التحاليل",
+          "saveReportDraft": "احفظ المسودة",
+          "finalizeReport": "اعتمد التقرير",
+          "remove": "حيّد"
+        },
+        "notes": {
+          "reasonForVisitLabel": "سبب الزيارة",
+          "reasonForVisitPlaceholder": "الشكوى الرئيسية ولا الهدف من الاستشارة",
+          "clinicalNotesLabel": "ملاحظات سريرية",
+          "clinicalNotesPlaceholder": "نتائج الفحص والخطة العلاجية"
+        },
+        "diagnoses": {
+          "rowTitle": "تشخيص {{number}}",
+          "codeLabel": "كود التشخيص",
+          "codePlaceholder": "مثال: J02.9",
+          "labelLabel": "اسم التشخيص",
+          "labelPlaceholder": "مثال: التهاب البلعوم الحاد",
+          "notesLabel": "ملاحظات التشخيص",
+          "notesPlaceholder": "تفاصيل اضافية",
+          "empty": "ماكاين حتى تشخيص مزال."
+        },
+        "ordonnance": {
+          "rowTitle": "دواء {{number}}",
+          "medicationLabel": "اسم الدواء",
+          "medicationPlaceholder": "مثال: Amoxicilline",
+          "dosageLabel": "الجرعة",
+          "dosagePlaceholder": "مثال: 500 mg",
+          "routeLabel": "طريقة الاستعمال",
+          "routePlaceholder": "مثال: فموي",
+          "routeOptions": [
+            "فموي",
+            "حقني",
+            "موضعي",
+            "استنشاقي",
+            "عيني",
+            "أذني"
+          ],
+          "frequencyLabel": "عدد المرات",
+          "frequencyPlaceholder": "مثال: مرتين يومياً",
+          "frequencyOptions": [
+            "مرة واحدة يومياً",
+            "مرتان يومياً",
+            "ثلاث مرات يومياً",
+            "كل 8 ساعات",
+            "كل 12 ساعة",
+            "عند الحاجة"
+          ],
+          "durationLabel": "المدة (بالأيام)",
+          "durationPlaceholder": "مثال: 7",
+          "instructionsLabel": "تعليمات",
+          "instructionsPlaceholder": "ملاحظات خاصة",
+          "empty": "ماكاين حتى دوا مزال."
+        },
+        "labs": {
+          "rowTitle": "نتيجة {{number}}",
+          "testLabel": "اسم التحليل",
+          "testPlaceholder": "مثال: Glycemie a jeun",
+          "resultValueLabel": "النتيجة",
+          "resultValuePlaceholder": "مثال: 96",
+          "unitLabel": "الوحدة",
+          "unitPlaceholder": "مثال: mg/dL",
+          "referenceRangeLabel": "القيم المرجعية",
+          "referenceRangePlaceholder": "مثال: 70 - 110",
+          "interpretationLabel": "التفسير",
+          "interpretationPlaceholder": "طبيعي، غير طبيعي، حرج",
+          "interpretationOptions": [
+            "طبيعي",
+            "غير طبيعي",
+            "حرج"
+          ],
+          "empty": "ماكاين حتى نتيجة تحليل مزال."
+        },
+        "report": {
+          "titleLabel": "عنوان التقرير",
+          "titlePlaceholder": "مثال: حقن الركبة تحت التوجيه بالموجات فوق الصوتية",
+          "placeholder": "اكتب تقرير الإجراء الطبي بالتفصيل...",
+          "defaultTitle": "تقرير الإجراء",
+          "errors": {
+            "loadFailed": "ما قدرناش نحملو التقرير",
+            "saveDraftFailed": "ما قدرناش نسجلو المسودة",
+            "finalizeFailed": "ما قدرناش نعتمدو التقرير النهائي",
+            "uploadImageFailed": "ما قدرناش نرفعو صورة التقرير",
+            "missingAppointmentContext": "معلومات الموعد ناقصة",
+            "missingPatientContext": "معلومات المريض ناقصة"
+          }
+        },
+        "editor": {
+          "toolbar": {
+            "bold": "عريض",
+            "italic": "مائل",
+            "underline": "تحته خط",
+            "heading1": "عنوان 1",
+            "heading2": "عنوان 2",
+            "paragraph": "فقرة",
+            "bulletList": "لائحة نقطية",
+            "orderedList": "لائحة مرقمة",
+            "insertTable": "زيد جدول",
+            "templates": "قوالب",
+            "saveAsTemplate": "سجل كقالب",
+            "image": "صورة",
+            "docx": "DOCX"
+          },
+          "templateSearch": {
+            "title": "إدراج قالب",
+            "description": "ابحث في القوالب الشخصية وقوالب العيادة وقوالب النظام.",
+            "searchPlaceholder": "ابحث عن قالب بالعنوان أو الوسوم",
+            "loading": "كيتحمّلو القوالب...",
+            "empty": "لا يوجد أي قالب مطابق لهذا البحث.",
+            "groupHeading": "القوالب المتاحة"
+          },
+          "saveTemplate": {
+            "title": "سجل كقالب",
+            "description": "أنشئ قالباً قابلاً لإعادة الاستخدام من المحتوى الحالي.",
+            "titleLabel": "العنوان",
+            "titlePlaceholder": "عنوان القالب",
+            "descriptionLabel": "الوصف",
+            "descriptionPlaceholder": "وصف اختياري",
+            "tagsLabel": "الوسوم",
+            "tagsPlaceholder": "orthopedie, post-op, douleur",
+            "visibilityLabel": "مستوى الظهور",
+            "scopeClinic": "فريق العيادة",
+            "scopePersonal": "أنا فقط",
+            "cancel": "إلغاء",
+            "saving": "كيتسجل...",
+            "save": "سجل القالب"
+          },
+          "combo": {
+            "title": "قوالب الوصفات",
+            "description": "أدرج تركيبة أدوية شائعة في هذه الوصفة.",
+            "searchPlaceholder": "ابحث عن التركيبات",
+            "loading": "جارٍ تحميل التركيبات...",
+            "empty": "لا توجد تركيبة وصفة مطابقة.",
+            "groupHeading": "التركيبات المسجلة"
+          },
+          "slash": {
+            "heading": "قوالب /",
+            "headingWithQuery": "قوالب / - {{query}}",
+            "close": "إغلاق قائمة /",
+            "loading": "كيتحمّلو القوالب...",
+            "empty": "لا توجد قوالب مطابقة لأمر /."
+          },
+          "errors": {
+            "imageUploadTitle": "فشل رفع الصورة",
+            "imageUploadDescription": "ما قدرناش نزيدو الصورة",
+            "docxImportTitle": "فشل استيراد DOCX",
+            "docxImportDescription": "ما قدرناش نستوردو ملف DOCX",
+            "missingUserContext": "معلومات المستخدم ناقصة"
+          }
+        },
+        "print": {
+          "documentTitle": "وصفة-{{patientName}}",
+          "clinicPhoneLabel": "الهاتف",
+          "doctorLicenseLabel": "رقم الرخصة",
+          "title": "ORDONNANCE",
+          "patientLabel": "المريض",
+          "patientFallback": "المريض",
+          "dateLabel": "التاريخ",
+          "headers": {
+            "medication": "الدواء",
+            "dosage": "الجرعة",
+            "frequency": "التكرار",
+            "duration": "المدة"
+          },
+          "durationDaysSuffix": "يوم",
+          "signatureLabel": "التوقيع والختم"
+        },
+        "visibility": {
+          "patientVisible": "يبان للمريض"
+        },
+        "toasts": {
+          "savedTitle": "تسجل بنجاح",
+          "saveFailedTitle": "فشل التسجيل",
+          "notesSaved": "تسجلات ملاحظات الاستشارة.",
+          "diagnosesSaved": "تسجلو التشخيصات.",
+          "prescriptionsSaved": "تم تحديث الوصفة.",
+          "labResultsSaved": "تسجلو نتائج التحاليل.",
+          "reportDraftSaved": "تم حفظ مسودة تقرير الإجراء.",
+          "reportFinalized": "تم اعتماد تقرير الإجراء.",
+          "templateSaved": "تسجل القالب وبان دابا فالبحث.",
+          "comboInserted": "تم إدراج {{count}} دواء من القالب الجاهز.",
+          "comboInsertEmpty": "القالب الجاهز المختار لا يحتوي على أدوية صالحة.",
+          "printedTitle": "الوصفة جاهزة",
+          "printedDescription": "تم إرسال الوصفة إلى الطباعة."
+        },
+        "errors": {
+          "generic": "وقع خطأ غير متوقع",
+          "codes": {
+            "CONSULTATION_UNEXPECTED_ERROR": "وقع خطأ غير متوقع",
+            "CONSULTATION_DIAGNOSIS_LABEL_REQUIRED": "اسم التشخيص ضروري.",
+            "CONSULTATION_MEDICATION_NAME_REQUIRED": "اسم الدواء ضروري.",
+            "CONSULTATION_TEST_NAME_REQUIRED": "اسم التحليل ضروري.",
+            "CONSULTATION_CONTEXT_MISSING_APPOINTMENT": "معلومات الموعد ناقصة.",
+            "CONSULTATION_CONTEXT_MISSING_PATIENT": "معلومات المريض ناقصة.",
+            "CONSULTATION_CONTEXT_STALE": "بيانات الاستشارة قديمة. عاود التحديث قبل الحفظ.",
+            "CONSULTATION_CONFLICT_RELOAD": "هاد الاستشارة تبدلات من طرف طبيب آخر. عاود التحديث وحاول مرة اخرى.",
+            "CONSULTATION_NOTES_CONFLICT_RELOAD": "ملاحظات الاستشارة تبدلات فجلسة اخرى. عاود التحديث قبل الحفظ."
+          }
+        }
+      },
+      "templatesWorkspace": {
+        "badge": "فضاء مستقل",
+        "title": "مكتبة القوالب",
+        "description": "صاوب، شوف، عدل وحيد القوالب القابلة لإعادة الاستعمال من بلاصة وحدة. هاد المسار مستقل على المواعيد ومصمم للخدمة اليومية بسرعة.",
+        "searchPlaceholder": "قلب بالعنوان، الوسم ولا التخصص",
+        "scopeFilterPlaceholder": "فلتر نطاق الظهور",
+        "scopeFilters": {
+          "all": "جميع النطاقات",
+          "clinic": "نطاق العيادة",
+          "personal": "نطاق شخصي",
+          "system": "نطاق النظام"
+        },
+        "scopeLabels": {
+          "system": "النظام",
+          "clinic": "العيادة",
+          "personal": "شخصي"
+        },
+        "types": {
+          "consultation_note": {
+            "label": "ملاحظات الاستشارة",
+            "subtitle": "قوالب نصية قابلة لإعادة الاستخدام لتوثيق الاستشارات."
+          },
+          "procedure_report": {
+            "label": "تقارير الإجراءات",
+            "subtitle": "قوالب منظمة لكتابة تقارير التدخلات."
+          },
+          "prescription_combo": {
+            "label": "تركيبات الوصفة",
+            "subtitle": "مجموعات أدوية للحالات العلاجية المتكررة."
+          },
+          "report_section": {
+            "label": "أقسام التقرير",
+            "subtitle": "مقاطع جاهزة لبناء تقارير مفصلة بسرعة."
+          }
+        },
+        "list": {
+          "empty": "ما كاين حتى قالب مطابق لهاد الفلاتر.",
+          "richTextFallback": "قالب نص غني",
+          "medicationsCount": "{{count}} أدوية",
+          "usedTimes": "تستعمل {{count}} مرة"
+        },
+        "details": {
+          "emptyTitle": "اختار قالب",
+          "emptyDescription": "اختار قالب من اللائحة فاليسار باش تشوف المحتوى ديالو.",
+          "selectedDescription": "شوف التفاصيل أو دخل لوضع التعديل باش تحدث هاد القالب.",
+          "typePrefix": "النوع",
+          "updatedPrefix": "آخر تحديث",
+          "noPreview": "ما كاين حتى معاينة نصية لهاد القالب دابا.",
+          "comboConfigured": "كاينين {{count}} أدوية مضبوطين.",
+          "comboEmpty": "ما كاين حتى دواء فهاد التركيبة دابا."
+        },
+        "forms": {
+          "titleLabel": "العنوان",
+          "descriptionLabel": "الوصف",
+          "tagsLabel": "الوسوم",
+          "visibilityLabel": "مستوى الظهور",
+          "tagsPlaceholder": "متابعة، خروج",
+          "titlePlaceholder": "بروتوكول تبديل الضماد بعد العملية",
+          "descriptionPlaceholder": "ملخص قصير يساعد الطبيب يختار القالب بسرعة",
+          "createDialogTitle": "أنشئ قالبا جديدا",
+          "createDialogDescription": "بني قالب {{typeLabel}} قابل لإعادة الاستخدام داخل الاستشارات.",
+          "contentLabel": "محتوى القالب",
+          "createEditorPlaceholder": "كتب محتوى قابل لإعادة الاستعمال...",
+          "editEditorPlaceholder": "عدل محتوى القالب القابل لإعادة الاستعمال..."
+        },
+        "combo": {
+          "itemTitle": "دواء {{number}}",
+          "addMedication": "زيد دواء"
+        },
+        "actions": {
+          "newTemplate": "قالب جديد",
+          "edit": "تعديل",
+          "cancel": "إلغاء",
+          "delete": "حذف",
+          "saveChanges": "حفظ التعديلات",
+          "saveTemplate": "حفظ القالب",
+          "saving": "كيتم الحفظ...",
+          "savingChanges": "كيتم الحفظ...",
+          "deleting": "كيتم الحذف...",
+          "confirmDelete": "حذف القالب"
+        },
+        "deleteDialog": {
+          "title": "تحذف هاد القالب؟",
+          "description": "هاد العملية غادي تحيد القالب من البحث مستقبلا. التقارير القديمة اللي استعملاتو غتبقى كيف ما هي."
+        },
+        "toasts": {
+          "titleRequired": "عنوان القالب ضروري.",
+          "comboRequired": "زيد على الأقل دواء واحد باش تحفظ هاد التركيبة.",
+          "createFailed": "ما قدرناش ننشئو القالب.",
+          "updateFailed": "ما قدرناش نحفظو تعديلات القالب.",
+          "deleteFailed": "ما قدرناش نحيدو القالب.",
+          "updated": "تم حفظ تعديلات القالب.",
+          "deleted": "تم حذف القالب."
+        }
+      }
     }
   },
   "about": {
+    "badge": "تسيير الصف فالمجال الصحي",
+    "actions": {
+      "findDoctor": "لقى طبيب",
+      "getStartedFree": "ابدا مجانا"
+    },
+    "featuresSection": {
+      "title": "مصمم للخدمة الصحية العصرية",
+      "subtitle": "كلشي اللي خاصك باش تنظّم تدفق المرضى وتحسن جودة الرعاية."
+    },
+    "benefits": {
+      "items": [
+        "تتبع الصف مباشر للمرضى",
+        "تحسين الجدولة بالذكاء الاصطناعي",
+        "حماية معطيات متوافقة مع HIPAA",
+        "دعم متعدد اللغات (EN، FR، AR)",
+        "إشعارات عبر SMS والإيميل",
+        "لوحة تحليلات للعيادات"
+      ]
+    },
+    "clinicCard": {
+      "title": "للعيادات",
+      "subtitle": "ابدا تسيير الصف ديالك اليوم",
+      "metricLabel": "آراء المرضى",
+      "register": "سجّل العيادة ديالك"
+    },
+    "cta": {
+      "title": "واجد تبدا؟",
+      "subtitle": "انضم لآلاف المرضى والعيادات اللي كيستعملو المنصة دابا.",
+      "browseDoctors": "شوف الطبيبة",
+      "createAccount": "دير كونت"
+    },
     "hero": {
       "title": "كلشي لي خاصك باش",
       "subtitle": "تسهّل الخدمة الصحية",
@@ -459,13 +1250,17 @@
     "stats": {
       "patients": "المرضى لي خدمنا",
       "clinics": "عيادات خدّامة",
+      "specialties": "تخصصات مغطاة",
       "uptime": "الخدمة متاحة",
-      "rating": "التقييم"
+      "rating": "التقييم",
+      "loadingValue": "--",
+      "notAvailable": "--"
     },
     "mission": {
       "title": "المهمة ديالنا",
       "subtitle": "خدمة صحية مزيانة للجميع",
-      "description": "إنتظار كيخدم باش يثوّر الخدمة الصحية بالتكنولوجيا الحديثة. كنآمنو أن تنظيم الصف والرونديفوات السهلة ماشي ترف، خاصهم يكونو عاديين. البلاتفورم ديالنا كتعاون العيادات باش يعطيو خدمة ممتازة للمرضى وينظمو الخدمة ديالهم مزيان."
+      "description": "إنتظار كيخدم باش يثوّر الخدمة الصحية بالتكنولوجيا الحديثة. كنآمنو أن تنظيم الصف والرونديفوات السهلة ماشي ترف، خاصهم يكونو عاديين. البلاتفورم ديالنا كتعاون العيادات باش يعطيو خدمة ممتازة للمرضى وينظمو الخدمة ديالهم مزيان.",
+      "standardLine": "كنآمنو بلّي تسيير الصف والجدولة السهلة خاصهم يكونو المعيار ماشي ترف."
     },
     "footer": {
       "copyright": "© 2025 كاع الحقوق محفوظة",
@@ -473,5 +1268,52 @@
       "terms": "الشروط",
       "contact": "تواصل معانا"
     }
+  },
+  "referral": {
+    "status": {
+      "pending": "قيد الانتظار",
+      "accepted": "مقبولة",
+      "declined": "مرفوضة",
+      "completed": "مكتملة",
+      "cancelled": "ملغاة"
+    },
+    "actions": {
+      "create": "إنشاء إحالة",
+      "accept": "قبول",
+      "decline": "رفض",
+      "cancel": "إلغاء",
+      "save": "حفظ",
+      "saving": "يتم الحفظ...",
+      "cancelDialog": "إلغاء"
+    },
+    "dialog": {
+      "title": "إحالة جديدة",
+      "targetDoctor": "الطبيب المستهدف",
+      "targetDoctorPlaceholder": "اسم الطبيب أو المستشفى أو العيادة",
+      "targetSpecialty": "التخصص",
+      "targetSpecialtyPlaceholder": "مثال: أمراض القلب، جراحة العظام",
+      "targetClinic": "العيادة المستهدفة",
+      "targetClinicPlaceholder": "اسم المستشفى أو العيادة",
+      "reason": "سبب الإحالة",
+      "reasonPlaceholder": "لماذا هذه الإحالة ضرورية؟",
+      "notes": "ملاحظات إضافية",
+      "notesPlaceholder": "أي سياق أو تعليمات إضافية"
+    },
+    "card": {
+      "targetClinic": "العيادة المستهدفة",
+      "response": "الرد",
+      "createdAt": "تاريخ الإنشاء"
+    },
+    "validation": {
+      "doctorNameRequired": "اسم الطبيب المستهدف مطلوب",
+      "reasonRequired": "سبب الإحالة مطلوب"
+    },
+    "errors": {
+      "createFailed": "فشل إنشاء الإحالة"
+    },
+    "empty": "لا توجد إحالات بعد",
+    "emptyDescription": "قم بإحالة هذا المريض إلى طبيب أو أخصائي آخر",
+    "count_one": "إحالة واحدة",
+    "count_other": "{{count}} إحالات"
   }
 }

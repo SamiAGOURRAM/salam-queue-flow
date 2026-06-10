@@ -46,7 +46,7 @@ const BookingCreateInputSchema = z.object({
     .string()
     .regex(/^\d{2}:\d{2}$/, "Time must be HH:MM format")
     .optional()
-    .describe("Time slot (HH:MM) - optional for fluid queue mode"),
+    .describe("Time slot (HH:MM) - optional for fluid/hybrid queue modes"),
   
   // NO HARDCODED ENUM - appointment types are clinic-specific
   appointmentType: z
@@ -85,14 +85,14 @@ Parameters:
 - clinicId: UUID of the clinic (required) - use clinic_search to find
 - patientId: Patient UUID (optional - defaults to logged-in user)
 - appointmentDate: Date in YYYY-MM-DD format (required)
-- scheduledTime: Time in HH:MM format (required for slotted mode, optional for fluid)
+- scheduledTime: Time in HH:MM format (required for slotted mode, optional for fluid/hybrid)
 - appointmentType: Type of visit (clinic-specific, not hardcoded)
 - reasonForVisit: Brief description (optional)
 
 Returns:
 - appointmentId: UUID of created appointment
 - queuePosition: Position in queue
-- mode: "slotted" or "fluid"
+- mode: "slotted", "fluid", or "hybrid"
 
 Note: Use booking_getAvailability first to check available slots and appointment types.`,
   inputSchema: {
@@ -112,7 +112,7 @@ Note: Use booking_getAvailability first to check available slots and appointment
       },
       scheduledTime: {
         type: "string",
-        description: "Time (HH:MM) - optional for fluid mode",
+        description: "Time (HH:MM) - optional for fluid/hybrid modes",
       },
       appointmentType: {
         type: "string",
@@ -135,7 +135,7 @@ interface BookingCreateResult {
   success: boolean;
   appointmentId?: string;
   queuePosition?: number;
-  mode: "slotted" | "fluid";
+  mode: "slotted" | "fluid" | "hybrid";
   appointmentDate: string;
   scheduledTime?: string;
   appointmentType: string;
@@ -276,15 +276,19 @@ export async function executeBookingCreate(
     mode: mode || "slotted",
   });
 
+  const resolvedMode = mode || "slotted";
+  const queuedWithoutFixedTime =
+    (resolvedMode === "fluid" || resolvedMode === "hybrid") && !params.scheduledTime;
+
   return {
     success: true,
     appointmentId: result.appointmentId,
     queuePosition: result.queuePosition,
-    mode: mode || "slotted",
+    mode: resolvedMode,
     appointmentDate: params.appointmentDate,
     scheduledTime: params.scheduledTime,
     appointmentType: params.appointmentType,
-    message: mode === "fluid"
+    message: queuedWithoutFixedTime
       ? `Appointment booked! You are #${result.queuePosition} in the queue for ${params.appointmentDate}.`
       : `Appointment booked for ${params.appointmentDate} at ${params.scheduledTime}. Queue position: #${result.queuePosition}`,
   };

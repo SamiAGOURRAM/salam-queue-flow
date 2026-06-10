@@ -30,7 +30,12 @@ export const useBookingService = (
   const dateStr = selectedDate
   ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
   : '';
-  const shouldFetchSlots = !!clinicId && !!selectedStaffId && !!dateStr && !!appointmentType && queueMode === QueueMode.SLOTTED;
+  const shouldFetchSlots =
+    !!clinicId &&
+    !!selectedStaffId &&
+    !!dateStr &&
+    !!appointmentType &&
+    (queueMode === QueueMode.SLOTTED || queueMode === QueueMode.HYBRID);
 
   // Fetch available slots only in slotted mode
   const {
@@ -83,7 +88,7 @@ export const useBookingService = (
           description: `Queue position: #${data.queuePosition}`,
         });
 
-        if (queueMode === QueueMode.SLOTTED) {
+        if (queueMode === QueueMode.SLOTTED || queueMode === QueueMode.HYBRID) {
           queryClient.invalidateQueries({
             queryKey: ['available-slots', clinicId, selectedStaffId, dateStr, appointmentType]
           });

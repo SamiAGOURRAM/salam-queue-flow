@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -40,12 +40,20 @@ interface Clinic {
   };
 }
 
+interface AppointmentTypeOption {
+  name: string;
+  label: string;
+  duration: number;
+  price?: number;
+}
+
 interface DoctorOption {
   id: string;
   userId: string;
   fullName: string;
   role: string;
   specialization?: string;
+  appointmentTypesOverride?: AppointmentTypeOption[];
 }
 
 const BookingFlow = () => {
@@ -65,6 +73,7 @@ const BookingFlow = () => {
   const [doctors, setDoctors] = useState<DoctorOption[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState("");
   const [queueMode, setQueueMode] = useState<QueueMode | null>(null);
+  const [hybridBookingLane, setHybridBookingLane] = useState<'slotted' | 'overflow'>('slotted');
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [totalSlotCount, setTotalSlotCount] = useState(0);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
@@ -108,11 +117,15 @@ const BookingFlow = () => {
 
       const doctorOptions = await Promise.all(
         clinicStaff.map(async (member, index) => {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("id", member.userId)
-            .maybeSingle();
+          let profileName: string | null | undefined;
+          if (member.userId) {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("full_name")
+              .eq("id", member.userId)
+              .maybeSingle();
+            profileName = profile?.full_name;
+          }
 
           const fallbackName = member.specialization
             ? `${member.specialization} Specialist`
@@ -121,9 +134,12 @@ const BookingFlow = () => {
           return {
             id: member.id,
             userId: member.userId,
-            fullName: profile?.full_name || fallbackName,
+            fullName: profileName || fallbackName,
             role: member.role,
             specialization: member.specialization,
+            appointmentTypesOverride: Array.isArray(member.appointmentTypesOverride)
+              ? member.appointmentTypesOverride
+              : undefined,
           } as DoctorOption;
         })
       );
@@ -207,6 +223,35 @@ const BookingFlow = () => {
   }, [selectedDate, appointmentType, selectedStaffId]);
 
   useEffect(() => {
+    if (queueMode !== QueueMode.HYBRID) {
+      setHybridBookingLane('slotted');
+    }
+  }, [queueMode]);
+
+  const selectedDoctor = doctors.find((doctor) => doctor.id === selectedStaffId) || null;
+
+  const appointmentTypes = useMemo(() => {
+    if (selectedDoctor?.appointmentTypesOverride && selectedDoctor.appointmentTypesOverride.length > 0) {
+      return selectedDoctor.appointmentTypesOverride;
+    }
+
+    return clinic?.settings?.appointment_types ?? [];
+  }, [clinic?.settings?.appointment_types, selectedDoctor?.appointmentTypesOverride]);
+
+  useEffect(() => {
+    if (appointmentTypes.length === 0) {
+      if (appointmentType) {
+        setAppointmentType("");
+      }
+      return;
+    }
+
+    if (!appointmentTypes.some((type) => type.name === appointmentType)) {
+      setAppointmentType(appointmentTypes[0].name);
+    }
+  }, [appointmentType, appointmentTypes]);
+
+  useEffect(() => {
     if (!clinicId || !selectedDate || !appointmentType || !selectedStaffId) return;
 
     const channel = supabase
@@ -243,15 +288,10 @@ const BookingFlow = () => {
     return daySchedule?.closed === true;
   };
 
-  const getAppointmentTypes = () => {
-    return clinic?.settings?.appointment_types ?? [];
-  };
-
-  const appointmentTypes = getAppointmentTypes();
   const selectedAppointmentType = appointmentTypes.find((type) => type.name === appointmentType);
-  const selectedDoctor = doctors.find((doctor) => doctor.id === selectedStaffId) || null;
   const isFluidMode = queueMode === QueueMode.FLUID;
-  const requiresTimeSlot = !isFluidMode;
+  const isHybridMode = queueMode === QueueMode.HYBRID;
+  const requiresTimeSlot = queueMode === QueueMode.SLOTTED || (isHybridMode && hybridBookingLane === 'slotted');
   const availableTimeSlots = availableSlots;
 
   // ==================== EVENT HANDLERS ====================
@@ -514,13 +554,36 @@ const BookingFlow = () => {
                     {/* Time Slots */}
                     <div>
                       <Label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                        {isFluidMode ? "Queue Mode" : "Select Time"}
+                        {isFluidMode || (isHybridMode && !requiresTimeSlot) ? "Queue Mode" : "Select Time"}
                         {isLoadingSlots && (
                           <span className="ml-2 text-xs text-gray-400 font-normal">
                             Loading...
                           </span>
                         )}
                       </Label>
+
+                      {appointmentType && isHybridMode && !isLoadingSlots && (
+                        <div className="grid grid-cols-2 gap-2 mb-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={hybridBookingLane === 'slotted' ? 'default' : 'outline'}
+                            onClick={() => setHybridBookingLane('slotted')}
+                            className={`h-8 text-xs ${hybridBookingLane === 'slotted' ? 'bg-obsidian text-white hover:bg-obsidian-hover' : 'border-gray-200 hover:bg-gray-50'}`}
+                          >
+                            Time Slot Lane
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={hybridBookingLane === 'overflow' ? 'default' : 'outline'}
+                            onClick={() => setHybridBookingLane('overflow')}
+                            className={`h-8 text-xs ${hybridBookingLane === 'overflow' ? 'bg-obsidian text-white hover:bg-obsidian-hover' : 'border-gray-200 hover:bg-gray-50'}`}
+                          >
+                            Overflow Lane
+                          </Button>
+                        </div>
+                      )}
 
                       {!appointmentType && (
                         <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-md text-gray-600 text-sm">
@@ -542,14 +605,26 @@ const BookingFlow = () => {
                         </div>
                       )}
 
-                      {appointmentType && !isFluidMode && availableTimeSlots.length === 0 && !isLoadingSlots && (
+                      {appointmentType && isHybridMode && hybridBookingLane === 'overflow' && !isLoadingSlots && (
+                        <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-md text-blue-800 text-sm">
+                          <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                          <div className="space-y-1">
+                            <p>Hybrid overflow lane selected.</p>
+                            <p className="text-xs text-blue-700">
+                              You will join the queue without a fixed time while scheduled lane remains active.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {appointmentType && !isFluidMode && requiresTimeSlot && availableTimeSlots.length === 0 && !isLoadingSlots && (
                         <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md text-amber-700 text-sm">
                           <AlertCircle className="h-4 w-4 flex-shrink-0" />
                           <span>No slots available. Try another day.</span>
                         </div>
                       )}
 
-                      {appointmentType && !isFluidMode && availableTimeSlots.length > 0 && (
+                      {appointmentType && !isFluidMode && requiresTimeSlot && availableTimeSlots.length > 0 && (
                         <div className="space-y-2">
                           <div className="flex items-center justify-between text-xs">
                             <span className="text-emerald-600 bg-emerald-50 px-2 py-1 rounded">

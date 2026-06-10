@@ -14,8 +14,10 @@ import {
   AppointmentType,
   SkipReason,
   QueueActionType,
+  PaymentStatus,
   CreateQueueEntryDTO,
   UpdateQueueEntryDTO,
+  UpdateAppointmentPaymentDTO,
   ClinicEstimationConfig,
   ClinicResourceAvailability,
   EstimationMode,
@@ -23,6 +25,8 @@ import {
   WaitTimePredictionRecord,
   WaitTimeFeatureSnapshot,
   WaitTimeFeatureSnapshotInput,
+  PublicQueueStatus,
+  QueueBreakState,
 } from '../models/QueueModels';
 import { DatabaseError } from '../../shared/errors';
 import { logger } from '../../shared/logging/Logger';
@@ -78,9 +82,15 @@ type RawAppointmentRow = {
   priority_score?: number | null;
   is_gap_filler?: boolean | null;
   promoted_from_waitlist?: boolean | null;
+  queue_status_token?: string | null;
   late_arrival_converted?: boolean | null;
   original_slot_time?: string | null;
   reason_for_visit?: string | null;
+  billing_amount?: number | null;
+  currency?: string | null;
+  payment_status?: PaymentStatus | null;
+  paid_at?: string | null;
+  payment_method?: string | null;
   resource_id?: string | null;
   resource?: {
     id: string;
@@ -142,36 +152,105 @@ export class QueueRepository {
    * @param useClinicWide - If true, shows all clinic appointments (default: true for now)
    */
   async getDailySchedule(
-    staffId: string,
+    staffId: string | undefined,
     targetDate: string,
-    useClinicWide: boolean = true
+    useClinicWide: boolean = true,
+    allowedStaffIds?: string[],
+    clinicId?: string
   ): Promise<{ queue_mode: QueueMode; schedule: QueueEntry[] }> {
     try {
+      const normalizedAllowedStaffIds = Array.from(
+        new Set((allowedStaffIds || []).filter((id): id is string => typeof id === 'string' && id.length > 0))
+      );
+
       if (useClinicWide) {
         // ======= CLINIC-WIDE MODE (CURRENT) =======
-        logger.debug('Fetching clinic-wide daily schedule', { staffId, targetDate });
-
-        const { data: staffRecord, error: staffError } = await supabase
-          .from('clinic_staff')
-          .select('clinic_id')
-          .eq('id', staffId)
-          .single();
-
-        if (staffError || !staffRecord?.clinic_id) {
-          logger.error('Failed to resolve clinic from staff record', staffError, { staffId });
-          throw new DatabaseError(
-            `Staff with ID ${staffId} not found or has no associated clinic`,
-            staffError
-          );
-        }
-
-        const { data, error } = await supabase.rpc('get_daily_schedule_for_clinic', {
-          p_clinic_id: staffRecord.clinic_id,
-          p_target_date: targetDate,
+        logger.debug('Fetching clinic-wide daily schedule', {
+          staffId,
+          clinicId,
+          targetDate,
+          allowedStaffCount: normalizedAllowedStaffIds.length,
         });
 
+        let resolvedClinicId = clinicId;
+
+        if (!resolvedClinicId && staffId) {
+          const { data: staffRecord, error: staffError } = await supabase
+            .from('clinic_staff')
+            .select('clinic_id')
+            .eq('id', staffId)
+            .single();
+
+          if (staffError || !staffRecord?.clinic_id) {
+            logger.error('Failed to resolve clinic from staff record', staffError, { staffId });
+            throw new DatabaseError(
+              `Staff with ID ${staffId} not found or has no associated clinic`,
+              staffError
+            );
+          }
+
+          resolvedClinicId = staffRecord.clinic_id;
+        }
+
+        if (!resolvedClinicId) {
+          throw new DatabaseError('Clinic-wide schedule requires clinicId or staffId context');
+        }
+
+        let data: unknown;
+        let error: unknown;
+
+        if (normalizedAllowedStaffIds.length > 0) {
+          // Explicit staff IDs provided → use the multi‑doctor RPC directly.
+          const result = await supabase.rpc('get_daily_schedule_for_doctors', {
+            p_clinic_id: resolvedClinicId,
+            p_target_date: targetDate,
+            p_staff_ids: normalizedAllowedStaffIds,
+          });
+          data = result.data;
+          error = result.error;
+        } else {
+          // No staff filter → try clinic‑wide scope first.  Provider roles
+          // (doctor, etc.) are blocked by the backend with code 42501 when
+          // they try the clinic‑wide RPC.  Fall back to their own provider
+          // scope so the dashboard / queue page still works.
+          const first = await supabase.rpc('get_daily_schedule_for_clinic', {
+            p_clinic_id: resolvedClinicId,
+            p_target_date: targetDate,
+          });
+
+          if (
+            first.error &&
+            typeof first.error === 'object' &&
+            (first.error as Record<string, unknown>).code === '42501' &&
+            staffId
+          ) {
+            logger.warn('Clinic‑wide scope denied for user; falling back to provider scope', {
+              staffId,
+              clinicId: resolvedClinicId,
+              targetDate,
+              originalError: first.error,
+            });
+
+            const fallback = await supabase.rpc('get_daily_schedule_for_doctors', {
+              p_clinic_id: resolvedClinicId,
+              p_target_date: targetDate,
+              p_staff_ids: [staffId],
+            });
+            data = fallback.data;
+            error = fallback.error;
+          } else {
+            data = first.data;
+            error = first.error;
+          }
+        }
+
         if (error) {
-          logger.error('Failed to fetch clinic-wide schedule via RPC', error);
+          logger.error('Failed to fetch clinic-wide schedule via RPC', error, {
+            staffId,
+            targetDate,
+            clinicId: resolvedClinicId,
+            allowedStaffCount: normalizedAllowedStaffIds.length,
+          });
           throw new DatabaseError('Failed to fetch schedule', error);
         }
 
@@ -180,6 +259,10 @@ export class QueueRepository {
       } else {
         // ======= STAFF-SPECIFIC MODE (FOR FUTURE) =======
         logger.debug('Fetching staff-specific daily schedule via RPC', { staffId, targetDate });
+
+        if (!staffId) {
+          throw new DatabaseError('Staff-specific schedule requires staffId context');
+        }
 
         const { data, error } = await supabase.rpc('get_daily_schedule_for_staff', {
           p_staff_id: staffId,
@@ -243,6 +326,124 @@ export class QueueRepository {
     } catch (error) {
       logger.warn('Failed to get clinic queue config', { error, staffId });
       return null;
+    }
+  }
+
+  async startQueueBreak(
+    clinicId: string,
+    staffId: string,
+    durationMinutes: number,
+    performedBy: string,
+    reason?: string,
+    pushSchedule: boolean = true
+  ): Promise<QueueBreakState> {
+    try {
+      const rpcClient = supabase as unknown as {
+        rpc: (fn: string, params: Record<string, unknown>) => Promise<{ data: unknown; error: unknown | null }>;
+      };
+
+      const { data, error } = await rpcClient.rpc('start_queue_break', {
+        p_clinic_id: clinicId,
+        p_staff_id: staffId,
+        p_duration_minutes: durationMinutes,
+        p_reason: reason ?? null,
+        p_push_schedule: pushSchedule,
+        p_performed_by: performedBy,
+      });
+
+      if (error || !data) {
+        logger.error('Failed to start queue break via RPC', error as Error, {
+          clinicId,
+          staffId,
+          durationMinutes,
+        });
+        throw new DatabaseError('Failed to start queue break', error as Error);
+      }
+
+      return this.mapToQueueBreakState(data);
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error starting queue break', error as Error, {
+        clinicId,
+        staffId,
+        durationMinutes,
+      });
+      throw new DatabaseError('Unexpected error starting queue break', error as Error);
+    }
+  }
+
+  async endQueueBreak(
+    clinicId: string,
+    staffId: string,
+    performedBy: string,
+    reason?: string
+  ): Promise<QueueBreakState | null> {
+    try {
+      const rpcClient = supabase as unknown as {
+        rpc: (fn: string, params: Record<string, unknown>) => Promise<{ data: unknown; error: unknown | null }>;
+      };
+
+      const { data, error } = await rpcClient.rpc('end_queue_break', {
+        p_clinic_id: clinicId,
+        p_staff_id: staffId,
+        p_reason: reason ?? null,
+        p_performed_by: performedBy,
+      });
+
+      if (error) {
+        logger.error('Failed to end queue break via RPC', error as Error, {
+          clinicId,
+          staffId,
+        });
+        throw new DatabaseError('Failed to end queue break', error as Error);
+      }
+
+      if (!data) {
+        return null;
+      }
+
+      return this.mapToQueueBreakState(data);
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error ending queue break', error as Error, {
+        clinicId,
+        staffId,
+      });
+      throw new DatabaseError('Unexpected error ending queue break', error as Error);
+    }
+  }
+
+  async getActiveQueueBreak(clinicId: string, staffId: string): Promise<QueueBreakState | null> {
+    try {
+      const rpcClient = supabase as unknown as {
+        rpc: (fn: string, params: Record<string, unknown>) => Promise<{ data: unknown; error: unknown | null }>;
+      };
+
+      const { data, error } = await rpcClient.rpc('get_active_queue_break', {
+        p_clinic_id: clinicId,
+        p_staff_id: staffId,
+      });
+
+      if (error) {
+        logger.error('Failed to fetch active queue break via RPC', error as Error, {
+          clinicId,
+          staffId,
+        });
+        throw new DatabaseError('Failed to fetch active queue break', error as Error);
+      }
+
+      if (!data) {
+        return null;
+      }
+
+      return this.mapToQueueBreakState(data);
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error fetching active queue break', error as Error, {
+        clinicId,
+        staffId,
+      });
+      throw new DatabaseError('Unexpected error fetching active queue break', error as Error);
     }
   }
 
@@ -586,6 +787,83 @@ export class QueueRepository {
     }
   }
 
+  async getOrCreateQueueStatusToken(appointmentId: string): Promise<string> {
+    try {
+      logger.debug('Generating queue status token', { appointmentId });
+
+      const { data, error } = await supabase.rpc('generate_queue_status_token', {
+        p_appointment_id: appointmentId,
+      });
+
+      if (error || !data) {
+        logger.error('Failed to generate queue status token', error, { appointmentId });
+        throw new DatabaseError('Failed to generate queue status token', error);
+      }
+
+      if (typeof data !== 'string' || data.trim().length === 0) {
+        throw new DatabaseError('Invalid queue status token payload returned by RPC');
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error generating queue status token', error as Error, { appointmentId });
+      throw new DatabaseError('Unexpected error generating queue status token', error as Error);
+    }
+  }
+
+  async getPublicQueueStatus(token: string): Promise<PublicQueueStatus | null> {
+    try {
+      logger.debug('Fetching public queue status', { tokenLength: token.length });
+
+      const { data, error } = await supabase.rpc('get_public_queue_status', {
+        p_queue_status_token: token,
+      });
+
+      if (error) {
+        logger.error('Failed to fetch public queue status', error, { tokenLength: token.length });
+        throw new DatabaseError('Failed to fetch public queue status', error);
+      }
+
+      if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        return null;
+      }
+
+      const payload = data as Record<string, unknown>;
+
+      if (
+        typeof payload.appointmentId !== 'string' ||
+        typeof payload.clinicId !== 'string' ||
+        typeof payload.clinicName !== 'string'
+      ) {
+        return null;
+      }
+
+      const queuePosition = typeof payload.queuePosition === 'number'
+        ? payload.queuePosition
+        : Number(payload.queuePosition ?? 0);
+
+      return {
+        appointmentId: payload.appointmentId,
+        clinicId: payload.clinicId,
+        clinicName: payload.clinicName,
+        queuePosition: Number.isFinite(queuePosition) ? queuePosition : 0,
+        status: (payload.status as AppointmentStatus) || AppointmentStatus.SCHEDULED,
+        appointmentDate: typeof payload.appointmentDate === 'string' ? payload.appointmentDate : null,
+        scheduledTime: typeof payload.scheduledTime === 'string' ? payload.scheduledTime : null,
+        predictedStartTime: typeof payload.predictedStartTime === 'string' ? payload.predictedStartTime : null,
+        predictedWaitTime: typeof payload.predictedWaitTime === 'number' ? payload.predictedWaitTime : null,
+        appointmentType: (payload.appointmentType as AppointmentType) || AppointmentType.CONSULTATION,
+        checkedInAt: typeof payload.checkedInAt === 'string' ? payload.checkedInAt : null,
+        updatedAt: typeof payload.updatedAt === 'string' ? payload.updatedAt : null,
+      };
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error fetching public queue status', error as Error, { tokenLength: token.length });
+      throw new DatabaseError('Unexpected error fetching public queue status', error as Error);
+    }
+  }
+
   /**
    * Get booked slots for a clinic on a specific date
     * Returns array of appointment IDs and scheduled times for active appointments
@@ -649,8 +927,21 @@ export class QueueRepository {
         throw new DatabaseError('Failed to create queue entry via RPC', error);
       }
 
-      // The RPC function returns a single JSON object representing the new appointment row
-      return this.mapToQueueEntry(data as unknown as RawAppointmentRow);
+      // The RPC function returns a single JSON object representing the new appointment row.
+      // Persist queue metadata that is not part of the RPC contract via a follow-up update.
+      const createdEntry = this.mapToQueueEntry(data as unknown as RawAppointmentRow);
+
+      if (
+        dto.isGapFiller !== undefined ||
+        dto.promotedFromWaitlist !== undefined
+      ) {
+        return this.updateQueueEntry(createdEntry.id, {
+          isGapFiller: dto.isGapFiller,
+          promotedFromWaitlist: dto.promotedFromWaitlist,
+        });
+      }
+
+      return createdEntry;
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error creating queue entry via RPC', error as Error, { dto });
@@ -688,6 +979,16 @@ export class QueueRepository {
       if (dto.actualEndTime !== undefined) updateObj.actual_end_time = dto.actualEndTime;
       if (dto.actualDuration !== undefined) updateObj.actual_duration = dto.actualDuration;
       if (dto.resourceId !== undefined) updateObj.resource_id = dto.resourceId;
+      if (dto.priorityScore !== undefined) updateObj.priority_score = dto.priorityScore;
+      if (dto.isGapFiller !== undefined) updateObj.is_gap_filler = dto.isGapFiller;
+      if (dto.promotedFromWaitlist !== undefined) {
+        updateObj.promoted_from_waitlist = dto.promotedFromWaitlist;
+      }
+      if (dto.billingAmount !== undefined) updateObj.billing_amount = dto.billingAmount;
+      if (dto.currency !== undefined) updateObj.currency = dto.currency;
+      if (dto.paymentStatus !== undefined) updateObj.payment_status = dto.paymentStatus;
+      if (dto.paidAt !== undefined) updateObj.paid_at = dto.paidAt;
+      if (dto.paymentMethod !== undefined) updateObj.payment_method = dto.paymentMethod;
 
       // Always set updated_at to now()
       updateObj.updated_at = new Date().toISOString();
@@ -743,6 +1044,111 @@ export class QueueRepository {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error updating queue entry', error as Error, { id, dto });
       throw new DatabaseError('Unexpected error updating queue entry', error as Error);
+    }
+  }
+
+  async callPatientIfPresent(
+    appointmentId: string,
+    checkedInAt: string,
+    performedBy?: string
+  ): Promise<QueueEntry | null> {
+    try {
+      logger.debug('Calling patient atomically with status/presence guard', { appointmentId });
+
+      if (performedBy) {
+        const { data, error } = await supabase.rpc('assign_resource_and_call_patient', {
+          p_appointment_id: appointmentId,
+          p_resource_id: null,
+          p_performed_by: performedBy,
+        });
+
+        if (error) {
+          const message = error.message || '';
+          const isConcurrentStateChange =
+            message.includes('Only scheduled or waiting appointments can be called') ||
+            message.includes('Patient is not marked present');
+
+          if (isConcurrentStateChange) {
+            return null;
+          }
+
+          logger.error('Failed to atomically call patient via RPC', error, { appointmentId, performedBy });
+          throw new DatabaseError('Failed to atomically call patient', error);
+        }
+
+        if (!data) {
+          return null;
+        }
+
+        return this.mapToQueueEntry(data as RawAppointmentRow);
+      }
+
+      const { data, error } = await supabase
+        .from('appointments')
+        .update({
+          status: AppointmentStatus.IN_PROGRESS,
+          checked_in_at: checkedInAt,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', appointmentId)
+        .eq('status', AppointmentStatus.WAITING)
+        .eq('is_present', true)
+        .select(`
+          *,
+          patient:patients!appointments_patient_id_fkey(id, display_name),
+          clinic:clinics(id, name),
+          resource:clinic_resources(id, name, resource_type)
+        `)
+        .maybeSingle();
+
+      if (error) {
+        logger.error('Failed to atomically call patient', error, { appointmentId });
+        throw new DatabaseError('Failed to atomically call patient', error);
+      }
+
+      if (!data) {
+        return null;
+      }
+
+      return this.mapToQueueEntry(data as RawAppointmentRow);
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error atomically calling patient', error as Error, { appointmentId });
+      throw new DatabaseError('Unexpected error atomically calling patient', error as Error);
+    }
+  }
+
+  async updateAppointmentPaymentStatus(dto: UpdateAppointmentPaymentDTO): Promise<QueueEntry> {
+    try {
+      logger.debug('Updating appointment payment status via RPC', {
+        appointmentId: dto.appointmentId,
+        paymentStatus: dto.paymentStatus,
+        paymentMethod: dto.paymentMethod,
+      });
+
+      const rpcClient = supabase as unknown as {
+        rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: Error | null }>;
+      };
+
+      const { data, error } = await rpcClient.rpc('update_appointment_payment_status', {
+        p_appointment_id: dto.appointmentId,
+        p_payment_status: dto.paymentStatus,
+        p_payment_method: dto.paymentMethod ?? null,
+        p_paid_at: dto.paidAt ?? null,
+        p_billing_amount: dto.billingAmount ?? null,
+        p_currency: dto.currency ?? null,
+      });
+
+      if (error || !data) {
+        logger.error('Failed to update appointment payment status', error, { dto });
+        throw new DatabaseError('Failed to update appointment payment status', error);
+      }
+
+      return this.mapToQueueEntry(data as RawAppointmentRow);
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error updating appointment payment status', error as Error, { dto });
+      throw new DatabaseError('Unexpected error updating appointment payment status', error as Error);
     }
   }
 
@@ -942,6 +1348,44 @@ export class QueueRepository {
   }
 
   /**
+   * Get absent records whose grace period has expired and are still unresolved.
+   */
+  async getPendingGraceExpiries(referenceTime: Date, clinicId?: string): Promise<AbsentPatient[]> {
+    try {
+      const referenceIso = referenceTime.toISOString();
+
+      let query = supabase
+        .from('absent_patients')
+        .select('*')
+        .is('returned_at', null)
+        .eq('auto_cancelled', false)
+        .not('grace_period_ends_at', 'is', null)
+        .lte('grace_period_ends_at', referenceIso)
+        .order('grace_period_ends_at', { ascending: true });
+
+      if (clinicId) {
+        query = query.eq('clinic_id', clinicId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        logger.error('Failed to fetch pending grace expiries', error, { referenceIso });
+        throw new DatabaseError('Failed to fetch pending grace expiries', error);
+      }
+
+      return (data || []).map(item => this.mapToAbsentPatient(item as RawAbsentPatientRow));
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error fetching pending grace expiries', error as Error, {
+        referenceTime: referenceTime.toISOString(),
+        clinicId,
+      });
+      throw new DatabaseError('Unexpected error fetching pending grace expiries', error as Error);
+    }
+  }
+
+  /**
    * Create absent patient record
    */
   async createAbsentPatient(
@@ -949,7 +1393,8 @@ export class QueueRepository {
     clinicId: string,
     patientId: string | null,
     markedBy: string,
-    reason?: string
+    reason?: string,
+    gracePeriodEndsAt?: Date
   ): Promise<AbsentPatient> {
     try {
       logger.debug('Creating absent patient record', {
@@ -968,6 +1413,7 @@ export class QueueRepository {
         clinic_id: clinicId,
         patient_id: patientId,
         marked_absent_at: new Date().toISOString(),
+        grace_period_ends_at: gracePeriodEndsAt?.toISOString() ?? null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -1070,6 +1516,45 @@ export class QueueRepository {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error resolving absent patient record', error as Error, { appointmentId });
       throw new DatabaseError('Unexpected error resolving absent patient record', error as Error);
+    }
+  }
+
+  /**
+   * Mark the active absent record as auto-cancelled after grace expiration.
+   */
+  async markAbsentPatientAutoCancelled(appointmentId: string): Promise<boolean> {
+    try {
+      const { data, error } = await supabase
+        .from('absent_patients')
+        .update({
+          returned_at: new Date().toISOString(),
+          auto_cancelled: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('appointment_id', appointmentId)
+        .is('returned_at', null)
+        .is('auto_cancelled', false)
+        .select('id')
+        .maybeSingle();
+
+      if (error) {
+        throw new DatabaseError('Failed to mark absent patient as auto-cancelled', error);
+      }
+
+      if (!data) {
+        logger.info('Skipped absent auto-cancel update due to concurrent resolution or no active record', {
+          appointmentId,
+        });
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error marking absent patient as auto-cancelled', error as Error, {
+        appointmentId,
+      });
+      throw new DatabaseError('Unexpected error marking absent patient as auto-cancelled', error as Error);
     }
   }
 
@@ -1434,7 +1919,7 @@ export class QueueRepository {
     const response = data as ClinicScheduleResponse;
 
     const mode = response.queue_mode;
-    if (mode !== QueueMode.SLOTTED && mode !== QueueMode.FLUID) {
+    if (mode !== QueueMode.SLOTTED && mode !== QueueMode.FLUID && mode !== QueueMode.HYBRID) {
       throw new DatabaseError(`Invalid queue_mode in schedule RPC payload: ${String(mode)}`);
     }
 
@@ -1494,6 +1979,11 @@ export class QueueRepository {
       returnedAt: data.returned_at ? new Date(data.returned_at) : undefined,
       checkedInAt: data.checked_in_at ? new Date(data.checked_in_at) : undefined,
       actualEndTime: data.actual_end_time ? new Date(data.actual_end_time) : undefined,
+      billingAmount: typeof data.billing_amount === 'number' ? data.billing_amount : undefined,
+      currency: data.currency ?? undefined,
+      paymentStatus: (data.payment_status as PaymentStatus) ?? undefined,
+      paidAt: data.paid_at ? new Date(data.paid_at) : undefined,
+      paymentMethod: data.payment_method ?? undefined,
       estimatedDurationMinutes: data.estimated_duration ?? undefined,
       estimatedWaitTime: typeof data.predicted_wait_time === 'number' ? data.predicted_wait_time : undefined,
       predictionMode: undefined,
@@ -1515,6 +2005,7 @@ export class QueueRepository {
       priorityScore: data.priority_score ?? 100,
       isGapFiller: data.is_gap_filler || false,
       promotedFromWaitlist: data.promoted_from_waitlist || false,
+      queueStatusToken: data.queue_status_token || undefined,
       lateArrivalConverted: data.late_arrival_converted || false,
       originalSlotTime: data.original_slot_time ? new Date(data.original_slot_time) : undefined,
     };
@@ -1554,6 +2045,43 @@ export class QueueRepository {
       previousPosition: data.previous_position,
       newPosition: data.new_position,
       createdAt: new Date(data.created_at),
+    };
+  }
+
+  private mapToQueueBreakState(payload: unknown): QueueBreakState {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new DatabaseError('Invalid queue break payload from RPC');
+    }
+
+    const row = payload as Record<string, unknown>;
+    const breakId = typeof row.breakId === 'string' ? row.breakId : '';
+    const clinicId = typeof row.clinicId === 'string' ? row.clinicId : '';
+    const staffId = typeof row.staffId === 'string' ? row.staffId : '';
+    const startedBy = typeof row.startedBy === 'string' ? row.startedBy : '';
+    const startedAt = typeof row.startedAt === 'string' ? row.startedAt : '';
+    const endsAt = typeof row.endsAt === 'string' ? row.endsAt : '';
+
+    if (!breakId || !clinicId || !staffId || !startedBy || !startedAt || !endsAt) {
+      throw new DatabaseError('Invalid queue break payload: missing required fields');
+    }
+
+    const durationMinutesRaw = Number(row.durationMinutes ?? 0);
+    const remainingSecondsRaw = Number(row.remainingSeconds ?? 0);
+    const shiftedCountRaw = Number(row.shiftedAppointmentsCount ?? 0);
+
+    return {
+      breakId,
+      clinicId,
+      staffId,
+      startedBy,
+      reason: typeof row.reason === 'string' ? row.reason : null,
+      durationMinutes: Number.isFinite(durationMinutesRaw) ? durationMinutesRaw : 0,
+      startedAt,
+      endsAt,
+      endedAt: typeof row.endedAt === 'string' ? row.endedAt : null,
+      remainingSeconds: Number.isFinite(remainingSecondsRaw) ? remainingSecondsRaw : 0,
+      pushedSchedule: row.pushedSchedule === true,
+      shiftedAppointmentsCount: Number.isFinite(shiftedCountRaw) ? shiftedCountRaw : 0,
     };
   }
 }

@@ -178,7 +178,7 @@ export async function executeQueueCallNext(
     // Get remaining count
     const entries = await queueService.getQueueEntries(clinicId, targetDate);
     const remainingInQueue = entries.filter(
-      (e: { status: string }) => e.status === "scheduled" || e.status === "checked_in"
+      (e: { status: string }) => e.status === "scheduled" || e.status === "waiting"
     ).length;
 
     logger.info("Patient called successfully via @queuemed/core", {

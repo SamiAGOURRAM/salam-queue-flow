@@ -4,6 +4,7 @@ import type {
   ActiveShare,
   AccessRequestResult,
   ActiveGrantCheck,
+  GrantScope,
   OtpValidationResult,
   SharedAppointmentDetail,
   SharedAppointmentSummary,
@@ -21,9 +22,10 @@ export class MedicalRecordSharingService {
     patientId: string,
     appointmentId: string,
     clinicId: string,
-    ownerOverrideReason?: string
+    ownerOverrideReason?: string,
+    scope?: GrantScope
   ): Promise<AccessRequestResult> {
-    const request = await this.repository.requestAccess(patientId, appointmentId, clinicId, ownerOverrideReason);
+    const request = await this.repository.requestAccess(patientId, appointmentId, clinicId, ownerOverrideReason, scope);
 
     try {
       const delivery = await this.repository.deliverOtp(request.grantId);

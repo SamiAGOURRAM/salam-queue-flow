@@ -1,4 +1,4 @@
-import { AlertTriangle, Calendar, CheckCircle, Clock, XCircle } from "lucide-react";
+import { AlertTriangle, Calendar, CheckCircle, ChevronRight, Clock, XCircle } from "lucide-react";
 import { useState } from "react";
 import {
   AlertDialog,
@@ -18,6 +18,7 @@ import { toast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { logger } from "@/services/shared/logging/Logger";
+import { cn } from "@/lib/utils";
 
 interface EndDaySummaryResult {
   summary?: {
@@ -52,6 +53,52 @@ interface ClosurePreview {
   willMarkCompleted: number;
 }
 
+interface ClosureHistoryReport {
+  id: string;
+  clinicId: string;
+  staffId: string;
+  staffName: string | null;
+  closureDate: string;
+  closedAt: string;
+  reason: string | null;
+  notes: string | null;
+  summary: {
+    totalAppointments: number;
+    waiting: number;
+    inProgress: number;
+    absent: number;
+    completed: number;
+    alreadyNoShow: number;
+    markedNoShow: number;
+    markedCompleted: number;
+  };
+}
+
+function formatClosureDate(value: string): string {
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(parsed);
+}
+
+function formatClosureTimestamp(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(parsed);
+}
+
 export function EndDayConfirmationDialog({
   open,
   onOpenChange,
@@ -67,8 +114,36 @@ export function EndDayConfirmationDialog({
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
   const [understood, setUnderstood] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyReports, setHistoryReports] = useState<ClosureHistoryReport[]>([]);
+  const [expandedReportId, setExpandedReportId] = useState<string | null>(null);
   const rpcClient = supabase as unknown as {
     rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: Error | null }>;
+  };
+
+  const loadClosureHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const { data, error } = await rpcClient.rpc('get_day_closure_history', {
+        p_clinic_id: clinicId,
+        p_staff_id: null,
+        p_limit: 8,
+        p_offset: 0,
+      });
+
+      if (error) throw error;
+
+      setHistoryReports(Array.isArray(data) ? (data as ClosureHistoryReport[]) : []);
+    } catch (error) {
+      logger.warn('Failed to load day closure history', {
+        clinicId,
+        staffId,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+      setHistoryReports([]);
+    } finally {
+      setHistoryLoading(false);
+    }
   };
 
   // Load preview data when dialog opens
@@ -79,6 +154,8 @@ export function EndDayConfirmationDialog({
       setReason("");
       setNotes("");
       setUnderstood(false);
+      setExpandedReportId(null);
+      setHistoryReports([]);
       
       // Fetch preview from RPC
       try {
@@ -90,6 +167,7 @@ export function EndDayConfirmationDialog({
 
         if (error) throw error;
         setPreview((data as unknown as ClosurePreview) ?? null);
+        void loadClosureHistory();
       } catch (error) {
         logger.error('Failed to load preview', error instanceof Error ? error : new Error(String(error)), { clinicId, staffId });
         toast({
@@ -127,10 +205,10 @@ export function EndDayConfirmationDialog({
 
       if (error) throw error;
 
-  const result = (data as EndDaySummaryResult | null) ?? {};
+      const result = (data as (EndDaySummaryResult & { reportId?: string }) | null) ?? {};
       toast({
         title: "✅ Day Closed Successfully",
-        description: `${result?.summary?.markedNoShow || 0} marked no-show, ${result?.summary?.markedCompleted || 0} completed`,
+        description: `${result?.summary?.markedNoShow || 0} marked no-show, ${result?.summary?.markedCompleted || 0} completed${result?.reportId ? '. Report saved.' : ''}`,
         duration: 5000,
       });
 
@@ -249,6 +327,98 @@ export function EndDayConfirmationDialog({
                   onChange={(e) => setReason(e.target.value)}
                   className="min-h-[60px] rounded-[4px] border-border/60 resize-none"
                 />
+              </div>
+
+              {/* Recent reports */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent Closure Reports</p>
+                {historyLoading ? (
+                  <div className="rounded-[4px] border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                    Loading recent reports...
+                  </div>
+                ) : historyReports.length === 0 ? (
+                  <div className="rounded-[4px] border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                    No closure reports recorded yet.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                    {historyReports.map((report) => {
+                      const isExpanded = expandedReportId === report.id;
+                      return (
+                        <Card key={report.id} className="border-border/60 shadow-none">
+                          <CardContent className="p-3">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedReportId(isExpanded ? null : report.id)}
+                              className="w-full text-left"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div>
+                                  <p className="text-sm font-medium text-foreground">
+                                    {formatClosureDate(report.closureDate)}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    {(report.staffName || 'Staff')} · {formatClosureTimestamp(report.closedAt)}
+                                  </p>
+                                </div>
+                                <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", isExpanded && "rotate-90")} />
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-2">
+                                {report.summary.markedNoShow} no-show · {report.summary.markedCompleted} completed
+                              </p>
+                            </button>
+
+                            {isExpanded && (
+                              <div className="mt-3 pt-3 border-t border-border/60 space-y-2">
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <div className="flex items-center justify-between rounded-[4px] bg-muted/50 px-2 py-1.5">
+                                    <span className="text-muted-foreground">Total</span>
+                                    <span className="font-medium text-foreground">{report.summary.totalAppointments}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between rounded-[4px] bg-muted/50 px-2 py-1.5">
+                                    <span className="text-muted-foreground">Waiting</span>
+                                    <span className="font-medium text-foreground">{report.summary.waiting}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between rounded-[4px] bg-muted/50 px-2 py-1.5">
+                                    <span className="text-muted-foreground">In Progress</span>
+                                    <span className="font-medium text-foreground">{report.summary.inProgress}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between rounded-[4px] bg-muted/50 px-2 py-1.5">
+                                    <span className="text-muted-foreground">Absent</span>
+                                    <span className="font-medium text-foreground">{report.summary.absent}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between rounded-[4px] bg-muted/50 px-2 py-1.5">
+                                    <span className="text-muted-foreground">Completed</span>
+                                    <span className="font-medium text-foreground">{report.summary.completed}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between rounded-[4px] bg-muted/50 px-2 py-1.5">
+                                    <span className="text-muted-foreground">Already No-Show</span>
+                                    <span className="font-medium text-foreground">{report.summary.alreadyNoShow}</span>
+                                  </div>
+                                </div>
+
+                                {(report.reason || report.notes) && (
+                                  <div className="space-y-1 text-xs text-muted-foreground">
+                                    {report.reason && (
+                                      <p>
+                                        <span className="font-medium text-foreground">Reason:</span> {report.reason}
+                                      </p>
+                                    )}
+                                    {report.notes && (
+                                      <p>
+                                        <span className="font-medium text-foreground">Notes:</span> {report.notes}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Info when no patients */}

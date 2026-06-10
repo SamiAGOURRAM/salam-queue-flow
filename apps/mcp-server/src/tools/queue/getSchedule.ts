@@ -57,7 +57,7 @@ Parameters:
 - clinicId: Clinic UUID (optional, defaults to authenticated user's clinic)
 
 Returns:
-- queueMode: "slotted" or "fluid"
+- queueMode: "slotted", "fluid", or "hybrid"
 - schedule: List of appointments with patient info and status
 - summary: Counts of waiting, in-progress, completed appointments`,
   inputSchema: {
@@ -95,12 +95,12 @@ interface QueueScheduleResult {
   success: boolean;
   date: string;
   clinicId: string;
-  queueMode: "slotted" | "fluid";
+  queueMode: "slotted" | "fluid" | "hybrid";
   schedule: ScheduleEntry[];
   summary: {
     total: number;
     scheduled: number;
-    checkedIn: number;
+    waiting: number;
     inProgress: number;
     completed: number;
     cancelled: number;
@@ -195,7 +195,7 @@ export async function executeQueueGetSchedule(
   const summary = {
     total: schedule.length,
     scheduled: schedule.filter(s => s.status === "scheduled").length,
-    checkedIn: schedule.filter(s => s.status === "checked_in").length,
+    waiting: schedule.filter(s => s.status === "waiting").length,
     inProgress: schedule.filter(s => s.status === "in_progress").length,
     completed: schedule.filter(s => s.status === "completed").length,
     cancelled: schedule.filter(s => s.status === "cancelled").length,

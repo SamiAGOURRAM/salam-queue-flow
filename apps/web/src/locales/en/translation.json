@@ -18,6 +18,24 @@
       "morocco": "Morocco",
       "changeLocation": "Change location"
     },
+    "spotlight": {
+      "liveLabel": "Live Queue Status",
+      "averageWaitDescription": "Average waiting time at our partner clinics",
+      "waitUnavailable": "Average waiting time will appear as clinics share more schedule data",
+      "title": "We're eliminating waiting rooms",
+      "description": "QueueMed coordinates your arrival perfectly with your appointment. No more sitting in lobbies. Arrive, get seen, leave.",
+      "partnerClinics": "Partner Clinics",
+      "patientReviews": "Patient Reviews",
+      "avgRating": "Avg Rating",
+      "noRating": "--",
+      "findClinic": "Find a Clinic"
+    },
+    "accessibility": {
+      "heroImageAlt": "Modern clinic reception with patient entering",
+      "generalCareAlt": "General practice services",
+      "dentalAlt": "Dental services",
+      "specialistsAlt": "Specialist medical services"
+    },
     "stats": {
       "verifiedClinics": "Verified Clinics",
       "avgRating": "Avg. Rating",
@@ -37,13 +55,15 @@
       "title": "Sign in to manage your appointments",
       "description": "View your upcoming appointments, past visits, favorite clinics, and get personalized healthcare recommendations.",
       "signIn": "Sign in",
-      "createAccount": "Create account"
+      "createAccount": "Create account",
+      "dashboardLabel": "Your health dashboard"
     },
     "forClinics": {
       "title": "Manage your clinic with ease",
       "description": "Reduce wait times, manage your queue in real-time, and provide a better experience for your patients with our AI-powered platform.",
       "register": "Register your clinic",
-      "learnMore": "Learn more"
+      "learnMore": "Learn more",
+      "dashboardLabel": "Clinic dashboard"
     },
     "footer": {
       "company": "Company",
@@ -191,22 +211,57 @@
     "patientsServed": "Patients Served",
     "avgRating": "Avg Rating",
     "rating": "Rating",
+    "allRatings": "All ratings",
+    "minRatingTag": "{{rating}}+ stars",
     "clinics": "Clinics",
     "clinic_one": "Clinic",
     "clinic_other": "Clinics",
     "available": "Available",
     "noClinicsFound": "No Clinics Found",
+    "notFoundDescription": "The clinic you're looking for doesn't exist or has been removed.",
     "tryAdjustingFilters": "Try adjusting your search criteria",
     "findPerfectProvider": "Find the perfect healthcare provider",
     "searchPlaceholder": "Search by name, specialty, or location...",
+    "selectDate": "Date",
+    "timeSlots": {
+      "any": "Any",
+      "morning": "Morning",
+      "afternoon": "Afternoon",
+      "evening": "Evening",
+      "morningShort": "AM",
+      "afternoonShort": "PM",
+      "eveningShort": "Eve"
+    },
     "bookAppointment": "Book Appointment",
     "bookNow": "Book Now",
+    "book": "Book",
+    "details": "Details",
+    "backToClinics": "Back to Clinics",
     "openNow": "OPEN NOW",
     "newClinic": "New Clinic",
     "allSpecialtiesText": "All Specialties",
     "allSpecialtiesDesc": "Find doctors across all medical fields",
     "instantBooking": "Instant Booking",
-    "instantBookingDesc": "No waiting required"
+    "instantBookingDesc": "No waiting required",
+    "instantConfirmation": "Instant confirmation",
+    "reviewCount": "({{count}} reviews)",
+    "availableServices": "Available Services",
+    "free": "Free",
+    "clinicInfo": "Clinic Info",
+    "appointmentRequired": "Appointment required",
+    "maxQueue": "Max Queue",
+    "patientCount": "{{count}} patients",
+    "bufferTime": "Buffer Time",
+    "bufferTimeMinutes": "{{count}} min between",
+    "ourTeam": "Our Team",
+    "staffMember": "Staff Member",
+    "readyToBook": "Ready to book?",
+    "readyToBookDescription": "Schedule your appointment now and skip the wait.",
+    "paymentMethodsNotConfigured": "Payment methods are not configured yet for this clinic.",
+    "preferencesNotConfigured": "Clinic preferences are not configured yet.",
+    "fallbackName": "Clinic",
+    "fallbackSpecialty": "Specialty not available",
+    "fallbackCity": "City not available"
   },
   "doctorDirectory": {
     "title": "Browse Doctors",
@@ -247,7 +302,16 @@
     "hours": "Hours",
     "today": "Today",
     "schedule": "Schedule",
-    "workingHours": "Working Hours"
+    "workingHours": "Working Hours",
+    "days": {
+      "sunday": "Sunday",
+      "monday": "Monday",
+      "tuesday": "Tuesday",
+      "wednesday": "Wednesday",
+      "thursday": "Thursday",
+      "friday": "Friday",
+      "saturday": "Saturday"
+    }
   },
   "favorites": {
     "addedToFavorites": "Added to favorites",
@@ -263,6 +327,38 @@
     "failedToLoad": "Failed to load",
     "tryAgain": "Please try again",
     "somethingWentWrong": "Something went wrong"
+  },
+  "publicQueueStatus": {
+    "loading": "Loading queue status...",
+    "unavailableTitle": "Queue status unavailable",
+    "backToHome": "Back to Home",
+    "liveStatus": "Live Queue Status",
+    "currentPosition": "Current Position",
+    "autoRefresh": "Auto-refreshes every 20 seconds",
+    "clinic": "Clinic",
+    "estimatedTime": "Estimated time",
+    "appointmentDate": "Appointment date",
+    "visitType": "Visit type",
+    "updatedAt": "Updated {{time}}",
+    "refresh": "Refresh",
+    "calculating": "Calculating...",
+    "notAvailable": "Not available",
+    "justNow": "just now",
+    "status": {
+      "scheduled": "Scheduled",
+      "waiting": "In Queue",
+      "inProgress": "Your Turn",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "noShow": "Missed",
+      "unknown": "Unknown"
+    },
+    "errors": {
+      "missingToken": "Missing queue status token.",
+      "invalidLink": "This queue status link is invalid or has expired.",
+      "loadFailed": "Unable to load queue status right now. Please try again.",
+      "linkExpired": "This link is no longer valid."
+    }
   },
   "appointments": {
     "hero": {
@@ -322,7 +418,194 @@
     "favoritesTitle": "My Favorite Clinics",
     "removeFavoriteError": "Failed to remove favorite: {{error}}"
   },
+  "clinicLayout": {
+    "loading": "Loading...",
+    "nav": {
+      "dashboard": "Dashboard",
+      "liveQueue": "Live Queue",
+      "calendar": "Calendar",
+      "templates": "Templates",
+      "medications": "Medications",
+      "team": "Team",
+      "profile": "Profile",
+      "settings": "Settings",
+      "signOut": "Log Out"
+    },
+    "settingsTabs": {
+      "general": "General",
+      "schedule": "Schedule",
+      "queueMode": "Queue Mode",
+      "appointments": "Appointments",
+      "doctorOverrides": "Doctor Settings",
+      "resources": "Resources",
+      "payments": "Payments"
+    },
+    "search": {
+      "placeholder": "Search pages...",
+      "settingsPrefix": "Settings",
+      "noResultsTitle": "No results found",
+      "noResultsDescription": "Try dashboard, queue, calendar, templates, medications, team, profile, or settings."
+    },
+    "header": {
+      "openCalendar": "Open calendar",
+      "emailSupport": "Email support",
+      "online": "Online",
+      "userFallback": "User",
+      "clinicFallback": "QueueMed"
+    }
+  },
+  "clinicDashboard": {
+    "stats": {
+      "queue": "Queue",
+      "queueDescription": "Patients currently waiting",
+      "active": "Active",
+      "activeDescription": "In consultation now",
+      "completed": "Completed",
+      "completedDescription": "Appointments done today",
+      "avgWait": "Avg Wait",
+      "avgWaitDescription": "Average patient wait time"
+    },
+    "chart": {
+      "title": "Appointment Overview",
+      "completed": "Completed",
+      "missed": "Missed",
+      "filters": {
+        "7d": "7D",
+        "30d": "30D",
+        "90d": "3M",
+        "1y": "1Y"
+      }
+    },
+    "quickActions": {
+      "title": "Quick Actions",
+      "manageQueue": "Manage Queue",
+      "manageQueueDescription": "Handle patient flow",
+      "calendar": "Calendar",
+      "calendarDescription": "View schedule",
+      "team": "Team",
+      "teamDescription": "Manage staff",
+      "settings": "Settings",
+      "settingsDescription": "Configure clinic"
+    },
+    "liveQueue": {
+      "title": "Live Queue",
+      "patientCount_one": "{{count}} patient",
+      "patientCount_other": "{{count}} patients",
+      "viewAll": "View all",
+      "loading": "Loading queue...",
+      "emptyTitle": "No patients in queue",
+      "emptyDescription": "Your queue is currently empty",
+      "addPatient": "Add Patient",
+      "morePatients": "+{{count}} more patients in queue"
+    },
+    "table": {
+      "position": "#",
+      "patient": "Patient",
+      "type": "Type",
+      "time": "Time",
+      "status": "Status",
+      "consultationFallback": "Consultation",
+      "patientFallback": "Patient",
+      "initialFallback": "P"
+    },
+    "status": {
+      "inProgress": "In Progress",
+      "waiting": "Waiting"
+    },
+    "waitTime": {
+      "none": "-",
+      "minutes": "{{count}}m",
+      "hoursMinutes": "{{hours}}h {{minutes}}m"
+    }
+  },
+  "clinicQueue": {
+    "loading": {
+      "queueInfo": "Loading queue info...",
+      "queue": "Loading queue..."
+    },
+    "access": {
+      "noClinicTitle": "No Clinic Access",
+      "noClinicDescription": "Your account is not linked to a clinic.",
+      "permissionTitle": "Permission Required",
+      "permissionDescription": "Your role cannot manage the live queue."
+    },
+    "toasts": {
+      "errorTitle": "Error",
+      "successTitle": "Success",
+      "queueUpdated": "The queue has been updated."
+    },
+    "header": {
+      "title": "Live Queue",
+      "book": "Book",
+      "walkIn": "Walk-in",
+      "endDay": "End Day"
+    },
+    "scope": {
+      "label": "Queue view",
+      "clinic": "General view",
+      "personal": "My queue"
+    },
+    "doctorQueues": {
+      "title": "Doctor queues",
+      "doctorOption": "{{name}} queue",
+      "openDoctorQueue": "Open {{name}} queue",
+      "viewingNow": "Queue active",
+      "fallbackDoctor": "Doctor {{count}}"
+    },
+    "staffProfile": {
+      "title": "Staff Profile Required",
+      "ownerDescription": "As a clinic owner, you need a staff profile to manage the queue.",
+      "staffDescription": "A staff profile is required. Contact your clinic administrator."
+    },
+    "booking": {
+      "walkInReason": "Walk-in patient",
+      "walkInTitle": "Add Walk-in Patient",
+      "walkInDescription": "Schedule a patient who arrived without an appointment."
+    }
+  },
   "clinicSettings": {
+    "doctorOverrides": {
+      "tab": {
+        "title": "Doctor Settings",
+        "description": "Set what each doctor can personalize: hours, appointment types, and queue mode."
+      },
+      "overview": "Start with clinic defaults, then let each doctor use their own setup when needed.",
+      "helper": "Allow doctor to use their own working hours, appointment types, and daily queue mode.",
+      "doctorLabel": "Doctor",
+      "selectDoctorPlaceholder": "Select doctor",
+      "loading": "Loading doctor settings...",
+      "empty": "No active doctors were found for this clinic.",
+      "fallbackDoctor": "Doctor",
+      "fallbackDoctorWithSpecialty": "Doctor - {{specialty}}",
+      "fallbackDoctorName": "Doctor {{count}}",
+      "workingHours": {
+        "title": "Personal Working Hours",
+        "description": "Allow doctor to use their own working hours."
+      },
+      "appointmentTypes": {
+        "title": "Personal Appointment Types",
+        "description": "Allow doctor to use their own appointment types and visit durations.",
+        "add": "Add doctor appointment type"
+      },
+      "queueMode": {
+        "title": "Personal Queue Mode",
+        "description": "Allow doctor to use their own queue mode by day."
+      },
+      "actions": {
+        "save": "Save Doctor Settings",
+        "saving": "Saving..."
+      },
+      "toasts": {
+        "loadFailed": "Failed to load doctor settings",
+        "doctorNotSelectedTitle": "Doctor not selected",
+        "doctorNotSelectedDescription": "Please select a doctor.",
+        "invalidAppointmentTypesTitle": "Invalid appointment types",
+        "invalidAppointmentTypesDescription": "Add at least one appointment type for this doctor.",
+        "minAppointmentTypesDescription": "At least one appointment type is required.",
+        "savedDescription": "Doctor settings updated",
+        "saveFailed": "Failed to save doctor settings"
+      }
+    },
     "resources": {
       "tab": {
         "title": "Resources",
@@ -425,9 +708,483 @@
         "revokeAllDescription": "{{count}} active share(s) were revoked.",
         "revokeAllFailedTitle": "Failed to revoke all access"
       }
+    },
+    "doctor": {
+      "requestDialog": {
+        "title": "Request Medical History",
+        "descriptionWithPatient": "Requesting access for {{patientName}}.",
+        "descriptionDefault": "Request temporary access to patient history.",
+        "intro": "A one-time verification code will be sent to the patient. Access remains time-limited and revocable.",
+        "patientCodeLabel": "Patient code",
+        "accessDurationLabel": "Access duration",
+        "accessScopeLabel": "Access scope",
+        "patientHasAppHint": "Patient can also approve in-app. OTP remains available as fallback.",
+        "patientNoAppHint": "Ask the patient to read the 6-digit code from SMS or email.",
+        "actions": {
+          "sendAccessCode": "Send Access Code",
+          "resendCode": "Resend code",
+          "verifyAndOpen": "Verify and Open History"
+        },
+        "durationOptions": {
+          "thisAppointment": "This appointment (1 hour)",
+          "hours24": "24 hours",
+          "oneWeek": "1 week"
+        },
+        "scopeOptions": {
+          "thisAppointment": "This appointment only",
+          "fullHistory": "Full medical history"
+        },
+        "toasts": {
+          "missingContextTitle": "Cannot request access",
+          "missingContextDescription": "Missing patient or appointment context.",
+          "deliveryPendingTitle": "Code delivery pending",
+          "deliveryPendingDescription": "Delivery failed. You can retry sending the code.",
+          "codeSentTitle": "Access code sent",
+          "codeSentDescription": "A one-time code was sent via {{channel}}.",
+          "requestFailedTitle": "Failed to request medical history",
+          "unexpectedError": "Unexpected error",
+          "waitBeforeRetryTitle": "Please wait before retrying",
+          "retryInSeconds": "Try again in {{seconds}} seconds.",
+          "cooldownActiveDescription": "Resend cooldown is active.",
+          "newCodeSentTitle": "A new code was sent",
+          "newCodeSentDescription": "Please ask the patient for the new 6-digit code.",
+          "resendFailedTitle": "Failed to resend code",
+          "enterCodeTitle": "Enter a 6-digit code",
+          "enterCodeDescription": "Please enter the full code provided by the patient.",
+          "invalidCodeTitle": "Invalid code",
+          "attemptsRemainingDescription": "{{count}} attempts remaining.",
+          "verifyCodeDescription": "Please verify the code and try again.",
+          "codeLockedTitle": "Code entry locked",
+          "retryAfterTimeDescription": "Retry after {{time}}.",
+          "validateFailedTitle": "Unable to validate code",
+          "tryAgainDescription": "Please try again.",
+          "unlockedTitle": "Medical history unlocked",
+          "unlockedDescription": "Access is now active for the selected duration.",
+          "validateRequestFailedTitle": "Failed to validate code"
+        }
+      },
+      "sharedRecords": {
+        "title": "Shared Medical History",
+        "expiryUnknown": "Unknown",
+        "expired": "Expired",
+        "minRemaining": "{{count}}m",
+        "hourMinRemaining": "{{hours}}h {{minutes}}m",
+        "accessWithPatient": "{{patientName}} - Access expires in {{expires}}",
+        "accessWithoutPatient": "Access expires in {{expires}}",
+        "accessExpired": "Access expired",
+        "expiresIn": "Expires in {{expires}}",
+        "loading": "Loading shared records...",
+        "empty": "No previous appointments were found for this patient.",
+        "diagnosisBadge": "Dx",
+        "prescriptionBadge": "Rx",
+        "labsBadge": "Labs",
+        "procedureReportsBadge": "Reports",
+        "notesBadge": "Notes",
+        "selectAppointment": "Select an appointment to view details.",
+        "reasonForVisit": "Reason for visit",
+        "clinicalNotes": "Clinical notes",
+        "diagnoses": "Diagnoses",
+        "noVisibleDiagnoses": "No visible diagnoses.",
+        "prescriptions": "Prescriptions",
+        "noVisiblePrescriptions": "No visible prescriptions.",
+        "labResults": "Lab results",
+        "noVisibleLabResults": "No visible lab results.",
+        "procedureReports": "Procedure reports",
+        "noVisibleProcedureReports": "No visible procedure reports.",
+        "errors": {
+          "loadHistory": "Failed to load shared records",
+          "loadDetail": "Failed to load record detail"
+        }
+      },
+      "medicationCatalog": {
+        "badge": "Medication Catalog",
+        "title": "Medication Management",
+        "description": "Review medications learned from prescriptions, merge naming variants with aliases, and deactivate duplicates while keeping clinical history intact.",
+        "missingContext": "Medication catalog is unavailable because clinic or user context is missing.",
+        "searchPlaceholder": "Search by canonical name or alias",
+        "showInactive": "Show inactive",
+        "listTitle": "Catalog Entries",
+        "stats": "{{active}} active out of {{total}} entries",
+        "usage": "Used {{count}} times",
+        "lastUsed": "Last used {{date}}",
+        "lastUsedNever": "Never used yet",
+        "empty": "No medication found for this filter.",
+        "status": {
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "fields": {
+          "name": "Canonical name",
+          "namePlaceholder": "e.g. Amoxicillin",
+          "aliases": "Aliases",
+          "aliasesPlaceholder": "Comma separated aliases"
+        },
+        "actions": {
+          "refresh": "Refresh",
+          "deactivate": "Deactivate",
+          "activate": "Activate",
+          "save": "Save changes",
+          "saving": "Saving..."
+        },
+        "toasts": {
+          "nameRequired": "Medication name is required.",
+          "updated": "Medication catalog entry updated.",
+          "updateFailed": "Failed to update medication catalog entry.",
+          "activated": "Medication entry activated.",
+          "deactivated": "Medication entry deactivated."
+        }
+      },
+      "consultation": {
+        "title": "Consultation Notes",
+        "subtitle": "Write and save medical documentation for {{patientName}}.",
+        "genericPatient": "this patient",
+        "tabs": {
+          "notes": "Notes",
+          "diagnoses": "Diagnoses",
+          "ordonnance": "Ordonnance",
+          "labs": "Lab Results",
+          "report": "Report",
+          "referrals": "Referrals"
+        },
+        "actions": {
+          "retryLoad": "Retry",
+          "savingSection": "Saving...",
+          "saveNotes": "Save Notes",
+          "addDiagnosis": "Add Diagnosis",
+          "saveDiagnoses": "Save Diagnoses",
+          "addPrescription": "Add Medication",
+          "saveOrdonnance": "Save Ordonnance",
+          "printOrdonnance": "Print",
+          "insertPrescriptionPreset": "Insert Preset",
+          "addLabResult": "Add Lab Result",
+          "saveLabResults": "Save Lab Results",
+          "saveReportDraft": "Save Draft",
+          "finalizeReport": "Finalize Report",
+          "remove": "Remove"
+        },
+        "notes": {
+          "reasonForVisitLabel": "Reason for visit",
+          "reasonForVisitPlaceholder": "Main complaint, symptoms, or consultation objective",
+          "clinicalNotesLabel": "Clinical notes",
+          "clinicalNotesPlaceholder": "Clinical findings, examination notes, and management plan"
+        },
+        "diagnoses": {
+          "rowTitle": "Diagnosis {{number}}",
+          "codeLabel": "Diagnosis code",
+          "codePlaceholder": "e.g. J02.9",
+          "labelLabel": "Diagnosis label",
+          "labelPlaceholder": "e.g. Acute pharyngitis",
+          "notesLabel": "Diagnosis notes",
+          "notesPlaceholder": "Additional context",
+          "empty": "No diagnosis added yet."
+        },
+        "ordonnance": {
+          "rowTitle": "Medication {{number}}",
+          "medicationLabel": "Medication name",
+          "medicationPlaceholder": "e.g. Amoxicilline",
+          "dosageLabel": "Dosage",
+          "dosagePlaceholder": "e.g. 500 mg",
+          "routeLabel": "Route",
+          "routePlaceholder": "e.g. orale",
+          "routeOptions": [
+            "oral",
+            "injectable",
+            "topical",
+            "inhalation",
+            "ophthalmic",
+            "otic"
+          ],
+          "frequencyLabel": "Frequency",
+          "frequencyPlaceholder": "e.g. 2 fois/jour",
+          "frequencyOptions": [
+            "Once daily",
+            "Twice daily",
+            "Three times daily",
+            "Every 8h",
+            "Every 12h",
+            "As needed"
+          ],
+          "durationLabel": "Duration (days)",
+          "durationPlaceholder": "e.g. 7",
+          "instructionsLabel": "Instructions",
+          "instructionsPlaceholder": "Special advice or timing",
+          "empty": "No medication added yet."
+        },
+        "labs": {
+          "rowTitle": "Lab result {{number}}",
+          "testLabel": "Test name",
+          "testPlaceholder": "e.g. Glycemie a jeun",
+          "resultValueLabel": "Result",
+          "resultValuePlaceholder": "e.g. 96",
+          "unitLabel": "Unit",
+          "unitPlaceholder": "e.g. mg/dL",
+          "referenceRangeLabel": "Reference range",
+          "referenceRangePlaceholder": "e.g. 70 - 110",
+          "interpretationLabel": "Interpretation",
+          "interpretationPlaceholder": "Normal, Anormal, Critique",
+          "interpretationOptions": [
+            "Normal",
+            "Abnormal",
+            "Critical"
+          ],
+          "empty": "No lab result added yet."
+        },
+        "report": {
+          "titleLabel": "Report title",
+          "titlePlaceholder": "e.g. Ultrasound-guided knee infiltration",
+          "placeholder": "Write a detailed procedure report...",
+          "defaultTitle": "Procedure report",
+          "errors": {
+            "loadFailed": "Failed to load report",
+            "saveDraftFailed": "Failed to save draft report",
+            "finalizeFailed": "Failed to finalize report",
+            "uploadImageFailed": "Failed to upload report image",
+            "missingAppointmentContext": "Appointment context is missing",
+            "missingPatientContext": "Patient context is missing"
+          }
+        },
+        "editor": {
+          "toolbar": {
+            "bold": "Bold",
+            "italic": "Italic",
+            "underline": "Underline",
+            "heading1": "Heading 1",
+            "heading2": "Heading 2",
+            "paragraph": "Paragraph",
+            "bulletList": "Bullet list",
+            "orderedList": "Ordered list",
+            "insertTable": "Insert table",
+            "templates": "Templates",
+            "saveAsTemplate": "Save as Template",
+            "image": "Image",
+            "docx": "DOCX"
+          },
+          "templateSearch": {
+            "title": "Insert Template",
+            "description": "Search personal, clinic, and system templates.",
+            "searchPlaceholder": "Search template by title or tags",
+            "loading": "Loading templates...",
+            "empty": "No template available for this search.",
+            "groupHeading": "Available templates"
+          },
+          "saveTemplate": {
+            "title": "Save as Template",
+            "description": "Create a reusable template from current editor content.",
+            "titleLabel": "Title",
+            "titlePlaceholder": "Template title",
+            "descriptionLabel": "Description",
+            "descriptionPlaceholder": "Optional description",
+            "tagsLabel": "Tags",
+            "tagsPlaceholder": "orthopedie, post-op, douleur",
+            "visibilityLabel": "Visibility",
+            "scopeClinic": "Clinic team",
+            "scopePersonal": "Only me",
+            "cancel": "Cancel",
+            "saving": "Saving...",
+            "save": "Save template"
+          },
+          "combo": {
+            "title": "Prescription Presets",
+            "description": "Insert a common medication combo into this ordonnance.",
+            "searchPlaceholder": "Search combos",
+            "loading": "Loading combos...",
+            "empty": "No matching prescription combo.",
+            "groupHeading": "Saved combos"
+          },
+          "slash": {
+            "heading": "Slash templates",
+            "headingWithQuery": "Slash templates - {{query}}",
+            "close": "Close slash menu",
+            "loading": "Loading templates...",
+            "empty": "No templates found for this slash query."
+          },
+          "errors": {
+            "imageUploadTitle": "Image upload failed",
+            "imageUploadDescription": "Could not attach image",
+            "docxImportTitle": "DOCX import failed",
+            "docxImportDescription": "Could not import DOCX file",
+            "missingUserContext": "Missing user context"
+          }
+        },
+        "print": {
+          "documentTitle": "ordonnance-{{patientName}}",
+          "clinicPhoneLabel": "Tel",
+          "doctorLicenseLabel": "License No.",
+          "title": "PRESCRIPTION",
+          "patientLabel": "Patient",
+          "patientFallback": "Patient",
+          "dateLabel": "Date",
+          "headers": {
+            "medication": "Medication",
+            "dosage": "Dosage",
+            "frequency": "Frequency",
+            "duration": "Duration"
+          },
+          "durationDaysSuffix": "d",
+          "signatureLabel": "Signature and stamp"
+        },
+        "visibility": {
+          "patientVisible": "Visible to patient"
+        },
+        "toasts": {
+          "savedTitle": "Saved",
+          "saveFailedTitle": "Save failed",
+          "notesSaved": "Consultation notes updated.",
+          "diagnosesSaved": "Diagnoses updated.",
+          "prescriptionsSaved": "Ordonnance updated.",
+          "labResultsSaved": "Lab results updated.",
+          "reportDraftSaved": "Procedure report draft saved.",
+          "reportFinalized": "Procedure report finalized.",
+          "templateSaved": "Template saved and available in search.",
+          "comboInserted": "Inserted {{count}} medications from preset.",
+          "comboInsertEmpty": "Selected preset has no valid medications.",
+          "printedTitle": "Ordonnance ready",
+          "printedDescription": "The ordonnance has been sent to print."
+        },
+        "errors": {
+          "generic": "Unexpected error",
+          "codes": {
+            "CONSULTATION_UNEXPECTED_ERROR": "Unexpected error",
+            "CONSULTATION_DIAGNOSIS_LABEL_REQUIRED": "Diagnosis label is required.",
+            "CONSULTATION_MEDICATION_NAME_REQUIRED": "Medication name is required.",
+            "CONSULTATION_TEST_NAME_REQUIRED": "Test name is required.",
+            "CONSULTATION_CONTEXT_MISSING_APPOINTMENT": "Appointment context is missing.",
+            "CONSULTATION_CONTEXT_MISSING_PATIENT": "Patient context is missing.",
+            "CONSULTATION_CONTEXT_STALE": "Consultation context is stale. Reload before saving.",
+            "CONSULTATION_CONFLICT_RELOAD": "Consultation was updated by another clinician. Reload and try saving again.",
+            "CONSULTATION_NOTES_CONFLICT_RELOAD": "Consultation notes changed in another session. Reload before saving."
+          }
+        }
+      },
+      "templatesWorkspace": {
+        "badge": "Standalone Workspace",
+        "title": "Template Library",
+        "description": "Create, browse, edit, and retire reusable templates in one place. This flow is independent from appointments and designed for fast daily authoring.",
+        "searchPlaceholder": "Search by title, tag, or specialty",
+        "scopeFilterPlaceholder": "Filter scope",
+        "scopeFilters": {
+          "all": "All scopes",
+          "clinic": "Clinic scope",
+          "personal": "Personal scope",
+          "system": "System scope"
+        },
+        "scopeLabels": {
+          "system": "System",
+          "clinic": "Clinic",
+          "personal": "Personal"
+        },
+        "types": {
+          "consultation_note": {
+            "label": "Consultation Notes",
+            "subtitle": "Reusable narratives for consultation documentation."
+          },
+          "procedure_report": {
+            "label": "Procedure Reports",
+            "subtitle": "Structured templates for intervention reports."
+          },
+          "prescription_combo": {
+            "label": "Prescription Combos",
+            "subtitle": "Medication bundles for frequent treatment plans."
+          },
+          "report_section": {
+            "label": "Report Sections",
+            "subtitle": "Modular snippets to assemble complex reports."
+          }
+        },
+        "list": {
+          "empty": "No template found for the selected filters.",
+          "richTextFallback": "Rich text template",
+          "medicationsCount": "{{count}} medications",
+          "usedTimes": "Used {{count}} times"
+        },
+        "details": {
+          "emptyTitle": "Select a template",
+          "emptyDescription": "Choose a template from the left list to inspect its content.",
+          "selectedDescription": "Review details or switch to edit mode to update this template.",
+          "typePrefix": "Type",
+          "updatedPrefix": "Updated",
+          "noPreview": "No preview text available for this template yet.",
+          "comboConfigured": "{{count}} medications configured.",
+          "comboEmpty": "No medication in this preset yet."
+        },
+        "forms": {
+          "titleLabel": "Title",
+          "descriptionLabel": "Description",
+          "tagsLabel": "Tags",
+          "visibilityLabel": "Visibility",
+          "tagsPlaceholder": "follow-up, discharge",
+          "titlePlaceholder": "Post-op dressing protocol",
+          "descriptionPlaceholder": "Short summary to help doctors pick this quickly",
+          "createDialogTitle": "Create new template",
+          "createDialogDescription": "Build a reusable {{typeLabel}} template that can be used across consultations.",
+          "contentLabel": "Template content",
+          "createEditorPlaceholder": "Compose reusable content...",
+          "editEditorPlaceholder": "Compose reusable template content..."
+        },
+        "combo": {
+          "itemTitle": "Medication {{number}}",
+          "addMedication": "Add medication"
+        },
+        "actions": {
+          "newTemplate": "New template",
+          "edit": "Edit",
+          "cancel": "Cancel",
+          "delete": "Delete",
+          "saveChanges": "Save changes",
+          "saveTemplate": "Save template",
+          "saving": "Saving...",
+          "savingChanges": "Saving...",
+          "deleting": "Deleting...",
+          "confirmDelete": "Delete template"
+        },
+        "deleteDialog": {
+          "title": "Delete template?",
+          "description": "This action removes the template from all future searches. Existing reports that already used it remain untouched."
+        },
+        "toasts": {
+          "titleRequired": "Template title is required.",
+          "comboRequired": "Add at least one medication to save this preset.",
+          "createFailed": "Failed to create template.",
+          "updateFailed": "Failed to save template changes.",
+          "deleteFailed": "Failed to delete template.",
+          "updated": "Template changes saved.",
+          "deleted": "Template deleted."
+        }
+      }
     }
   },
   "about": {
+    "badge": "Healthcare Queue Management",
+    "actions": {
+      "findDoctor": "Find a doctor",
+      "getStartedFree": "Get started free"
+    },
+    "featuresSection": {
+      "title": "Built for modern healthcare",
+      "subtitle": "Everything you need to streamline patient flow and improve care delivery."
+    },
+    "benefits": {
+      "items": [
+        "Real-time queue tracking for patients",
+        "AI-powered scheduling optimization",
+        "HIPAA-compliant data security",
+        "Multi-language support (EN, FR, AR)",
+        "SMS and email notifications",
+        "Analytics dashboard for clinics"
+      ]
+    },
+    "clinicCard": {
+      "title": "For Clinics",
+      "subtitle": "Start managing your queue today",
+      "metricLabel": "Patient reviews",
+      "register": "Register your clinic"
+    },
+    "cta": {
+      "title": "Ready to get started?",
+      "subtitle": "Join thousands of patients and clinics already using our platform.",
+      "browseDoctors": "Browse doctors",
+      "createAccount": "Create account"
+    },
     "hero": {
       "title": "Everything You Need to",
       "subtitle": "Streamline Patient Care",
@@ -462,19 +1219,70 @@
     "stats": {
       "patients": "Patients Served",
       "clinics": "Clinics Active",
+      "specialties": "Specialties Covered",
       "uptime": "Uptime",
-      "rating": "User Rating"
+      "rating": "User Rating",
+      "loadingValue": "--",
+      "notAvailable": "--"
     },
     "mission": {
       "title": "Our Mission",
       "subtitle": "Better Healthcare for Everyone",
-      "description": "INTIDAR is dedicated to revolutionizing healthcare delivery through innovative technology. We believe that efficient queue management and seamless appointment scheduling shouldn't be a luxury—it should be the standard. Our platform empowers clinics to deliver exceptional patient experiences while optimizing their operations."
+      "description": "INTIDAR is dedicated to revolutionizing healthcare delivery through innovative technology. We believe that efficient queue management and seamless appointment scheduling shouldn't be a luxury—it should be the standard. Our platform empowers clinics to deliver exceptional patient experiences while optimizing their operations.",
+      "standardLine": "We believe efficient queue management and easy appointment scheduling should be the standard, not a luxury."
     },
     "footer": {
-      "copyright": "© 2025 All rights reserved",
+      "copyright": "\u00c2\u00a9 2025 All rights reserved",
       "privacy": "Privacy",
       "terms": "Terms",
       "contact": "Contact"
     }
+  },
+  "referral": {
+    "status": {
+      "pending": "Pending",
+      "accepted": "Accepted",
+      "declined": "Declined",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "actions": {
+      "create": "Create Referral",
+      "accept": "Accept",
+      "decline": "Decline",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving...",
+      "cancelDialog": "Cancel"
+    },
+    "dialog": {
+      "title": "New Referral",
+      "targetDoctor": "Target Doctor",
+      "targetDoctorPlaceholder": "Dr. Name, Hospital, or Clinic",
+      "targetSpecialty": "Specialty",
+      "targetSpecialtyPlaceholder": "e.g. Cardiology, Orthopedics",
+      "targetClinic": "Target Clinic",
+      "targetClinicPlaceholder": "Hospital or clinic name",
+      "reason": "Reason for Referral",
+      "reasonPlaceholder": "Why is this referral needed?",
+      "notes": "Additional Notes",
+      "notesPlaceholder": "Any additional context or instructions"
+    },
+    "card": {
+      "targetClinic": "Target Clinic",
+      "response": "Response",
+      "createdAt": "Created"
+    },
+    "validation": {
+      "doctorNameRequired": "Target doctor name is required",
+      "reasonRequired": "Reason for referral is required"
+    },
+    "errors": {
+      "createFailed": "Failed to create referral"
+    },
+    "empty": "No referrals yet",
+    "emptyDescription": "Refer this patient to another doctor or specialist",
+    "count_one": "{{count}} referral",
+    "count_other": "{{count}} referrals"
   }
 }

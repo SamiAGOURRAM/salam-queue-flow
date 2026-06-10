@@ -106,7 +106,25 @@ serve(async (req) => {
           throw new Error(`SMS delivery failed with status ${smsResponse.status}`);
         }
       } else {
-        throw new Error("Email delivery is not implemented yet");
+        const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${serviceRoleKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            to: claimPayload.recipient_contact,
+            subject: "QueueMed: Medical record access code",
+            message:
+              `QueueMed: your medical record access code is ${claimPayload.otp_plaintext}. ` +
+              "This code expires in 5 minutes. Do not share it with anyone except your doctor.",
+            notification_id: claimPayload.otp_id,
+          }),
+        });
+
+        if (!emailResponse.ok) {
+          throw new Error(`Email delivery failed with status ${emailResponse.status}`);
+        }
       }
 
       deliveryOk = true;

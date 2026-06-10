@@ -14,7 +14,8 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { useMedicalRecordAccess } from '@/hooks/useMedicalRecordAccess';
-import { DURATION_PRESETS } from '@/services/medical-records';
+import { DURATION_PRESETS, type GrantScope } from '@/services/medical-records';
+import { useTranslation } from 'react-i18next';
 
 interface RequestMedicalHistoryDialogProps {
   open: boolean;
@@ -36,8 +37,10 @@ export function RequestMedicalHistoryDialog({
   onAccessActivated,
 }: RequestMedicalHistoryDialogProps) {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [otpCode, setOtpCode] = useState('');
   const [durationSeconds, setDurationSeconds] = useState<number>(DURATION_PRESETS.THIS_APPOINTMENT);
+  const [requestScopeType, setRequestScopeType] = useState<GrantScope['type']>('specific_appointments');
   const [otpStepVisible, setOtpStepVisible] = useState(false);
 
   const {
@@ -53,17 +56,41 @@ export function RequestMedicalHistoryDialog({
 
   const durationOptions = useMemo(
     () => [
-      { label: 'This appointment (1 hour)', value: DURATION_PRESETS.THIS_APPOINTMENT },
-      { label: '24 hours', value: DURATION_PRESETS.TWENTY_FOUR_HOURS },
-      { label: '1 week', value: DURATION_PRESETS.ONE_WEEK },
+      {
+        label: t('medicalSharing.doctor.requestDialog.durationOptions.thisAppointment'),
+        value: DURATION_PRESETS.THIS_APPOINTMENT,
+      },
+      {
+        label: t('medicalSharing.doctor.requestDialog.durationOptions.hours24'),
+        value: DURATION_PRESETS.TWENTY_FOUR_HOURS,
+      },
+      {
+        label: t('medicalSharing.doctor.requestDialog.durationOptions.oneWeek'),
+        value: DURATION_PRESETS.ONE_WEEK,
+      },
     ],
-    []
+    [t]
+  );
+
+  const scopeOptions = useMemo(
+    () => [
+      {
+        label: t('medicalSharing.doctor.requestDialog.scopeOptions.thisAppointment'),
+        value: 'specific_appointments' as const,
+      },
+      {
+        label: t('medicalSharing.doctor.requestDialog.scopeOptions.fullHistory'),
+        value: 'full_history' as const,
+      },
+    ],
+    [t]
   );
 
   useEffect(() => {
     if (!open) {
       setOtpCode('');
       setDurationSeconds(DURATION_PRESETS.THIS_APPOINTMENT);
+      setRequestScopeType('specific_appointments');
       setOtpStepVisible(false);
       clearError();
     }
@@ -72,32 +99,45 @@ export function RequestMedicalHistoryDialog({
   const handleRequest = async () => {
     if (!patientId || !appointmentId) {
       toast({
-        title: 'Cannot request access',
-        description: 'Missing patient or appointment context.',
+        title: t('medicalSharing.doctor.requestDialog.toasts.missingContextTitle'),
+        description: t('medicalSharing.doctor.requestDialog.toasts.missingContextDescription'),
         variant: 'destructive',
       });
       return;
     }
 
     try {
-      const result = await requestAccess(appointmentId, clinicId);
+      const requestScope: GrantScope =
+        requestScopeType === 'full_history'
+          ? { type: 'full_history' }
+          : {
+              type: 'specific_appointments',
+              appointmentIds: [appointmentId],
+            };
+
+      const result = await requestAccess(appointmentId, clinicId, undefined, requestScope);
       setOtpStepVisible(true);
       if (result.deliveryStatus === 'failed') {
         toast({
-          title: 'Code delivery pending',
-          description: 'Delivery failed. You can retry sending the code.',
+          title: t('medicalSharing.doctor.requestDialog.toasts.deliveryPendingTitle'),
+          description: t('medicalSharing.doctor.requestDialog.toasts.deliveryPendingDescription'),
           variant: 'destructive',
         });
       } else {
         toast({
-          title: 'Access code sent',
-          description: `A one-time code was sent via ${result.deliveryChannel.toUpperCase()}.`,
+          title: t('medicalSharing.doctor.requestDialog.toasts.codeSentTitle'),
+          description: t('medicalSharing.doctor.requestDialog.toasts.codeSentDescription', {
+            channel: result.deliveryChannel.toUpperCase(),
+          }),
         });
       }
     } catch (requestError) {
       toast({
-        title: 'Failed to request medical history',
-        description: requestError instanceof Error ? requestError.message : 'Unexpected error',
+        title: t('medicalSharing.doctor.requestDialog.toasts.requestFailedTitle'),
+        description:
+          requestError instanceof Error
+            ? requestError.message
+            : t('medicalSharing.doctor.requestDialog.toasts.unexpectedError'),
         variant: 'destructive',
       });
     }
@@ -108,23 +148,28 @@ export function RequestMedicalHistoryDialog({
       const result = await resendOtp();
       if (!result.sent) {
         toast({
-          title: 'Please wait before retrying',
+          title: t('medicalSharing.doctor.requestDialog.toasts.waitBeforeRetryTitle'),
           description: result.retryAfterSeconds
-            ? `Try again in ${result.retryAfterSeconds} seconds.`
-            : 'Resend cooldown is active.',
+            ? t('medicalSharing.doctor.requestDialog.toasts.retryInSeconds', {
+                seconds: result.retryAfterSeconds,
+              })
+            : t('medicalSharing.doctor.requestDialog.toasts.cooldownActiveDescription'),
           variant: 'destructive',
         });
         return;
       }
 
       toast({
-        title: 'A new code was sent',
-        description: 'Please ask the patient for the new 6-digit code.',
+        title: t('medicalSharing.doctor.requestDialog.toasts.newCodeSentTitle'),
+        description: t('medicalSharing.doctor.requestDialog.toasts.newCodeSentDescription'),
       });
     } catch (resendError) {
       toast({
-        title: 'Failed to resend code',
-        description: resendError instanceof Error ? resendError.message : 'Unexpected error',
+        title: t('medicalSharing.doctor.requestDialog.toasts.resendFailedTitle'),
+        description:
+          resendError instanceof Error
+            ? resendError.message
+            : t('medicalSharing.doctor.requestDialog.toasts.unexpectedError'),
         variant: 'destructive',
       });
     }
@@ -133,8 +178,8 @@ export function RequestMedicalHistoryDialog({
   const handleValidate = async () => {
     if (otpCode.length !== 6) {
       toast({
-        title: 'Enter a 6-digit code',
-        description: 'Please enter the full code provided by the patient.',
+        title: t('medicalSharing.doctor.requestDialog.toasts.enterCodeTitle'),
+        description: t('medicalSharing.doctor.requestDialog.toasts.enterCodeDescription'),
         variant: 'destructive',
       });
       return;
@@ -146,11 +191,13 @@ export function RequestMedicalHistoryDialog({
       if (!result.success) {
         if (result.error === 'invalid_code') {
           toast({
-            title: 'Invalid code',
+            title: t('medicalSharing.doctor.requestDialog.toasts.invalidCodeTitle'),
             description:
               typeof result.attemptsRemaining === 'number'
-                ? `${result.attemptsRemaining} attempts remaining.`
-                : 'Please verify the code and try again.',
+                ? t('medicalSharing.doctor.requestDialog.toasts.attemptsRemainingDescription', {
+                    count: result.attemptsRemaining,
+                  })
+                : t('medicalSharing.doctor.requestDialog.toasts.verifyCodeDescription'),
             variant: 'destructive',
           });
           return;
@@ -158,24 +205,26 @@ export function RequestMedicalHistoryDialog({
 
         if (result.error === 'locked' && result.lockedUntil) {
           toast({
-            title: 'Code entry locked',
-            description: `Retry after ${result.lockedUntil.toLocaleTimeString()}.`,
+            title: t('medicalSharing.doctor.requestDialog.toasts.codeLockedTitle'),
+            description: t('medicalSharing.doctor.requestDialog.toasts.retryAfterTimeDescription', {
+              time: result.lockedUntil.toLocaleTimeString(),
+            }),
             variant: 'destructive',
           });
           return;
         }
 
         toast({
-          title: 'Unable to validate code',
-          description: result.error || 'Please try again.',
+          title: t('medicalSharing.doctor.requestDialog.toasts.validateFailedTitle'),
+          description: result.error || t('medicalSharing.doctor.requestDialog.toasts.tryAgainDescription'),
           variant: 'destructive',
         });
         return;
       }
 
       toast({
-        title: 'Medical history unlocked',
-        description: 'Access is now active for the selected duration.',
+        title: t('medicalSharing.doctor.requestDialog.toasts.unlockedTitle'),
+        description: t('medicalSharing.doctor.requestDialog.toasts.unlockedDescription'),
       });
 
       if (result.grantId && onAccessActivated) {
@@ -185,8 +234,11 @@ export function RequestMedicalHistoryDialog({
       onOpenChange(false);
     } catch (validationError) {
       toast({
-        title: 'Failed to validate code',
-        description: validationError instanceof Error ? validationError.message : 'Unexpected error',
+        title: t('medicalSharing.doctor.requestDialog.toasts.validateRequestFailedTitle'),
+        description:
+          validationError instanceof Error
+            ? validationError.message
+            : t('medicalSharing.doctor.requestDialog.toasts.unexpectedError'),
         variant: 'destructive',
       });
     }
@@ -198,18 +250,46 @@ export function RequestMedicalHistoryDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
-            Request Medical History
+            {t('medicalSharing.doctor.requestDialog.title')}
           </DialogTitle>
           <DialogDescription>
-            {patientName ? `Requesting access for ${patientName}.` : 'Request temporary access to patient history.'}
+            {patientName
+              ? t('medicalSharing.doctor.requestDialog.descriptionWithPatient', { patientName })
+              : t('medicalSharing.doctor.requestDialog.descriptionDefault')}
           </DialogDescription>
         </DialogHeader>
 
         {!otpStepVisible ? (
           <div className="space-y-4">
             <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
-              A one-time verification code will be sent to the patient. Access remains time-limited and revocable.
+              {t('medicalSharing.doctor.requestDialog.intro')}
             </div>
+
+            <div className="space-y-2">
+              <Label>{t('medicalSharing.doctor.requestDialog.accessScopeLabel')}</Label>
+              <RadioGroup
+                value={requestScopeType}
+                onValueChange={(value) => setRequestScopeType(value as GrantScope['type'])}
+              >
+                {scopeOptions.map((option) => (
+                  <div
+                    key={option.value}
+                    className="flex items-center gap-2 rounded-md border border-border p-2"
+                    data-testid={`scope-option-${option.value}`}
+                  >
+                    <RadioGroupItem
+                      value={option.value}
+                      id={`scope-${option.value}`}
+                      data-testid={`scope-radio-${option.value}`}
+                    />
+                    <Label htmlFor={`scope-${option.value}`} className="cursor-pointer">
+                      {option.label}
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+            </div>
+
             {error && (
               <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
                 <AlertCircle className="mt-0.5 h-4 w-4" />
@@ -218,18 +298,18 @@ export function RequestMedicalHistoryDialog({
             )}
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button onClick={handleRequest} disabled={loading || !patientId || !appointmentId}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Send Access Code
+                {t('medicalSharing.doctor.requestDialog.actions.sendAccessCode')}
               </Button>
             </DialogFooter>
           </div>
         ) : (
           <div className="space-y-5">
             <div className="space-y-2">
-              <Label>Patient code</Label>
+              <Label>{t('medicalSharing.doctor.requestDialog.patientCodeLabel')}</Label>
               <InputOTP maxLength={6} value={otpCode} onChange={setOtpCode}>
                 <InputOTPGroup>
                   <InputOTPSlot index={0} />
@@ -242,13 +322,13 @@ export function RequestMedicalHistoryDialog({
               </InputOTP>
               <p className="text-xs text-muted-foreground">
                 {lastRequest?.patientHasApp
-                  ? 'Patient can also approve in-app. OTP remains available as fallback.'
-                  : 'Ask the patient to read the 6-digit code from SMS or email.'}
+                  ? t('medicalSharing.doctor.requestDialog.patientHasAppHint')
+                  : t('medicalSharing.doctor.requestDialog.patientNoAppHint')}
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label>Access duration</Label>
+              <Label>{t('medicalSharing.doctor.requestDialog.accessDurationLabel')}</Label>
               <RadioGroup
                 value={String(durationSeconds)}
                 onValueChange={(value) => setDurationSeconds(Number(value))}
@@ -273,11 +353,11 @@ export function RequestMedicalHistoryDialog({
 
             <DialogFooter className="gap-2">
               <Button type="button" variant="outline" onClick={handleResend} disabled={loading || !activeGrantId}>
-                Resend code
+                {t('medicalSharing.doctor.requestDialog.actions.resendCode')}
               </Button>
               <Button type="button" onClick={handleValidate} disabled={loading || otpCode.length !== 6}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Verify & Open History
+                {t('medicalSharing.doctor.requestDialog.actions.verifyAndOpen')}
               </Button>
             </DialogFooter>
           </div>

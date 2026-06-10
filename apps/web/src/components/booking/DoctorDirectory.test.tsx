@@ -117,25 +117,28 @@ describe("DoctorDirectory", () => {
     vi.clearAllMocks();
   });
 
-  it("lists doctor-like staff and excludes non-clinical roles", async () => {
+  it("lists doctor-like staff (role-based) and excludes non-clinical roles", async () => {
     setSupabaseResults({
       staffData: [
-        { id: "staff-1", clinic_id: "clinic-1", user_id: "user-1", role: "doctor", specialization: null },
-        { id: "staff-2", clinic_id: "clinic-1", user_id: "user-2", role: "staff", specialization: "Cardiology" },
-        { id: "staff-3", clinic_id: "clinic-1", user_id: "user-3", role: "receptionist", specialization: null },
+        { id: "staff-1", clinic_id: "clinic-1", user_id: "user-1", role: "doctor", specialization: null },        // included (role)
+        { id: "staff-2", clinic_id: "clinic-1", user_id: "user-2", role: "dentist", specialization: null },       // included (clinical allowlist)
+        { id: "staff-3", clinic_id: "clinic-1", user_id: "user-3", role: "receptionist", specialization: null },  // excluded
+        { id: "staff-4", clinic_id: "clinic-1", user_id: "user-4", role: "nurse", specialization: "Cardiology" }, // excluded (a specialization no longer qualifies a non-clinical role)
       ],
       clinicsData: [
         { id: "clinic-1", name: "Atlas Clinic", specialty: "General Medicine", city: "Rabat", is_active: true },
       ],
       profilesData: [
         { id: "user-1", full_name: "Dr Nadia Lahlou" },
+        { id: "user-2", full_name: "Dr Sami Alaoui" },
       ],
     });
 
     renderDirectory();
 
     expect(await screen.findByText("Dr Nadia Lahlou")).toBeInTheDocument();
-    expect(screen.getByText("Doctor 1")).toBeInTheDocument();
+    expect(screen.getByText("Dr Sami Alaoui")).toBeInTheDocument();
+    // Only the two clinical providers surface (receptionist + nurse-with-specialization excluded).
     expect(screen.getAllByRole("button", { name: "Book" })).toHaveLength(2);
   });
 

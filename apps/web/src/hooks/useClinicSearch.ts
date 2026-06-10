@@ -24,6 +24,17 @@ type ClinicRow = {
   settings: ClinicSettings | null;
 };
 
+type ClinicRatingStatsRow = {
+  clinic_id: string | null;
+  average_rating: number | null;
+  total_ratings: number | null;
+};
+
+type ClinicRatingStats = {
+  averageRating: number;
+  totalRatings: number;
+};
+
 const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
 function parseTimeToMinutes(time?: string): number | null {
@@ -49,10 +60,19 @@ function isOpenNow(settings: ClinicSettings | null): boolean {
   const open = parseTimeToMinutes(hours.open);
   const close = parseTimeToMinutes(hours.close);
   if (open === null || close === null) return false;
-  return nowMinutes >= open && nowMinutes <= close;
+
+  if (close >= open) {
+    return nowMinutes >= open && nowMinutes <= close;
+  }
+
+  // Support overnight ranges such as 22:00 - 02:00.
+  return nowMinutes >= open || nowMinutes <= close;
 }
 
-function mapClinicRowToSearchResult(row: ClinicRow): ClinicSearchResult {
+function mapClinicRowToSearchResult(row: ClinicRow, ratingStats?: ClinicRatingStats): ClinicSearchResult {
+  const averageRating = ratingStats?.averageRating ?? 0;
+  const totalRatings = ratingStats?.totalRatings ?? 0;
+
   return {
     id: row.id,
     name: row.name,
@@ -63,8 +83,8 @@ function mapClinicRowToSearchResult(row: ClinicRow): ClinicSearchResult {
     phone: row.phone,
     logo_url: row.logo_url,
     settings: row.settings,
-    average_rating: 0,
-    total_ratings: 0,
+    average_rating: averageRating,
+    total_ratings: totalRatings,
     is_open_now: isOpenNow(row.settings),
     today_hours: buildTodayHours(row.settings),
   };
@@ -168,22 +188,60 @@ export function useClinicSearch(filters: ClinicSearchFilters) {
         query = query.or(`name.ilike.%${search}%,specialty.ilike.%${search}%,city.ilike.%${search}%`);
       }
 
-      if (debouncedFilters.sortBy === 'city') {
-        query = query.order('city', { ascending: true }).order('name', { ascending: true });
-      } else {
-        query = query.order('name', { ascending: true });
-      }
-
-      if (typeof debouncedFilters.offset === 'number' && typeof debouncedFilters.limit === 'number') {
-        query = query.range(debouncedFilters.offset, debouncedFilters.offset + debouncedFilters.limit - 1);
-      } else if (typeof debouncedFilters.limit === 'number') {
-        query = query.limit(debouncedFilters.limit);
-      }
-
       const { data, error } = await query;
       if (error) throw error;
 
-      return (data || []).map((row) => mapClinicRowToSearchResult(row as ClinicRow));
+      const clinicRows = (data || []) as ClinicRow[];
+      if (clinicRows.length === 0) {
+        return [];
+      }
+
+      const clinicIds = clinicRows.map((clinic) => clinic.id);
+      const { data: ratingData, error: ratingError } = await supabase
+        .from('clinic_rating_stats')
+        .select('clinic_id, average_rating, total_ratings')
+        .in('clinic_id', clinicIds);
+
+      if (ratingError) throw ratingError;
+
+      const ratingByClinicId = new Map<string, ClinicRatingStats>();
+      for (const row of (ratingData || []) as ClinicRatingStatsRow[]) {
+        if (!row.clinic_id) continue;
+        ratingByClinicId.set(row.clinic_id, {
+          averageRating: Number(row.average_rating ?? 0),
+          totalRatings: Number(row.total_ratings ?? 0),
+        });
+      }
+
+      let results = clinicRows.map((row) => mapClinicRowToSearchResult(row, ratingByClinicId.get(row.id)));
+
+      if (typeof debouncedFilters.minRating === 'number') {
+        results = results.filter((clinic) => clinic.average_rating >= debouncedFilters.minRating);
+      }
+
+      if (debouncedFilters.sortBy === 'city') {
+        results = [...results].sort((a, b) =>
+          a.city.localeCompare(b.city) || a.name.localeCompare(b.name)
+        );
+      } else if (debouncedFilters.sortBy === 'rating') {
+        results = [...results].sort((a, b) => {
+          if (b.average_rating !== a.average_rating) return b.average_rating - a.average_rating;
+          if (b.total_ratings !== a.total_ratings) return b.total_ratings - a.total_ratings;
+          return a.name.localeCompare(b.name);
+        });
+      } else {
+        results = [...results].sort((a, b) => a.name.localeCompare(b.name));
+      }
+
+      if (typeof debouncedFilters.offset === 'number' && typeof debouncedFilters.limit === 'number') {
+        results = results.slice(debouncedFilters.offset, debouncedFilters.offset + debouncedFilters.limit);
+      } else if (typeof debouncedFilters.offset === 'number') {
+        results = results.slice(debouncedFilters.offset);
+      } else if (typeof debouncedFilters.limit === 'number') {
+        results = results.slice(0, debouncedFilters.limit);
+      }
+
+      return results;
     },
     // Keep previous data while fetching new results (prevents UI flicker)
     placeholderData: (prev) => prev,

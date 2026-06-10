@@ -28,8 +28,13 @@ dist-ssr
 server/.env
 nul
 
+# Browser E2E artifacts
+apps/web/playwright-report/
+apps/web/test-results/
+
 # Local build/cache artifacts
 .turbo/
+.pnpm-store/
 supabase/.branches/
 supabase/.temp/
 

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, type FormEvent } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,6 +6,7 @@ import { logger } from "@/services/shared/logging/Logger";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Activity,
+  BarChart3,
   Calendar,
   Settings,
   UserPlus,
@@ -26,13 +27,17 @@ import {
   ListOrdered,
   CalendarClock,
   CreditCard,
-  Stethoscope
+  FileText,
+  Stethoscope,
+  Pill
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
 import { useClinicPermissions } from "@/hooks/useClinicPermissions";
 import type { ClinicPermissionKey } from "@/lib/clinicRolePermissions";
+import { toast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 type ClinicRow = Database["public"]["Tables"]["clinics"]["Row"];
 
@@ -41,12 +46,14 @@ export default function ClinicLayout() {
   const { user, loading, isClinicOwner, isStaff, rolesLoading, userRoles, signOut } = useAuth();
   const { can, isClinicOwnerAtClinic } = useClinicPermissions();
   const { theme, setTheme } = useTheme();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const [clinic, setClinic] = useState<ClinicRow | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [headerSearchValue, setHeaderSearchValue] = useState("");
 
   // ===== ALL CALLBACKS PRESERVED =====
   const fetchClinic = useCallback(async () => {
@@ -145,35 +152,56 @@ export default function ClinicLayout() {
     requiredAnyPermissions?: ClinicPermissionKey[];
   }> = [
     {
-      name: "Dashboard",
+      name: t("clinicLayout.nav.dashboard"),
       path: "/clinic/dashboard",
       icon: LayoutDashboard,
       showFor: ["owner", "staff"],
       requiredAnyPermissions: ["view_dashboard", "manage_dashboard"],
     },
     {
-      name: "Live Queue",
+      name: t("clinicLayout.nav.liveQueue"),
       path: "/clinic/queue",
       icon: Activity,
       showFor: ["owner", "staff"],
       requiredPermission: "manage_queue",
     },
     {
-      name: "Calendar",
+      name: t("clinicLayout.nav.analytics", "Analytics"),
+      path: "/clinic/analytics",
+      icon: BarChart3,
+      showFor: ["owner", "staff"],
+      requiredPermission: "view_analytics",
+    },
+    {
+      name: t("clinicLayout.nav.calendar"),
       path: "/clinic/calendar",
       icon: Calendar,
       showFor: ["owner", "staff"],
       requiredAnyPermissions: ["view_calendar", "manage_calendar"],
     },
     {
-      name: "Team",
+      name: t("clinicLayout.nav.templates"),
+      path: "/clinic/templates",
+      icon: FileText,
+      showFor: ["owner", "staff"],
+      requiredPermission: "manage_appointments",
+    },
+    {
+      name: t("clinicLayout.nav.medications"),
+      path: "/clinic/medications",
+      icon: Pill,
+      showFor: ["owner", "staff"],
+      requiredPermission: "manage_appointments",
+    },
+    {
+      name: t("clinicLayout.nav.team"),
       path: "/clinic/team",
       icon: UserPlus,
       showFor: ["owner", "staff"],
       requiredAnyPermissions: ["view_team", "manage_team"],
     },
     {
-      name: "Profile",
+      name: t("clinicLayout.nav.profile"),
       path: "/clinic/profile",
       icon: User,
       showFor: ["owner", "staff"],
@@ -182,12 +210,13 @@ export default function ClinicLayout() {
 
   // Settings submenu items
   const settingsSubItems = [
-    { name: "General", path: "/clinic/settings?tab=basic", icon: Building2, tab: "basic" },
-    { name: "Schedule", path: "/clinic/settings?tab=schedule", icon: Clock, tab: "schedule" },
-    { name: "Queue Mode", path: "/clinic/settings?tab=queue", icon: ListOrdered, tab: "queue" },
-    { name: "Appointments", path: "/clinic/settings?tab=appointments", icon: CalendarClock, tab: "appointments" },
-    { name: "Resources", path: "/clinic/settings?tab=resources", icon: Stethoscope, tab: "resources" },
-    { name: "Payments", path: "/clinic/settings?tab=payment", icon: CreditCard, tab: "payment" },
+    { name: t("clinicLayout.settingsTabs.general"), path: "/clinic/settings?tab=basic", icon: Building2, tab: "basic" },
+    { name: t("clinicLayout.settingsTabs.schedule"), path: "/clinic/settings?tab=schedule", icon: Clock, tab: "schedule" },
+    { name: t("clinicLayout.settingsTabs.queueMode"), path: "/clinic/settings?tab=queue", icon: ListOrdered, tab: "queue" },
+    { name: t("clinicLayout.settingsTabs.appointments"), path: "/clinic/settings?tab=appointments", icon: CalendarClock, tab: "appointments" },
+    { name: t("clinicLayout.settingsTabs.doctorOverrides"), path: "/clinic/settings?tab=doctor-overrides", icon: User, tab: "doctor-overrides" },
+    { name: t("clinicLayout.settingsTabs.resources"), path: "/clinic/settings?tab=resources", icon: Stethoscope, tab: "resources" },
+    { name: t("clinicLayout.settingsTabs.payments"), path: "/clinic/settings?tab=payment", icon: CreditCard, tab: "payment" },
   ];
 
   const userRole = isClinicOwnerAtClinic || isClinicOwner ? "owner" : isStaff ? "staff" : null;
@@ -198,9 +227,47 @@ export default function ClinicLayout() {
     return true;
   });
 
+  const searchableRoutes = [
+    ...visibleNavItems.map((item) => ({ label: item.name, path: item.path })),
+    ...((can("view_clinic_settings") || can("manage_clinic_settings"))
+      ? settingsSubItems.map((subItem) => ({ label: `${t("clinicLayout.search.settingsPrefix")} ${subItem.name}`, path: subItem.path }))
+      : []),
+  ];
+
   const isActive = (path: string) => location.pathname === path;
   const isSettingsActive = location.pathname.startsWith("/clinic/settings");
   const currentSettingsTab = new URLSearchParams(location.search).get("tab") || "basic";
+
+  const handleHeaderSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const query = headerSearchValue.trim().toLowerCase();
+    if (!query) {
+      return;
+    }
+
+    const match = searchableRoutes.find((route) => route.label.toLowerCase().includes(query));
+
+    if (!match) {
+      toast({
+        title: t("clinicLayout.search.noResultsTitle"),
+        description: t("clinicLayout.search.noResultsDescription"),
+      });
+      return;
+    }
+
+    navigate(match.path);
+    setHeaderSearchValue("");
+    setMobileOpen(false);
+
+    if (match.path.startsWith("/clinic/settings")) {
+      setSettingsOpen(true);
+    }
+  };
+
+  const handleMailClick = () => {
+    window.location.href = "mailto:support@queuemed.com?subject=Clinic%20Support";
+  };
 
   // Auto-expand settings when navigating to settings page
   useEffect(() => {
@@ -215,7 +282,7 @@ export default function ClinicLayout() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-border border-t-primary rounded-full animate-spin" />
-          <span className="text-xs text-muted-foreground">Loading...</span>
+          <span className="text-xs text-muted-foreground">{t("clinicLayout.loading")}</span>
         </div>
       </div>
     );
@@ -237,7 +304,7 @@ export default function ClinicLayout() {
             </div>
             {!sidebarCollapsed && (
               <span className="text-sm font-semibold text-foreground truncate">
-                {clinic?.name || "QueueMed"}
+                {clinic?.name || t("clinicLayout.header.clinicFallback")}
               </span>
             )}
           </div>
@@ -296,7 +363,7 @@ export default function ClinicLayout() {
                 <Settings className={cn("w-4 h-4 flex-shrink-0", isSettingsActive && "text-primary")} />
                 {!sidebarCollapsed && (
                   <>
-                    <span className="flex-1 text-left">Settings</span>
+                    <span className="flex-1 text-left">{t("clinicLayout.nav.settings")}</span>
                     <ChevronRight className={cn(
                       "w-3.5 h-3.5 transition-transform duration-200",
                       settingsOpen && "rotate-90"
@@ -343,7 +410,7 @@ export default function ClinicLayout() {
             className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium text-destructive hover:bg-destructive/10 transition-colors"
           >
             <LogOut className="w-4 h-4 flex-shrink-0" />
-            {!sidebarCollapsed && <span>Log Out</span>}
+            {!sidebarCollapsed && <span>{t("clinicLayout.nav.signOut")}</span>}
           </button>
         </div>
       </aside>
@@ -376,14 +443,16 @@ export default function ClinicLayout() {
 
           {/* Search */}
           <div className="flex-1 max-w-xs">
-            <div className="relative">
+            <form className="relative" onSubmit={handleHeaderSearchSubmit}>
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Search..."
+                value={headerSearchValue}
+                onChange={(event) => setHeaderSearchValue(event.target.value)}
+                placeholder={t("clinicLayout.search.placeholder")}
                 className="w-full h-8 pl-8 pr-3 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-colors"
               />
-            </div>
+            </form>
           </div>
 
           {/* Actions */}
@@ -397,13 +466,13 @@ export default function ClinicLayout() {
               <Moon className="w-4 h-4 text-muted-foreground hidden dark:block" />
             </button>
 
-            {/* Notifications */}
-            <button className="relative p-1.5 rounded-md hover:bg-muted transition-colors">
-              <Bell className="w-4 h-4 text-muted-foreground" />
-            </button>
-
             {/* Mail */}
-            <button className="p-1.5 rounded-md hover:bg-muted transition-colors">
+            <button
+              onClick={handleMailClick}
+              className="p-1.5 rounded-md hover:bg-muted transition-colors"
+              aria-label={t("clinicLayout.header.emailSupport")}
+              title={t("clinicLayout.header.emailSupport")}
+            >
               <Mail className="w-4 h-4 text-muted-foreground" />
             </button>
 
@@ -411,11 +480,11 @@ export default function ClinicLayout() {
             <div className="flex items-center gap-2 pl-2 ml-1 border-l border-border">
               <div className="hidden sm:block text-right">
                 <p className="text-[13px] font-medium text-foreground leading-tight">
-                  {user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User"}
+                  {user?.user_metadata?.full_name || user?.email?.split("@")[0] || t("clinicLayout.header.userFallback")}
                 </p>
                 <p className="text-[11px] text-muted-foreground flex items-center justify-end gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-success" />
-                  Online
+                  {t("clinicLayout.header.online")}
                 </p>
               </div>
               <Avatar className="w-7 h-7">

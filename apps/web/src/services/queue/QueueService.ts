@@ -17,12 +17,19 @@ import {
   MarkAbsentDTO,
   ResolveAbsentDTO,
   CallNextPatientDTO,
+  CallSpecificPatientDTO,
+  StartQueueBreakDTO,
+  EndQueueBreakDTO,
   ReorderQueueDTO,
   AppointmentStatus,
+  PaymentStatus,
   QueueMode,
   QueueActionType,
   SkipReason,
   WaitTimePredictionRecord,
+  PublicQueueStatus,
+  QueueBreakState,
+  UpdateAppointmentPaymentDTO,
 } from './models/QueueModels';
 import { QueueEventFactory, QueueEventType } from './events/QueueEvents';
 
@@ -41,22 +48,45 @@ export class QueueService {
    * Fetches the daily schedule for a staff member with queue mode metadata.
    * This is the primary method for retrieving schedule data.
    */
-  async getDailySchedule(staffId: string, targetDate: string): Promise<{ queue_mode: QueueMode; schedule: QueueEntry[] }> {
+  async getDailySchedule(
+    staffId: string | undefined,
+    targetDate: string,
+    useClinicWide: boolean = true,
+    allowedStaffIds?: string[],
+    clinicId?: string
+  ): Promise<{ queue_mode: QueueMode; schedule: QueueEntry[] }> {
     // Reduced verbosity - only log in debug mode
-    logger.debug('Fetching daily schedule for staff', { staffId, targetDate });
+    logger.debug('Fetching daily schedule for staff', {
+      staffId,
+      clinicId,
+      targetDate,
+      useClinicWide,
+      allowedStaffCount: this.normalizeAllowedStaffIds(allowedStaffIds).length,
+    });
     try {
-      const scheduleData = await this.repository.getDailySchedule(staffId, targetDate);
+      const scheduleData = await this.repository.getDailySchedule(
+        staffId,
+        targetDate,
+        useClinicWide,
+        allowedStaffIds,
+        clinicId
+      );
       // DON'T apply wait time estimates during loading
       // Estimates should ONLY be calculated when disruptions occur (via WaitTimeEstimationOrchestrator)
       // The schedule already contains predicted_wait_time and predicted_start_time from the database
       // which were calculated during disruption events
-      logger.debug(`Retrieved schedule for staff ${staffId} with mode ${scheduleData.queue_mode}`, { count: scheduleData.schedule.length });
+      logger.debug('Retrieved daily schedule', {
+        staffId,
+        clinicId,
+        queueMode: scheduleData.queue_mode,
+        count: scheduleData.schedule.length,
+      });
       return {
         ...scheduleData,
         schedule: scheduleData.schedule,
       };
     } catch (error) {
-      logger.error('Failed to fetch daily schedule', error as Error, { staffId, targetDate });
+      logger.error('Failed to fetch daily schedule', error as Error, { staffId, clinicId, targetDate, useClinicWide });
       throw error;
     }
   }
@@ -84,6 +114,36 @@ export class QueueService {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error fetching patient appointments', error as Error, { patientUserId });
       throw new DatabaseError('Unexpected error fetching patient appointments', error as Error);
+    }
+  }
+
+  async getQueueStatusToken(appointmentId: string): Promise<string> {
+    if (!appointmentId?.trim()) {
+      throw new ValidationError('Appointment ID is required to generate queue status token');
+    }
+
+    try {
+      logger.debug('Getting queue status token', { appointmentId });
+      return await this.repository.getOrCreateQueueStatusToken(appointmentId);
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error getting queue status token', error as Error, { appointmentId });
+      throw new DatabaseError('Unexpected error getting queue status token', error as Error);
+    }
+  }
+
+  async getPublicQueueStatus(token: string): Promise<PublicQueueStatus | null> {
+    if (!token?.trim()) {
+      throw new ValidationError('Queue status token is required');
+    }
+
+    try {
+      logger.debug('Fetching public queue status', { tokenLength: token.length });
+      return await this.repository.getPublicQueueStatus(token);
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error fetching public queue status', error as Error, { tokenLength: token.length });
+      throw new DatabaseError('Unexpected error fetching public queue status', error as Error);
     }
   }
 
@@ -137,10 +197,11 @@ export class QueueService {
   /**
    * Checks in a patient, marking them as present and waiting.
    */
-  async checkInPatient(appointmentId: string): Promise<QueueEntry> {
+  async checkInPatient(appointmentId: string, allowedStaffIds?: string[]): Promise<QueueEntry> {
     logger.info('Checking in patient', { appointmentId });
     
     const existingEntry = await this.getQueueEntry(appointmentId);
+    this.assertEntryWithinStaffScope(existingEntry, allowedStaffIds);
 
     if (existingEntry.status === AppointmentStatus.COMPLETED || existingEntry.status === AppointmentStatus.CANCELLED) {
       throw new BusinessRuleError('Cannot check in a completed or cancelled appointment.');
@@ -161,7 +222,13 @@ export class QueueService {
   async callNextPatient(dto: CallNextPatientDTO): Promise<QueueEntry> {
     logger.info('Calling next patient', { dto });
 
-    const scheduleData = await this.getDailySchedule(dto.staffId, new Date(dto.date).toISOString().split('T')[0]);
+    const scheduleData = await this.getDailySchedule(
+      dto.staffId,
+      new Date(dto.date).toISOString().split('T')[0],
+      dto.useClinicWide ?? true,
+      dto.allowedStaffIds,
+      dto.clinicId
+    );
     
     // Use Strategy Pattern to determine next patient
     const strategy = QueueStrategyFactory.getStrategy(scheduleData.queue_mode);
@@ -190,6 +257,7 @@ export class QueueService {
     // after marking a patient as present
     // For guest appointments, the id should still be the appointment id
     const latestEntry = await this.getQueueEntry(nextPatient.id);
+    this.assertEntryWithinStaffScope(latestEntry, dto.allowedStaffIds);
     
     // CRITICAL: Check if patient is physically present before calling
     if (!latestEntry.isPresent) {
@@ -207,14 +275,41 @@ export class QueueService {
           dto.resourceId,
           dto.performedBy
         )
-      : await this.repository.updateQueueEntry(latestEntry.id, {
-          status: AppointmentStatus.IN_PROGRESS,
-          checkedInAt: now,
-          // isPresent should already be true (checked above)
-        });
+      : await this.repository.callPatientIfPresent(latestEntry.id, now, dto.performedBy);
 
-    await this.repository.createQueueOverride(dto.clinicId, latestEntry.id, QueueActionType.CALL_PRESENT, dto.performedBy, undefined, latestEntry.queuePosition, latestEntry.queuePosition);
-    
+    if (!updatedEntry) {
+      const currentEntry = await this.getQueueEntry(latestEntry.id);
+
+      if (!currentEntry.isPresent) {
+        throw new BusinessRuleError(
+          `Patient "${currentEntry.patient?.fullName || 'Unknown'}" is not physically present. Please mark them as present, wait for grace period, or mark as absent.`
+        );
+      }
+
+      throw new ConflictError(
+        `Failed to call patient - appointment status changed concurrently to "${currentEntry.status}". Please refresh and try again.`
+      );
+    }
+
+    // Guard: verify the update actually transitioned to IN_PROGRESS
+    // (another concurrent call may have changed the status in between)
+    if (updatedEntry.status !== AppointmentStatus.IN_PROGRESS) {
+      throw new ConflictError(
+        `Failed to call patient - appointment status changed concurrently to "${updatedEntry.status}". Please refresh and try again.`
+      );
+    }
+
+    // Audit log of the call action — best-effort. The patient has already been
+    // transitioned to IN_PROGRESS, so a failure here must NOT fail the call.
+    try {
+      await this.repository.createQueueOverride(dto.clinicId, latestEntry.id, QueueActionType.CALL_PRESENT, dto.performedBy, undefined, latestEntry.queuePosition, latestEntry.queuePosition);
+    } catch (overrideError) {
+      logger.warn('Failed to record queue override audit entry (non-fatal); patient was still called', {
+        appointmentId: latestEntry.id,
+        error: overrideError instanceof Error ? overrideError.message : String(overrideError),
+      });
+    }
+
     const event = QueueEventFactory.createPatientCalledEvent(updatedEntry, dto.performedBy);
     await eventBus.publish(event);
 
@@ -222,14 +317,171 @@ export class QueueService {
     return updatedEntry;
   }
 
+  async callSpecificPatient(dto: CallSpecificPatientDTO): Promise<QueueEntry> {
+    logger.info('Calling specific patient out of order', {
+      clinicId: dto.clinicId,
+      appointmentId: dto.appointmentId,
+      staffId: dto.staffId,
+    });
+
+    if (!dto.appointmentId?.trim()) {
+      throw new ValidationError('Appointment ID is required');
+    }
+
+    const entry = await this.getQueueEntry(dto.appointmentId);
+    this.assertEntryWithinStaffScope(entry, dto.allowedStaffIds);
+
+    if (entry.clinicId !== dto.clinicId) {
+      throw new BusinessRuleError('Appointment does not belong to the selected clinic queue.');
+    }
+
+    if (entry.status !== AppointmentStatus.WAITING && entry.status !== AppointmentStatus.SCHEDULED) {
+      throw new BusinessRuleError(
+        `Only waiting or scheduled appointments can be called. Current status: ${entry.status}`
+      );
+    }
+
+    if (!entry.isPresent) {
+      throw new BusinessRuleError(
+        `Patient "${entry.patient?.fullName || 'Unknown'}" is not physically present. Please mark them as present first.`
+      );
+    }
+
+    const targetDate = entry.appointmentDate.toISOString().split('T')[0];
+    const scheduleData = await this.getDailySchedule(
+      dto.staffId ?? entry.staffId,
+      targetDate,
+      dto.useClinicWide ?? true,
+      dto.allowedStaffIds,
+      dto.clinicId
+    );
+
+    const activeAppointment = scheduleData.schedule.find(
+      (appointment) => appointment.status === AppointmentStatus.IN_PROGRESS && appointment.id !== entry.id
+    );
+
+    if (activeAppointment) {
+      throw new ConflictError(
+        'Another patient is currently in progress. Complete the active consultation before calling a different patient.'
+      );
+    }
+
+    let callableEntry = entry;
+    if (callableEntry.status === AppointmentStatus.SCHEDULED) {
+      callableEntry = await this.repository.updateQueueEntry(callableEntry.id, {
+        status: AppointmentStatus.WAITING,
+      });
+    }
+
+    const now = new Date().toISOString();
+    const updatedEntry = dto.resourceId
+      ? await this.repository.assignResourceAndCallPatient(
+          callableEntry.id,
+          dto.resourceId,
+          dto.performedBy
+        )
+      : await this.repository.callPatientIfPresent(callableEntry.id, now, dto.performedBy);
+
+    if (!updatedEntry) {
+      const currentEntry = await this.getQueueEntry(callableEntry.id);
+
+      if (!currentEntry.isPresent) {
+        throw new BusinessRuleError(
+          `Patient "${currentEntry.patient?.fullName || 'Unknown'}" is not physically present. Please mark them as present first.`
+        );
+      }
+
+      throw new ConflictError(
+        `Failed to call patient - appointment status changed concurrently to "${currentEntry.status}". Please refresh and try again.`
+      );
+    }
+
+    if (updatedEntry.status !== AppointmentStatus.IN_PROGRESS) {
+      throw new ConflictError(
+        `Failed to call patient - appointment status changed concurrently to "${updatedEntry.status}". Please refresh and try again.`
+      );
+    }
+
+    await this.repository.createQueueOverride(
+      callableEntry.clinicId,
+      callableEntry.id,
+      QueueActionType.CALL_PRESENT,
+      dto.performedBy,
+      dto.reason || 'Manual out-of-order call',
+      callableEntry.queuePosition,
+      callableEntry.queuePosition
+    );
+
+    const event = QueueEventFactory.createPatientCalledEvent(updatedEntry, dto.performedBy);
+    await eventBus.publish(event);
+
+    logger.info('Specific patient called successfully', {
+      appointmentId: updatedEntry.id,
+      queuePosition: updatedEntry.queuePosition,
+    });
+
+    return updatedEntry;
+  }
+
+  async getActiveQueueBreak(clinicId: string, staffId: string): Promise<QueueBreakState | null> {
+    if (!clinicId?.trim() || !staffId?.trim()) {
+      throw new ValidationError('Clinic ID and staff ID are required to read break status');
+    }
+
+    return this.repository.getActiveQueueBreak(clinicId, staffId);
+  }
+
+  async startQueueBreak(dto: StartQueueBreakDTO): Promise<QueueBreakState> {
+    logger.info('Starting queue break', {
+      clinicId: dto.clinicId,
+      staffId: dto.staffId,
+      durationMinutes: dto.durationMinutes,
+    });
+
+    if (!dto.clinicId?.trim() || !dto.staffId?.trim() || !dto.performedBy?.trim()) {
+      throw new ValidationError('Clinic ID, staff ID, and performedBy are required to start a break');
+    }
+
+    if (!Number.isFinite(dto.durationMinutes) || dto.durationMinutes < 1 || dto.durationMinutes > 180) {
+      throw new ValidationError('Break duration must be between 1 and 180 minutes');
+    }
+
+    return this.repository.startQueueBreak(
+      dto.clinicId,
+      dto.staffId,
+      dto.durationMinutes,
+      dto.performedBy,
+      dto.reason,
+      dto.pushSchedule ?? true
+    );
+  }
+
+  async endQueueBreak(dto: EndQueueBreakDTO): Promise<QueueBreakState | null> {
+    logger.info('Ending queue break', {
+      clinicId: dto.clinicId,
+      staffId: dto.staffId,
+    });
+
+    if (!dto.clinicId?.trim() || !dto.staffId?.trim() || !dto.performedBy?.trim()) {
+      throw new ValidationError('Clinic ID, staff ID, and performedBy are required to end a break');
+    }
+
+    return this.repository.endQueueBreak(dto.clinicId, dto.staffId, dto.performedBy, dto.reason);
+  }
+
   /**
    * Marks a patient as physically present (ready to be called).
    * This is separate from check-in - staff manually marks patients as present when they arrive.
    */
-  async markPatientPresent(appointmentId: string, performedBy: string): Promise<QueueEntry> {
+  async markPatientPresent(
+    appointmentId: string,
+    performedBy: string,
+    allowedStaffIds?: string[]
+  ): Promise<QueueEntry> {
     logger.info('Marking patient as present', { appointmentId, performedBy });
 
     const entry = await this.getQueueEntry(appointmentId);
+    this.assertEntryWithinStaffScope(entry, allowedStaffIds);
 
     if (entry.status === AppointmentStatus.COMPLETED || entry.status === AppointmentStatus.CANCELLED) {
       throw new BusinessRuleError('Cannot mark completed or cancelled appointment as present');
@@ -250,10 +502,15 @@ export class QueueService {
   /**
    * Marks a patient as not physically present.
    */
-  async markPatientNotPresent(appointmentId: string, performedBy: string): Promise<QueueEntry> {
+  async markPatientNotPresent(
+    appointmentId: string,
+    performedBy: string,
+    allowedStaffIds?: string[]
+  ): Promise<QueueEntry> {
     logger.info('Marking patient as not present', { appointmentId, performedBy });
 
     const entry = await this.getQueueEntry(appointmentId);
+    this.assertEntryWithinStaffScope(entry, allowedStaffIds);
 
     if (entry.status === AppointmentStatus.IN_PROGRESS) {
       throw new BusinessRuleError('Cannot mark in-progress appointment as not present');
@@ -274,6 +531,7 @@ export class QueueService {
     logger.info('Marking patient absent', { dto });
 
     const entry = await this.getQueueEntry(dto.appointmentId);
+    this.assertEntryWithinStaffScope(entry, dto.allowedStaffIds);
 
     if (entry.status === AppointmentStatus.COMPLETED) throw new BusinessRuleError('Cannot mark completed appointment as absent');
     if (entry.markedAbsentAt && !entry.returnedAt) throw new ConflictError('Patient is already marked as absent');
@@ -284,11 +542,19 @@ export class QueueService {
       markedAbsentAt: new Date().toISOString(),
     });
 
-    await this.repository.createAbsentPatient(entry.id, entry.clinicId, entry.patientId, dto.performedBy, dto.reason);
-    await this.repository.createQueueOverride(entry.clinicId, entry.id, QueueActionType.MARK_ABSENT, dto.performedBy, dto.reason, entry.queuePosition, undefined);
-
     const gracePeriodEndsAt = new Date();
     gracePeriodEndsAt.setMinutes(gracePeriodEndsAt.getMinutes() + (dto.gracePeriodMinutes || 15));
+
+    await this.repository.createAbsentPatient(
+      entry.id,
+      entry.clinicId,
+      entry.patientId,
+      dto.performedBy,
+      dto.reason,
+      gracePeriodEndsAt
+    );
+    await this.repository.createQueueOverride(entry.clinicId, entry.id, QueueActionType.MARK_ABSENT, dto.performedBy, dto.reason, entry.queuePosition, undefined);
+
     const event = QueueEventFactory.createPatientMarkedAbsentEvent(updatedEntry, dto.performedBy, gracePeriodEndsAt);
     await eventBus.publish(event);
 
@@ -298,10 +564,15 @@ export class QueueService {
   /**
    * Marks an absent patient as returned. Logic is preserved and adapted.
    */
-  async markPatientReturned(appointmentId: string, performedBy: string): Promise<QueueEntry> {
+  async markPatientReturned(
+    appointmentId: string,
+    performedBy: string,
+    allowedStaffIds?: string[]
+  ): Promise<QueueEntry> {
     logger.info('Marking patient as returned', { appointmentId });
 
     const entry = await this.getQueueEntry(appointmentId);
+    this.assertEntryWithinStaffScope(entry, allowedStaffIds);
 
     if (!entry.markedAbsentAt || entry.returnedAt) {
       throw new BusinessRuleError('Patient was not marked as absent or has already returned.');
@@ -330,6 +601,7 @@ export class QueueService {
     logger.info('Resolving absent appointment', { dto });
 
     const entry = await this.getQueueEntry(dto.appointmentId);
+    this.assertEntryWithinStaffScope(entry, dto.allowedStaffIds);
 
     if (entry.skipReason !== SkipReason.PATIENT_ABSENT) {
       throw new BusinessRuleError('Only absent appointments can be resolved.');
@@ -357,13 +629,74 @@ export class QueueService {
   }
 
   /**
+   * Auto-transition an absent appointment to NO_SHOW after grace period expiry.
+   * Returns null when no transition is needed (already finalized or returned).
+   */
+  async autoMarkNoShow(
+    appointmentId: string,
+    performedBy = 'system_no_show_detector'
+  ): Promise<QueueEntry | null> {
+    logger.info('Auto-marking appointment as no-show after grace expiration', {
+      appointmentId,
+    });
+
+    const entry = await this.getQueueEntry(appointmentId);
+
+    if (
+      entry.returnedAt ||
+      entry.status === AppointmentStatus.IN_PROGRESS ||
+      entry.status === AppointmentStatus.NO_SHOW ||
+      entry.status === AppointmentStatus.COMPLETED ||
+      entry.status === AppointmentStatus.CANCELLED
+    ) {
+      logger.debug('Skipping auto no-show transition because appointment is already finalized', {
+        appointmentId,
+        status: entry.status,
+        returnedAt: entry.returnedAt?.toISOString(),
+      });
+      return null;
+    }
+
+    const previousStatus = entry.status;
+    const nowIso = new Date().toISOString();
+
+    const updatedEntry = await this.repository.updateQueueEntry(entry.id, {
+      status: AppointmentStatus.NO_SHOW,
+      isPresent: false,
+      skipReason: SkipReason.PATIENT_ABSENT,
+      returnedAt: nowIso,
+    });
+
+    await this.repository.markAbsentPatientAutoCancelled(entry.id);
+
+    const event = QueueEventFactory.createAppointmentStatusChangedEvent(
+      updatedEntry,
+      previousStatus,
+      performedBy
+    );
+    await eventBus.publish(event);
+
+    logger.info('Appointment auto-marked as no-show', {
+      appointmentId,
+      previousStatus,
+    });
+
+    return updatedEntry;
+  }
+
+  /**
    * Completes an appointment. Logic is preserved.
    * Now also calculates and stores actual wait time for ML training.
    */
-  async completeAppointment(appointmentId: string, performedBy: string): Promise<QueueEntry> {
+  async completeAppointment(
+    appointmentId: string,
+    performedBy: string,
+    allowedStaffIds?: string[]
+  ): Promise<QueueEntry> {
     logger.info('Completing appointment', { appointmentId });
 
     const entry = await this.getQueueEntry(appointmentId);
+    this.assertEntryWithinStaffScope(entry, allowedStaffIds);
     if (entry.status === AppointmentStatus.COMPLETED) throw new ConflictError('Appointment is already completed');
 
     const previousStatus = entry.status;
@@ -427,6 +760,28 @@ export class QueueService {
       actualDuration: actualServiceDuration,
     });
 
+    let finalizedEntry = updatedEntry;
+
+    // Automatically settle zero-amount visits as paid during completion.
+    if (
+      updatedEntry.billingAmount === 0
+      && updatedEntry.paymentStatus === PaymentStatus.UNPAID
+    ) {
+      try {
+        finalizedEntry = await this.repository.updateAppointmentPaymentStatus({
+          appointmentId,
+          paymentStatus: PaymentStatus.PAID,
+          paymentMethod: updatedEntry.paymentMethod ?? 'cash',
+          paidAt: now.toISOString(),
+        });
+      } catch (error) {
+        logger.warn('Failed to auto-set zero-amount appointment as paid', {
+          appointmentId,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
     // Store actual wait time for ML training (non-blocking - don't fail if this fails)
     if (actualWaitTime !== null) {
       logger.info('Storing actual wait time for ML training', {
@@ -453,10 +808,25 @@ export class QueueService {
       logger.warn('Skipping wait time storage - actualWaitTime is null', { appointmentId });
     }
 
-    const event = QueueEventFactory.createAppointmentStatusChangedEvent(updatedEntry, previousStatus, performedBy);
+    const event = QueueEventFactory.createAppointmentStatusChangedEvent(finalizedEntry, previousStatus, performedBy);
     await eventBus.publish(event);
 
-    return updatedEntry;
+    return finalizedEntry;
+  }
+
+  async updateAppointmentPaymentStatus(
+    dto: UpdateAppointmentPaymentDTO,
+    allowedStaffIds?: string[]
+  ): Promise<QueueEntry> {
+    logger.info('Updating appointment payment status', {
+      appointmentId: dto.appointmentId,
+      paymentStatus: dto.paymentStatus,
+    });
+
+    const entry = await this.getQueueEntry(dto.appointmentId);
+    this.assertEntryWithinStaffScope(entry, allowedStaffIds);
+
+    return this.repository.updateAppointmentPaymentStatus(dto);
   }
 
   /**
@@ -466,6 +836,7 @@ export class QueueService {
     logger.info('Reordering queue', { dto });
 
     const entry = await this.getQueueEntry(dto.appointmentId);
+    this.assertEntryWithinStaffScope(entry, dto.allowedStaffIds);
     if (dto.newPosition < 1) throw new ValidationError('Queue position must be greater than 0');
     if (dto.newPosition === entry.queuePosition) return entry; // No change needed
 
@@ -588,5 +959,27 @@ export class QueueService {
 
     const scheduled = new Date(`${dateStr}T${normalizedTime}`);
     return Number.isNaN(scheduled.getTime()) ? null : scheduled;
+  }
+
+  private normalizeAllowedStaffIds(allowedStaffIds?: string[]): string[] {
+    return Array.from(
+      new Set(
+        (allowedStaffIds || []).filter(
+          (staffId): staffId is string => typeof staffId === 'string' && staffId.length > 0
+        )
+      )
+    );
+  }
+
+  private assertEntryWithinStaffScope(entry: QueueEntry, allowedStaffIds?: string[]): void {
+    const normalizedAllowedStaffIds = this.normalizeAllowedStaffIds(allowedStaffIds);
+
+    if (normalizedAllowedStaffIds.length === 0) {
+      return;
+    }
+
+    if (!entry.staffId || !normalizedAllowedStaffIds.includes(entry.staffId)) {
+      throw new BusinessRuleError('You are not allowed to manage this provider queue.');
+    }
   }
 }

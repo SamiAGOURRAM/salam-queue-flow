@@ -54,6 +54,8 @@ export interface SendNotificationDTO {
   type: NotificationType;
   phoneNumber?: string;
   email?: string;
+  pushToken?: string;
+  language?: string;
   templateVariables?: Record<string, string>;
 }
 

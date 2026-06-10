@@ -10,6 +10,8 @@ import type {
   SharedAppointmentDetail,
   SharedAppointmentSummary,
   GrantScope,
+  SharedProcedureReport,
+  SharedProcedureReportImage,
 } from '../models/MedicalRecordModels';
 
 type RpcError = {
@@ -63,8 +65,30 @@ function parseScope(value: unknown): GrantScope {
   };
 }
 
+function toScopePayload(scope: GrantScope | undefined, appointmentId: string): Record<string, unknown> {
+  if (scope?.type === 'full_history') {
+    return { type: 'full_history' };
+  }
+
+  if (scope?.type === 'date_range' && scope.from && scope.to) {
+    return {
+      type: 'date_range',
+      from: scope.from,
+      to: scope.to,
+    };
+  }
+
+  const appointmentIds = scope?.appointmentIds?.filter((id) => typeof id === 'string' && id.length > 0) ?? [];
+
+  return {
+    type: 'specific_appointments',
+    appointment_ids: appointmentIds.length ? appointmentIds : [appointmentId],
+  };
+}
+
 export class MedicalRecordSharingRepository {
   private rpcClient: RpcInvoker;
+  private readonly reportImagesBucketName = 'medical-report-images';
 
   constructor() {
     this.rpcClient = supabase as unknown as RpcInvoker;
@@ -74,13 +98,15 @@ export class MedicalRecordSharingRepository {
     patientId: string,
     appointmentId: string,
     clinicId: string,
-    ownerOverrideReason?: string
+    ownerOverrideReason?: string,
+    scope?: GrantScope
   ): Promise<AccessRequestResult> {
     const { data, error } = await this.rpcClient.rpc('request_medical_record_access', {
       p_patient_id: patientId,
       p_appointment_id: appointmentId,
       p_clinic_id: clinicId,
       p_owner_override_reason: ownerOverrideReason ?? null,
+      p_scope: toScopePayload(scope, appointmentId),
     });
 
     if (error) {
@@ -105,13 +131,23 @@ export class MedicalRecordSharingRepository {
       throw new ValidationError(message || 'Medical record access request failed');
     }
 
-    return {
+    const requestResult: AccessRequestResult = {
       grantId: asString(payload.grant_id),
       deliveryChannel: asString(payload.delivery_channel, 'sms') as 'sms' | 'email',
       patientHasApp: Boolean(payload.patient_has_app),
       deliveryStatus: asString(payload.delivery_status, 'pending') as 'pending' | 'sending' | 'sent' | 'failed',
       otpTtlSeconds: Number(payload.otp_ttl_seconds ?? 300),
     };
+
+    logger.info('Medical record access request created', {
+      grantId: requestResult.grantId,
+      requestedScopeType: scope?.type ?? 'specific_appointments',
+      resolvedScopeType: parseScope(payload.scope).type,
+      deliveryChannel: requestResult.deliveryChannel,
+      patientHasApp: requestResult.patientHasApp,
+    });
+
+    return requestResult;
   }
 
   async deliverOtp(grantId: string): Promise<{ success: boolean; deliveryChannel: 'sms' | 'email' }> {
@@ -230,6 +266,7 @@ export class MedicalRecordSharingRepository {
       hasNotes: Boolean(item.has_notes),
       hasPrescriptions: Boolean(item.has_prescriptions),
       hasLabResults: Boolean(item.has_lab_results),
+      hasProcedureReports: Boolean(item.has_procedure_reports),
     }));
   }
 
@@ -249,6 +286,59 @@ export class MedicalRecordSharingRepository {
 
     const payload = asRecord(data);
 
+    const procedureReports: SharedProcedureReport[] = asArray(payload.procedure_reports).map((report) => ({
+      id: asString(report.id),
+      title: asString(report.title, 'Procedure report'),
+      status: asString(report.status, 'draft'),
+      finalizedAt: asDate(report.finalized_at || report.finalizedAt),
+      createdAt: asDate(report.created_at || report.createdAt),
+      contentPlainText: asString(report.content_plain_text || report.contentPlainText) || undefined,
+      images: asArray(report.images).map((image): SharedProcedureReportImage => ({
+        id: asString(image.id),
+        storagePath: asString(image.storage_path || image.storagePath),
+        fileName: asString(image.file_name || image.fileName, 'image'),
+        fileSize: typeof image.file_size === 'number' ? image.file_size : undefined,
+        mimeType: asString(image.mime_type || image.mimeType) || undefined,
+        createdAt: asDate(image.created_at || image.createdAt),
+      })),
+    }));
+
+    const signedProcedureReports = await Promise.all(
+      procedureReports.map(async (report) => ({
+        ...report,
+        images: await Promise.all(
+          report.images.map(async (image) => ({
+            ...image,
+            signedUrl: image.storagePath ? await this.createSharedImageSignedUrl(image.storagePath) : undefined,
+          }))
+        ),
+      }))
+    );
+
+    const totalReportImages = signedProcedureReports.reduce((sum, report) => sum + report.images.length, 0);
+    const unsignedReportImages = signedProcedureReports.reduce(
+      (sum, report) => sum + report.images.filter((image) => !image.signedUrl).length,
+      0
+    );
+
+    if (totalReportImages > 0) {
+      logger.info('Shared appointment detail includes procedure report images', {
+        grantId,
+        appointmentId,
+        totalReportImages,
+        unsignedReportImages,
+      });
+    }
+
+    if (unsignedReportImages > 0) {
+      logger.warn('Shared appointment detail returned report images without signed URLs', {
+        grantId,
+        appointmentId,
+        unsignedReportImages,
+        totalReportImages,
+      });
+    }
+
     return {
       appointmentId: asString(payload.appointment_id),
       date: asString(payload.date),
@@ -260,6 +350,7 @@ export class MedicalRecordSharingRepository {
       hasNotes: Boolean(payload.has_notes),
       hasPrescriptions: Boolean(payload.has_prescriptions),
       hasLabResults: Boolean(payload.has_lab_results),
+      hasProcedureReports: Boolean(payload.has_procedure_reports),
       reasonForVisit: asString(payload.reason_for_visit) || undefined,
       notes: asString(payload.notes) || undefined,
       durationMinutes: typeof payload.duration_minutes === 'number' ? payload.duration_minutes : undefined,
@@ -291,7 +382,25 @@ export class MedicalRecordSharingRepository {
         referenceRange: asString(lab.referenceRange || lab.reference_range) || undefined,
         interpretation: asString(lab.interpretation) || undefined,
       })),
+      procedureReports: signedProcedureReports,
     };
+  }
+
+  private async createSharedImageSignedUrl(storagePath: string, expiresInSeconds: number = 600): Promise<string | undefined> {
+    const { data, error } = await supabase.storage
+      .from(this.reportImagesBucketName)
+      .createSignedUrl(storagePath, expiresInSeconds);
+
+    if (error) {
+      logger.warn('Failed to create signed URL for shared report image', {
+        storagePath,
+        expiresInSeconds,
+        errorMessage: error.message,
+      });
+      return undefined;
+    }
+
+    return data.signedUrl;
   }
 
   async getMyActiveShares(): Promise<ActiveShare[]> {

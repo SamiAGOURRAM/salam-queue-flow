@@ -19,14 +19,25 @@ import {
   Clock,
   Calendar,
   UserPlus,
+  BarChart3,
   ArrowRight,
   ArrowUpRight,
   CheckCircle2,
   Settings,
-  MoreHorizontal
+  MoreHorizontal,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
 import { AppointmentStatus, SkipReason } from "@/services/queue";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
+import { DoctorActivityCard } from "@/components/clinic/DoctorActivityCard";
+import {
+  getKPIDashboard,
+} from "@/services/analytics";
+import type {
+  AnalyticsSummary,
+} from "@/services/analytics";
 
 interface StaffProfile {
   id: string;
@@ -44,22 +55,29 @@ function getScheduledDateTime(appointmentDate: Date, scheduledTime?: string) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function formatScheduledTime(scheduledTime?: string) {
-  if (!scheduledTime) return '-';
+function formatScheduledTime(scheduledTime?: string, locale = "en", emptyLabel = "-") {
+  if (!scheduledTime) return emptyLabel;
 
   const [hourPart, minutePart] = scheduledTime.split(':');
   const hour = parseInt(hourPart, 10);
   if (Number.isNaN(hour)) return scheduledTime;
 
-  const minutes = (minutePart || '00').padStart(2, '0');
-  const ampm = hour >= 12 ? 'PM' : 'AM';
-  const hour12 = ((hour + 11) % 12) + 1;
-  return `${hour12}:${minutes} ${ampm}`;
+  const minutes = parseInt((minutePart || '00').padStart(2, '0'), 10);
+  if (Number.isNaN(minutes)) return scheduledTime;
+
+  const date = new Date();
+  date.setHours(hour, minutes, 0, 0);
+
+  return new Intl.DateTimeFormat(locale, {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date);
 }
 
 export default function ClinicDashboard() {
   // ===== ALL HOOKS PRESERVED IN EXACT ORDER =====
   const { user } = useAuth();
+  const { t, i18n } = useTranslation();
   const { clinic: scopedClinic, loading: accessLoading, can } = useClinicPermissions();
   const navigate = useNavigate();
   const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
@@ -68,6 +86,38 @@ export default function ClinicDashboard() {
   const canViewCalendar = can("view_calendar") || can("manage_calendar");
   const canViewTeam = can("view_team") || can("manage_team");
   const canViewSettings = can("view_clinic_settings") || can("manage_clinic_settings");
+  const canViewAnalytics = can("view_analytics");
+  const locale = i18n.resolvedLanguage || i18n.language || "en";
+
+  // ===== ANALYTICS KPIs =====
+  const [analyticsSummary, setAnalyticsSummary] = useState<AnalyticsSummary | null>(null);
+
+  useEffect(() => {
+    if (!scopedClinic?.id || !canViewAnalytics) return;
+
+    let cancelled = false;
+
+    const loadAnalytics = async () => {
+      try {
+        const range = chartFilter === "1y" ? "90d" : chartFilter;
+        const payload = await getKPIDashboard(
+          scopedClinic.id,
+          range,
+          locale,
+          false, // billing not shown on dashboard
+        );
+        if (!cancelled) {
+          setAnalyticsSummary(payload.summary);
+        }
+      } catch {
+        // Analytics are supplementary on the dashboard; non-critical failure is silent
+        if (!cancelled) setAnalyticsSummary(null);
+      }
+    };
+
+    void loadAnalytics();
+    return () => { cancelled = true; };
+  }, [scopedClinic?.id, chartFilter, locale, canViewAnalytics]);
 
   // ===== ALL EFFECTS PRESERVED =====
   useEffect(() => {
@@ -102,6 +152,10 @@ export default function ClinicDashboard() {
     isLoading: queueLoading,
   } = useQueueService({
     staffId: staffProfile?.id,
+    // Match the live queue: show the clinic-wide queue (the owner isn't a
+    // provider with their own appointments, so a personal scope shows nothing).
+    clinicId: scopedClinic?.id,
+    useClinicWide: true,
     autoRefresh: true,
   });
 
@@ -149,11 +203,11 @@ export default function ClinicDashboard() {
 
   // ===== ALL HELPER FUNCTIONS PRESERVED =====
   const formatWaitTime = (minutes: number) => {
-    if (!minutes || minutes === 0) return "-";
-    if (minutes < 60) return `${minutes}m`;
+    if (!minutes || minutes === 0) return t("clinicDashboard.waitTime.none");
+    if (minutes < 60) return t("clinicDashboard.waitTime.minutes", { count: minutes });
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
-    return `${hours}h ${mins}m`;
+    return t("clinicDashboard.waitTime.hoursMinutes", { hours, minutes: mins });
   };
 
   // Chart data based on filter
@@ -184,10 +238,10 @@ export default function ClinicDashboard() {
       const missed = daySchedule.filter(a => a.skipReason === SkipReason.PATIENT_ABSENT).length;
 
       data.push({
-        date: date.toLocaleDateString('en-US', {
+        date: new Intl.DateTimeFormat(locale, {
           month: 'short',
           day: 'numeric',
-        }),
+        }).format(date),
         completed,
         missed,
       });
@@ -208,15 +262,15 @@ export default function ClinicDashboard() {
     }
 
     return data;
-  }, [schedule, chartFilter]);
+  }, [locale, schedule, chartFilter]);
 
   const chartConfig = {
     completed: {
-      label: "Completed",
+      label: t("clinicDashboard.chart.completed"),
       color: "hsl(var(--teal))",
     },
     missed: {
-      label: "Missed",
+      label: t("clinicDashboard.chart.missed"),
       color: "hsl(var(--coral))",
     },
   };
@@ -241,7 +295,7 @@ export default function ClinicDashboard() {
                 <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
                   <Users className="w-5 h-5 text-primary" />
                 </div>
-                <span className="text-sm font-medium text-muted-foreground">Queue</span>
+                <span className="text-sm font-medium text-muted-foreground">{t("clinicDashboard.stats.queue")}</span>
               </div>
               <button className="text-muted-foreground hover:text-foreground">
                 <MoreHorizontal className="w-4 h-4" />
@@ -250,7 +304,7 @@ export default function ClinicDashboard() {
             <div className="mt-4">
               <span className="text-3xl font-bold text-foreground">{summary.waiting}</span>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Patients currently waiting</p>
+            <p className="text-xs text-muted-foreground mt-1">{t("clinicDashboard.stats.queueDescription")}</p>
           </CardContent>
         </Card>
 
@@ -262,7 +316,7 @@ export default function ClinicDashboard() {
                 <div className="w-10 h-10 rounded-lg bg-teal/10 flex items-center justify-center">
                   <Activity className="w-5 h-5 text-teal" />
                 </div>
-                <span className="text-sm font-medium text-muted-foreground">Active</span>
+                <span className="text-sm font-medium text-muted-foreground">{t("clinicDashboard.stats.active")}</span>
               </div>
               <button className="text-muted-foreground hover:text-foreground">
                 <MoreHorizontal className="w-4 h-4" />
@@ -271,7 +325,7 @@ export default function ClinicDashboard() {
             <div className="mt-4">
               <span className="text-3xl font-bold text-foreground">{summary.inProgress}</span>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">In consultation now</p>
+            <p className="text-xs text-muted-foreground mt-1">{t("clinicDashboard.stats.activeDescription")}</p>
           </CardContent>
         </Card>
 
@@ -283,7 +337,7 @@ export default function ClinicDashboard() {
                 <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center">
                   <CheckCircle2 className="w-5 h-5 text-success" />
                 </div>
-                <span className="text-sm font-medium text-muted-foreground">Completed</span>
+                <span className="text-sm font-medium text-muted-foreground">{t("clinicDashboard.stats.completed")}</span>
               </div>
               <button className="text-muted-foreground hover:text-foreground">
                 <MoreHorizontal className="w-4 h-4" />
@@ -292,7 +346,7 @@ export default function ClinicDashboard() {
             <div className="mt-4">
               <span className="text-3xl font-bold text-foreground">{summary.completed}</span>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Appointments done today</p>
+            <p className="text-xs text-muted-foreground mt-1">{t("clinicDashboard.stats.completedDescription")}</p>
           </CardContent>
         </Card>
 
@@ -304,7 +358,7 @@ export default function ClinicDashboard() {
                 <div className="w-10 h-10 rounded-lg bg-coral/10 flex items-center justify-center">
                   <Clock className="w-5 h-5 text-coral" />
                 </div>
-                <span className="text-sm font-medium text-muted-foreground">Avg Wait</span>
+                <span className="text-sm font-medium text-muted-foreground">{t("clinicDashboard.stats.avgWait")}</span>
               </div>
               <button className="text-muted-foreground hover:text-foreground">
                 <MoreHorizontal className="w-4 h-4" />
@@ -313,10 +367,110 @@ export default function ClinicDashboard() {
             <div className="mt-4">
               <span className="text-3xl font-bold text-foreground">{formatWaitTime(summary.averageWaitTime)}</span>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Average patient wait time</p>
+            <p className="text-xs text-muted-foreground mt-1">{t("clinicDashboard.stats.avgWaitDescription")}</p>
           </CardContent>
         </Card>
       </div>
+
+      {/* KPI Analytics Row — trend context from historical data */}
+      {canViewAnalytics && analyticsSummary && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* Total Appointments */}
+          <Card className="border-border/40 shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Users className="w-4 h-4 text-primary" />
+                </div>
+                <span className="text-xs font-medium text-muted-foreground">
+                  {t("clinicDashboard.kpis.totalAppointments")}
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-foreground">
+                  {analyticsSummary.totalAppointments}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {t("clinicDashboard.kpis.completionRate", {
+                  rate: analyticsSummary.completionRate,
+                })}
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Completion Rate */}
+          <Card className="border-border/40 shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center">
+                  <CheckCircle2 className="w-4 h-4 text-success" />
+                </div>
+                <span className="text-xs font-medium text-muted-foreground">
+                  {t("clinicDashboard.kpis.completionRate")}
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-foreground">
+                  {analyticsSummary.completionRate}%
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {analyticsSummary.completedAppointments}{" "}
+                {t("clinicDashboard.kpis.of")} {analyticsSummary.totalAppointments}{" "}
+                {t("clinicDashboard.kpis.completed")}
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* No-Show Rate */}
+          <Card className="border-border/40 shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-coral/10 flex items-center justify-center">
+                  <TrendingDown className="w-4 h-4 text-coral" />
+                </div>
+                <span className="text-xs font-medium text-muted-foreground">
+                  {t("clinicDashboard.kpis.noShowRate")}
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-foreground">
+                  {analyticsSummary.noShowRate}%
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {analyticsSummary.noShowAppointments}{" "}
+                {t("clinicDashboard.kpis.missed")}
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Active Staff */}
+          <Card className="border-border/40 shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-teal/10 flex items-center justify-center">
+                  <Activity className="w-4 h-4 text-teal" />
+                </div>
+                <span className="text-xs font-medium text-muted-foreground">
+                  {t("clinicDashboard.kpis.activeStaff")}
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-foreground">
+                  {analyticsSummary.activeStaffCount}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {t("clinicDashboard.kpis.avgDuration", {
+                  minutes: analyticsSummary.avgDurationMinutes,
+                })}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Chart + Quick Actions Row */}
       <div className="grid lg:grid-cols-3 gap-4">
@@ -325,15 +479,15 @@ export default function ClinicDashboard() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-base font-semibold">Appointment Overview</CardTitle>
+                <CardTitle className="text-base font-semibold">{t("clinicDashboard.chart.title")}</CardTitle>
                 <div className="flex items-center gap-4 mt-2">
                   <div className="flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-teal" />
-                    <span className="text-xs text-muted-foreground">Completed</span>
+                    <span className="text-xs text-muted-foreground">{t("clinicDashboard.chart.completed")}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-coral" />
-                    <span className="text-xs text-muted-foreground">Missed</span>
+                    <span className="text-xs text-muted-foreground">{t("clinicDashboard.chart.missed")}</span>
                   </div>
                 </div>
               </div>
@@ -349,7 +503,7 @@ export default function ClinicDashboard() {
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    {filter === "7d" ? "7D" : filter === "30d" ? "30D" : filter === "90d" ? "3M" : "1Y"}
+                    {t(`clinicDashboard.chart.filters.${filter}`)}
                   </button>
                 ))}
               </div>
@@ -411,7 +565,7 @@ export default function ClinicDashboard() {
         {/* Quick Actions */}
         <Card className="border-border/40 shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">Quick Actions</CardTitle>
+            <CardTitle className="text-base font-semibold">{t("clinicDashboard.quickActions.title")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {canManageQueue && (
@@ -423,8 +577,8 @@ export default function ClinicDashboard() {
                   <Activity className="w-4 h-4 text-primary" />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="text-sm font-medium text-foreground">Manage Queue</p>
-                  <p className="text-xs text-muted-foreground">Handle patient flow</p>
+                  <p className="text-sm font-medium text-foreground">{t("clinicDashboard.quickActions.manageQueue")}</p>
+                  <p className="text-xs text-muted-foreground">{t("clinicDashboard.quickActions.manageQueueDescription")}</p>
                 </div>
                 <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
               </button>
@@ -439,8 +593,8 @@ export default function ClinicDashboard() {
                   <Calendar className="w-4 h-4 text-teal" />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="text-sm font-medium text-foreground">Calendar</p>
-                  <p className="text-xs text-muted-foreground">View schedule</p>
+                  <p className="text-sm font-medium text-foreground">{t("clinicDashboard.quickActions.calendar")}</p>
+                  <p className="text-xs text-muted-foreground">{t("clinicDashboard.quickActions.calendarDescription")}</p>
                 </div>
                 <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-teal transition-colors" />
               </button>
@@ -455,10 +609,26 @@ export default function ClinicDashboard() {
                   <UserPlus className="w-4 h-4 text-accent" />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="text-sm font-medium text-foreground">Team</p>
-                  <p className="text-xs text-muted-foreground">Manage staff</p>
+                  <p className="text-sm font-medium text-foreground">{t("clinicDashboard.quickActions.team")}</p>
+                  <p className="text-xs text-muted-foreground">{t("clinicDashboard.quickActions.teamDescription")}</p>
                 </div>
                 <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-accent transition-colors" />
+              </button>
+            )}
+
+            {canViewAnalytics && (
+              <button
+                onClick={() => navigate("/clinic/analytics")}
+                className="w-full flex items-center gap-3 p-3.5 rounded-lg border border-border/60 bg-card hover:bg-muted/30 hover:border-teal/40 transition-all group"
+              >
+                <div className="w-9 h-9 rounded-lg bg-teal/10 flex items-center justify-center">
+                  <BarChart3 className="w-4 h-4 text-teal" />
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-medium text-foreground">{t("clinicDashboard.quickActions.analytics", "Analytics")}</p>
+                  <p className="text-xs text-muted-foreground">{t("clinicDashboard.quickActions.analyticsDescription", "Review performance and doctor activity")}</p>
+                </div>
+                <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-teal transition-colors" />
               </button>
             )}
 
@@ -471,8 +641,8 @@ export default function ClinicDashboard() {
                   <Settings className="w-4 h-4 text-muted-foreground" />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="text-sm font-medium text-foreground">Settings</p>
-                  <p className="text-xs text-muted-foreground">Configure clinic</p>
+                  <p className="text-sm font-medium text-foreground">{t("clinicDashboard.quickActions.settings")}</p>
+                  <p className="text-xs text-muted-foreground">{t("clinicDashboard.quickActions.settingsDescription")}</p>
                 </div>
                 <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
               </button>
@@ -480,6 +650,11 @@ export default function ClinicDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Doctor Activity (owners only) */}
+      {canViewAnalytics && scopedClinic?.id && (
+        <DoctorActivityCard clinicId={scopedClinic.id} />
+      )}
 
       {/* Live Queue - Full Width */}
       <Card className="border-border/40 shadow-sm">
@@ -490,10 +665,10 @@ export default function ClinicDashboard() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75" />
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-success" />
               </span>
-              <CardTitle className="text-base font-semibold">Live Queue</CardTitle>
+                <CardTitle className="text-base font-semibold">{t("clinicDashboard.liveQueue.title")}</CardTitle>
               {activeQueue.length > 0 && (
                 <Badge variant="secondary" className="text-xs font-medium">
-                  {activeQueue.length} patient{activeQueue.length !== 1 ? 's' : ''}
+                    {t("clinicDashboard.liveQueue.patientCount", { count: activeQueue.length })}
                 </Badge>
               )}
             </div>
@@ -504,7 +679,7 @@ export default function ClinicDashboard() {
               disabled={!canManageQueue}
               className="text-xs text-muted-foreground hover:text-foreground"
             >
-              View all
+              {t("clinicDashboard.liveQueue.viewAll")}
               <ArrowRight className="w-3.5 h-3.5 ml-1" />
             </Button>
           </div>
@@ -514,7 +689,7 @@ export default function ClinicDashboard() {
             <div className="flex items-center justify-center py-16">
               <div className="flex flex-col items-center gap-3">
                 <div className="w-6 h-6 border-2 border-border border-t-primary rounded-full animate-spin" />
-                <span className="text-sm text-muted-foreground">Loading queue...</span>
+                <span className="text-sm text-muted-foreground">{t("clinicDashboard.liveQueue.loading")}</span>
               </div>
             </div>
           ) : activeQueue.length === 0 ? (
@@ -522,15 +697,15 @@ export default function ClinicDashboard() {
               <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center mb-4">
                 <Users className="w-7 h-7 text-muted-foreground" />
               </div>
-              <p className="text-base font-medium text-foreground">No patients in queue</p>
-              <p className="text-sm text-muted-foreground mt-1">Your queue is currently empty</p>
+              <p className="text-base font-medium text-foreground">{t("clinicDashboard.liveQueue.emptyTitle")}</p>
+              <p className="text-sm text-muted-foreground mt-1">{t("clinicDashboard.liveQueue.emptyDescription")}</p>
               <Button
                 onClick={() => navigate("/clinic/queue")}
                 disabled={!canManageQueue}
                 className="mt-5"
               >
                 <UserPlus className="w-4 h-4 mr-2" />
-                Add Patient
+                {t("clinicDashboard.liveQueue.addPatient")}
               </Button>
             </div>
           ) : (
@@ -538,11 +713,11 @@ export default function ClinicDashboard() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border/50">
-                    <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">#</th>
-                    <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">Patient</th>
-                    <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">Type</th>
-                    <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">Time</th>
-                    <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">Status</th>
+                    <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">{t("clinicDashboard.table.position")}</th>
+                    <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">{t("clinicDashboard.table.patient")}</th>
+                    <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">{t("clinicDashboard.table.type")}</th>
+                    <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">{t("clinicDashboard.table.time")}</th>
+                    <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">{t("clinicDashboard.table.status")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/30">
@@ -560,21 +735,21 @@ export default function ClinicDashboard() {
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
                             <span className="text-sm font-medium text-muted-foreground">
-                              {patient.patient?.fullName?.[0] || 'P'}
+                              {patient.patient?.fullName?.[0] || t("clinicDashboard.table.initialFallback")}
                             </span>
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-foreground">{patient.patient?.fullName || 'Patient'}</p>
-                            <p className="text-xs text-muted-foreground">{patient.patient?.phoneNumber || '-'}</p>
+                            <p className="text-sm font-medium text-foreground">{patient.patient?.fullName || t("clinicDashboard.table.patientFallback")}</p>
+                            <p className="text-xs text-muted-foreground">{patient.patient?.phoneNumber || t("clinicDashboard.waitTime.none")}</p>
                           </div>
                         </div>
                       </td>
                       <td className="py-3 px-4">
-                        <span className="text-sm text-foreground">{patient.appointmentType || 'Consultation'}</span>
+                        <span className="text-sm text-foreground">{patient.appointmentType || t("clinicDashboard.table.consultationFallback")}</span>
                       </td>
                       <td className="py-3 px-4">
                         <span className="text-sm text-muted-foreground">
-                          {formatScheduledTime(patient.scheduledTime)}
+                          {formatScheduledTime(patient.scheduledTime, locale, t("clinicDashboard.waitTime.none"))}
                         </span>
                       </td>
                       <td className="py-3 px-4">
@@ -590,12 +765,12 @@ export default function ClinicDashboard() {
                           {patient.status === AppointmentStatus.IN_PROGRESS ? (
                             <span className="flex items-center gap-1">
                               <Activity className="w-3 h-3" />
-                              In Progress
+                              {t("clinicDashboard.status.inProgress")}
                             </span>
                           ) : (
                             <span className="flex items-center gap-1">
                               <Clock className="w-3 h-3" />
-                              Waiting
+                              {t("clinicDashboard.status.waiting")}
                             </span>
                           )}
                         </Badge>
@@ -611,7 +786,7 @@ export default function ClinicDashboard() {
                     disabled={!canManageQueue}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    +{activeQueue.length - 6} more patients in queue
+                    {t("clinicDashboard.liveQueue.morePatients", { count: activeQueue.length - 6 })}
                   </button>
                 </div>
               )}

@@ -10,6 +10,11 @@
 export * from './cards.js';
 
 // ============================================================================
+// GENERATED SUPABASE SCHEMA (canonical — web re-exports this; mcp TBD)
+// ============================================================================
+export * from './database.js';
+
+// ============================================================================
 // BOOKING TYPES
 // ============================================================================
 export interface BookingSlot {
@@ -52,7 +57,7 @@ export interface AppointmentAvailability {
 // ============================================================================
 // QUEUE TYPES
 // ============================================================================
-export type QueueMode = 'fluid' | 'slotted' | null;
+export type QueueMode = 'fluid' | 'slotted' | 'hybrid' | null;
 
 export enum AppointmentStatus {
   SCHEDULED = 'scheduled',

@@ -161,7 +161,7 @@ export async function executeBookingCancel(
   if (nonCancellableStatuses.includes(appointment.status)) {
     throw new ValidationError(
       `Cannot cancel appointment with status '${appointment.status}'. ` +
-      `Only scheduled, checked_in, or in_progress appointments can be cancelled.`
+      `Only scheduled, waiting, or in_progress appointments can be cancelled.`
     );
   }
 

@@ -22,7 +22,7 @@ describe("buildDoctorCards", () => {
   it("maps a doctor to a doctor_cards item with slot + staff deep-link", () => {
     const cards = buildDoctorCards(
       [doc({ specialization: "Dermatology", city: "Casablanca" })],
-      new Map([["c1", "2026-06-05T09:30"]]),
+      new Map([["c1", { kind: "datetime", value: "2026-06-05T09:30" }]]),
     );
     expect(cards).toEqual({
       kind: "doctor_cards",
@@ -34,7 +34,7 @@ describe("buildDoctorCards", () => {
           clinicId: "c1",
           clinicName: "Casa Family Care",
           city: "Casablanca",
-          nextAvailableSlot: "2026-06-05T09:30",
+          nextAvailableSlot: { kind: "datetime", value: "2026-06-05T09:30" },
           bookingHref: "/booking/c1?staffId=s1",
         },
       ],
@@ -51,11 +51,11 @@ describe("buildDoctorCards", () => {
   it("shares a clinic's slot across its doctors and mints distinct hrefs", () => {
     const cards = buildDoctorCards(
       [doc({ staffId: "s1" }), doc({ staffId: "s2" })],
-      new Map([["c1", "2026-06-05T09:30"]]),
+      new Map([["c1", { kind: "datetime", value: "2026-06-05T09:30" }]]),
     );
     expect(hrefs(cards)).toEqual(["/booking/c1?staffId=s1", "/booking/c1?staffId=s2"]);
     if (cards?.kind === "doctor_cards") {
-      expect(cards.items.every((i) => i.nextAvailableSlot === "2026-06-05T09:30")).toBe(true);
+      expect(cards.items.every((i) => i.nextAvailableSlot?.value === "2026-06-05T09:30")).toBe(true);
     }
   });
 });

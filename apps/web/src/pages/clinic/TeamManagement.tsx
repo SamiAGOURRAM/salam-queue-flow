@@ -6,6 +6,7 @@ import { staffService } from "@/services/staff";
 import { logger } from "@/services/shared/logging/Logger";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -40,6 +41,22 @@ import {
 
 type ClinicRow = Database["public"]["Tables"]["clinics"]["Row"];
 type ClinicStaffRow = Database["public"]["Tables"]["clinic_staff"]["Row"];
+type AuditLogRow = Database["public"]["Tables"]["audit_logs"]["Row"];
+type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
+
+interface RoleAuditEvent {
+  id: string;
+  actorUserId: string | null;
+  actorName: string | null;
+  actorEmail: string | null;
+  targetUserId: string | null;
+  targetName: string | null;
+  targetEmail: string | null;
+  action: string;
+  oldRole: string | null;
+  newRole: string | null;
+  createdAt: string;
+}
 
 interface StaffMember extends ClinicStaffRow {
   profile?: {
@@ -79,6 +96,81 @@ function getRoleChoicesForMember(
   ];
 }
 
+function isProviderRole(roleKey: string, roleDefinitions: ClinicRoleDefinition[]): boolean {
+  const normalizedRoleKey = normalizeRoleKey(roleKey || "staff");
+  if (normalizedRoleKey === "doctor") {
+    return true;
+  }
+
+  const role = roleDefinitions.find((roleDefinition) => roleDefinition.key === normalizedRoleKey);
+  return role?.baseRole === "doctor";
+}
+
+function asObjectRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function asOptionalString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function formatAuditTimestamp(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(parsed);
+}
+
+function toAuditLabel(action: string): string {
+  switch (action) {
+    case "user_role_assigned":
+      return "Role assigned";
+    case "user_role_updated":
+      return "Role updated";
+    case "user_role_revoked":
+      return "Role removed";
+    case "clinic_staff_added":
+      return "Staff added";
+    case "clinic_staff_role_updated":
+      return "Staff role updated";
+    case "clinic_staff_status_updated":
+      return "Staff status updated";
+    case "clinic_staff_removed":
+      return "Staff removed";
+    default:
+      return action.replace(/_/g, " ");
+  }
+}
+
+function shortUserId(value: string | null): string {
+  if (!value) return "system";
+  if (value.length < 12) return value;
+  return `${value.slice(0, 8)}...${value.slice(-4)}`;
+}
+
+function formatAuditActorLabel(name: string | null, email: string | null, userId: string | null): string {
+  const normalizedName = typeof name === "string" ? name.trim() : "";
+  if (normalizedName.length > 0) {
+    return normalizedName;
+  }
+
+  const normalizedEmail = typeof email === "string" ? email.trim() : "";
+  if (normalizedEmail.length > 0) {
+    return normalizedEmail;
+  }
+
+  return shortUserId(userId);
+}
+
 export default function TeamManagement() {
   const { user } = useAuth();
   const {
@@ -91,6 +183,7 @@ export default function TeamManagement() {
   const canManageRoles = can("manage_roles");
   const canViewTeam = can("view_team") || canManageTeam;
   const canAssignTeamRoles = canManageTeam && canManageRoles;
+  const canManageQueueAssignments = canManageTeam;
 
   const [clinic, setClinic] = useState<ClinicRow | null>(null);
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -113,6 +206,17 @@ export default function TeamManagement() {
   const [rolePermissionsDraft, setRolePermissionsDraft] = useState<ClinicRolePermissions>(
     permissionsFromBaseRole("staff")
   );
+  const [queueAssignmentsByStaffId, setQueueAssignmentsByStaffId] = useState<Record<string, string[]>>({});
+  const [queueAssignmentEditor, setQueueAssignmentEditor] = useState<{
+    open: boolean;
+    member: StaffMember | null;
+  }>({
+    open: false,
+    member: null,
+  });
+  const [queueAssignmentDraft, setQueueAssignmentDraft] = useState<string[]>([]);
+  const [savingQueueAssignmentsFor, setSavingQueueAssignmentsFor] = useState<string | null>(null);
+  const [roleAuditEvents, setRoleAuditEvents] = useState<RoleAuditEvent[]>([]);
 
   const persistRoleDefinitions = useCallback(
     async (nextDefinitions: ClinicRoleDefinition[]) => {
@@ -228,13 +332,116 @@ export default function TeamManagement() {
         })) as StaffMember[];
 
         setStaff(normalizedStaff);
+
+        try {
+          const assignmentsByStaff = await staffService.getQueueAssignmentsByClinic(scopedClinic.id);
+          setQueueAssignmentsByStaffId(assignmentsByStaff);
+        } catch (assignmentError) {
+          logger.warn("Queue assignment fetch warning", {
+            clinicId: scopedClinic.id,
+            reason: assignmentError instanceof Error ? assignmentError.message : String(assignmentError),
+          });
+          setQueueAssignmentsByStaffId({});
+        }
+
+        if (canManageRoles) {
+          const { data: auditRows, error: auditError } = await supabase
+            .from("audit_logs")
+            .select("id, user_id, action, changes, created_at")
+            .eq("clinic_id", scopedClinic.id)
+            .in("entity_type", ["user_role", "clinic_staff_role"])
+            .order("created_at", { ascending: false })
+            .limit(12);
+
+          if (auditError) {
+            logger.warn("Role audit fetch warning", {
+              clinicId: scopedClinic.id,
+              reason: auditError.message,
+            });
+            setRoleAuditEvents([]);
+          } else {
+            const typedAuditRows = Array.isArray(auditRows) ? (auditRows as AuditLogRow[]) : [];
+
+            const baseEvents = typedAuditRows.map((row) => {
+              const changes = asObjectRecord(row.changes);
+              return {
+                id: row.id,
+                actorUserId: row.user_id,
+                actorName: null,
+                actorEmail: null,
+                targetUserId: asOptionalString(changes.target_user_id),
+                targetName: null,
+                targetEmail: null,
+                action: row.action,
+                oldRole: asOptionalString(changes.old_role),
+                newRole: asOptionalString(changes.new_role),
+                createdAt: row.created_at || new Date().toISOString(),
+              } as RoleAuditEvent;
+            });
+
+            const principalUserIds = Array.from(
+              new Set(
+                baseEvents
+                  .flatMap((event) => [event.actorUserId, event.targetUserId])
+                  .filter((value): value is string => typeof value === "string" && value.length > 0)
+              )
+            );
+
+            if (principalUserIds.length === 0) {
+              setRoleAuditEvents(baseEvents);
+            } else {
+              const { data: principalProfiles, error: principalError } = await supabase
+                .from("profiles")
+                .select("id, full_name, email")
+                .in("id", principalUserIds);
+
+              if (principalError) {
+                logger.warn("Role audit principal profile fetch warning", {
+                  clinicId: scopedClinic.id,
+                  reason: principalError.message,
+                });
+                setRoleAuditEvents(baseEvents);
+              } else {
+                const profileRows = Array.isArray(principalProfiles)
+                  ? (principalProfiles as ProfileRow[])
+                  : [];
+
+                const principalMap = new Map(
+                  profileRows.map((profile) => [
+                    profile.id,
+                    {
+                      name: profile.full_name,
+                      email: profile.email,
+                    },
+                  ])
+                );
+
+                setRoleAuditEvents(
+                  baseEvents.map((event) => {
+                    const actorProfile = event.actorUserId ? principalMap.get(event.actorUserId) : undefined;
+                    const targetProfile = event.targetUserId ? principalMap.get(event.targetUserId) : undefined;
+                    return {
+                      ...event,
+                      actorName: actorProfile?.name ?? null,
+                      actorEmail: actorProfile?.email ?? null,
+                      targetName: targetProfile?.name ?? null,
+                      targetEmail: targetProfile?.email ?? null,
+                    };
+                  })
+                );
+              }
+            }
+          }
+        } else {
+          setRoleAuditEvents([]);
+        }
       }
     } catch (error) {
       logger.error("Error fetching data", error instanceof Error ? error : new Error(String(error)), { userId: user.id });
     } finally {
       setIsLoading(false);
     }
-  }, [scopedClinic, user]);
+  }, [canManageRoles, scopedClinic, user]);
 
   useEffect(() => {
     if (user && scopedClinic?.id) fetchData();
@@ -496,6 +703,61 @@ export default function TeamManagement() {
     }
   };
 
+  const openQueueAssignmentEditor = (member: StaffMember) => {
+    if (!canManageQueueAssignments) return;
+    setQueueAssignmentDraft(queueAssignmentsByStaffId[member.id] || []);
+    setQueueAssignmentEditor({ open: true, member });
+  };
+
+  const closeQueueAssignmentEditor = () => {
+    setQueueAssignmentEditor({ open: false, member: null });
+    setQueueAssignmentDraft([]);
+  };
+
+  const toggleQueueAssignmentDoctor = (doctorStaffId: string, checked: boolean) => {
+    setQueueAssignmentDraft((currentDraft) => {
+      if (checked) {
+        if (currentDraft.includes(doctorStaffId)) return currentDraft;
+        return [...currentDraft, doctorStaffId];
+      }
+
+      return currentDraft.filter((staffId) => staffId !== doctorStaffId);
+    });
+  };
+
+  const handleSaveQueueAssignments = async () => {
+    if (!canManageQueueAssignments || !queueAssignmentEditor.member) {
+      return;
+    }
+
+    const staffId = queueAssignmentEditor.member.id;
+    setSavingQueueAssignmentsFor(staffId);
+
+    try {
+      const savedAssignments = await staffService.replaceQueueAssignments(staffId, queueAssignmentDraft);
+
+      setQueueAssignmentsByStaffId((current) => ({
+        ...current,
+        [staffId]: savedAssignments.assignedStaffIds,
+      }));
+
+      toast({
+        title: "Queue assignments updated",
+        description: "Queue scope was updated for this staff member.",
+      });
+
+      closeQueueAssignmentEditor();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update queue assignments",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingQueueAssignmentsFor(null);
+    }
+  };
+
   const handleRemoveStaff = async (staffId: string) => {
     if (!canManageTeam) {
       toast({
@@ -521,6 +783,11 @@ export default function TeamManagement() {
       });
     }
   };
+
+    const providerStaff = staff.filter((member) =>
+      isProviderRole(member.role || "staff", roleDefinitions)
+    );
+    const hiddenProfileCount = staff.filter((member) => !member.profile).length;
 
   if (accessLoading || isLoading) {
     return (
@@ -696,6 +963,55 @@ export default function TeamManagement() {
         </div>
       </div>
 
+      {canManageRoles && (
+        <div className="rounded-lg border border-border overflow-hidden bg-card">
+          <div className="px-4 py-3 border-b border-border bg-muted/30">
+            <h2 className="text-sm font-semibold text-foreground">Role Change Audit</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Recent role and staff permission changes in this clinic.
+            </p>
+          </div>
+          {roleAuditEvents.length === 0 ? (
+            <div className="px-4 py-6 text-sm text-muted-foreground">
+              No role change events recorded yet.
+            </div>
+          ) : (
+            <div className="max-h-72 overflow-y-auto divide-y divide-border">
+              {roleAuditEvents.map((event) => (
+                <div key={event.id} className="px-4 py-3 space-y-1.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-foreground capitalize">
+                      {toAuditLabel(event.action)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{formatAuditTimestamp(event.createdAt)}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Actor:{" "}
+                    <span className="text-foreground font-medium">
+                      {formatAuditActorLabel(event.actorName, event.actorEmail, event.actorUserId)}
+                    </span>
+                    {event.targetUserId && (
+                      <>
+                        {" · "}
+                        Target:{" "}
+                        <span className="text-foreground font-medium">
+                          {formatAuditActorLabel(event.targetName, event.targetEmail, event.targetUserId)}
+                        </span>
+                      </>
+                    )}
+                  </p>
+                  {(event.oldRole || event.newRole) && (
+                    <p className="text-xs text-muted-foreground">
+                      {event.oldRole || "none"} → {event.newRole || "none"}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Role Definitions */}
       <div className="rounded-lg border border-border overflow-hidden bg-card">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
@@ -774,6 +1090,11 @@ export default function TeamManagement() {
 
       {/* Staff Table */}
       <div className="rounded-lg border border-border overflow-hidden overflow-x-auto">
+        {hiddenProfileCount > 0 && (
+          <div className="border-b border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+            Some team profile details are hidden for your current role.
+          </div>
+        )}
         {staff.length === 0 ? (
           <div className="text-center py-12 px-4 bg-card">
             <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center mx-auto mb-3">
@@ -800,85 +1121,218 @@ export default function TeamManagement() {
                 <TableHead className="font-medium">Email</TableHead>
                 <TableHead className="font-medium">Status</TableHead>
                 <TableHead className="font-medium">Role</TableHead>
+                <TableHead className="font-medium">Queue Access</TableHead>
                 <TableHead className="font-medium text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {staff.map((member) => (
-                <TableRow key={member.id} className="group">
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <div className="relative flex-shrink-0">
-                        <div className="h-9 w-9 rounded-lg bg-foreground text-background flex items-center justify-center text-sm font-semibold">
-                          {(member.profile?.full_name || "U").charAt(0).toUpperCase()}
-                        </div>
-                        {member.is_active && (
-                          <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-background rounded-full"></div>
-                        )}
-                      </div>
-                      <span className="font-medium text-foreground">
-                        {member.profile?.full_name || "Unknown"}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {member.profile?.email || "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={member.is_active ? "default" : "secondary"} className="text-xs">
-                      {member.is_active ? "Active" : "Inactive"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {(() => {
-                      const memberRoleKey = normalizeRoleKey(member.role || "staff");
-                      const roleChoices = getRoleChoicesForMember(memberRoleKey, roleDefinitions);
-                      if (!canAssignTeamRoles) {
-                        return (
-                          <Badge variant="outline" className="text-xs">
-                            {getRoleLabel(memberRoleKey, roleDefinitions)}
-                          </Badge>
-                        );
-                      }
+              {staff.map((member) => {
+                const memberRoleKey = normalizeRoleKey(member.role || "staff");
+                const memberRoleLabel = getRoleLabel(memberRoleKey, roleDefinitions);
+                const memberRoleChoices = getRoleChoicesForMember(memberRoleKey, roleDefinitions);
+                const memberIsClinicOwner = clinic.owner_id === member.user_id;
 
-                      return (
-                        <Select
-                          value={memberRoleKey}
-                          onValueChange={(value) => handleChangeStaffRole(member.id, value)}
-                          disabled={updatingStaffId === member.id || roleSaving}
+                return (
+                  <TableRow key={member.id} className="group">
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="relative flex-shrink-0">
+                          <div className="h-9 w-9 rounded-lg bg-foreground text-background flex items-center justify-center text-sm font-semibold">
+                            {(member.profile?.full_name || "P").charAt(0).toUpperCase()}
+                          </div>
+                          {member.is_active && (
+                            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-background rounded-full"></div>
+                          )}
+                        </div>
+                        <span className="font-medium text-foreground">
+                          {member.profile?.full_name || "Profile hidden"}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {member.profile?.email || "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={member.is_active ? "default" : "secondary"} className="text-xs">
+                        {member.is_active ? "Active" : "Inactive"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          {memberIsClinicOwner && (
+                            <Badge variant="default" className="text-xs">
+                              Clinic Owner
+                            </Badge>
+                          )}
+                          {!memberIsClinicOwner && !canAssignTeamRoles && (
+                            <Badge variant="outline" className="text-xs">
+                              {memberRoleLabel}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {canAssignTeamRoles ? (
+                          <div className="space-y-1">
+                            {memberIsClinicOwner && (
+                              <p className="text-[11px] text-muted-foreground">Clinical role</p>
+                            )}
+                            <Select
+                              value={memberRoleKey}
+                              onValueChange={(value) => handleChangeStaffRole(member.id, value)}
+                              disabled={updatingStaffId === member.id || roleSaving}
+                            >
+                              <SelectTrigger className="h-8 text-xs min-w-[150px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {memberRoleChoices.map((role) => (
+                                  <SelectItem key={role.key} value={role.key} className="text-xs">
+                                    {role.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ) : memberIsClinicOwner ? (
+                          <Badge variant="outline" className="text-xs">
+                            {memberRoleLabel}
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        if (memberIsClinicOwner) {
+                          return (
+                            <Badge variant="outline" className="text-xs">
+                              All clinic queues (Owner)
+                            </Badge>
+                          );
+                        }
+
+                        const isProvider = isProviderRole(member.role || "staff", roleDefinitions);
+                        if (isProvider) {
+                          return (
+                            <Badge variant="outline" className="text-xs">
+                              Only their own queue
+                            </Badge>
+                          );
+                        }
+
+                        const assignedProviders = queueAssignmentsByStaffId[member.id] || [];
+                        const assignedCount = assignedProviders.length;
+
+                        return (
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              {assignedCount > 0
+                                ? `${assignedCount} assigned doctor queue${assignedCount > 1 ? "s" : ""}`
+                                : "All doctor queues"}
+                            </Badge>
+                            {canManageQueueAssignments && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => openQueueAssignmentEditor(member)}
+                                disabled={savingQueueAssignmentsFor === member.id}
+                              >
+                                Set access
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {canManageTeam && !memberIsClinicOwner && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveStaff(member.id)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8"
                         >
-                          <SelectTrigger className="h-8 text-xs min-w-[150px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {roleChoices.map((role) => (
-                              <SelectItem key={role.key} value={role.key} className="text-xs">
-                                {role.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      );
-                    })()}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {canManageTeam && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRemoveStaff(member.id)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}
       </div>
+
+      {/* Queue Assignment Editor */}
+      <Dialog
+        open={queueAssignmentEditor.open && canManageQueueAssignments}
+        onOpenChange={(open) => (open ? setQueueAssignmentEditor((current) => ({ ...current, open: true })) : closeQueueAssignmentEditor())}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Set Queue Access</DialogTitle>
+            <DialogDescription>
+              {queueAssignmentEditor.member
+                ? `Choose which doctor queues ${queueAssignmentEditor.member.profile?.full_name || "this staff member"} can manage.`
+                : "Choose which doctor queues this staff member can manage."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {providerStaff.length === 0 ? (
+              <div className="rounded-md border border-border bg-muted/30 px-3 py-4 text-sm text-muted-foreground">
+                No doctor profiles are available in this clinic yet.
+              </div>
+            ) : (
+              <div className="max-h-72 overflow-y-auto rounded-md border border-border divide-y divide-border">
+                {providerStaff.map((provider) => {
+                  const checked = queueAssignmentDraft.includes(provider.id);
+
+                  return (
+                    <label
+                      key={provider.id}
+                      className="flex cursor-pointer items-start justify-between gap-3 px-3 py-2.5"
+                    >
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-medium text-foreground">
+                          {provider.profile?.full_name || "Profile hidden"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {provider.profile?.email || getRoleLabel(normalizeRoleKey(provider.role || "doctor"), roleDefinitions)}
+                        </p>
+                      </div>
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(nextChecked) =>
+                          toggleQueueAssignmentDoctor(provider.id, nextChecked === true)
+                        }
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              Leave all doctors unchecked to allow access to all clinic queues.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closeQueueAssignmentEditor}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveQueueAssignments}
+              disabled={savingQueueAssignmentsFor === queueAssignmentEditor.member?.id}
+            >
+              {savingQueueAssignmentsFor === queueAssignmentEditor.member?.id ? "Saving..." : "Save queue access"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Role Editor */}
       <Dialog open={showRoleEditor && canManageRoles} onOpenChange={(open) => (open ? setShowRoleEditor(true) : closeRoleEditor())}>

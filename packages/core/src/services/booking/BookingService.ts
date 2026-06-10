@@ -7,7 +7,7 @@
  * - REST API
  */
 
-import type { BookingRepository } from '../../repositories/booking/BookingRepository.js';
+import type { BookingRepository, ClinicDetails } from '../../repositories/booking/BookingRepository.js';
 import type { IEventBus, DomainEvent } from '../../ports/eventBus.js';
 import type { ILogger } from '../../ports/logger.js';
 import type {
@@ -15,7 +15,8 @@ import type {
   BookingResponse,
   AvailableSlotsResponse,
   QueueMode,
-  AppointmentType
+  AppointmentType,
+  NextAvailableSlot
 } from '../../types.js';
 
 // Domain Events
@@ -254,7 +255,7 @@ export class BookingService {
     clinicId: string,
     fromDate: string,
     maxDays = 14
-  ): Promise<string | null> {
+  ): Promise<NextAvailableSlot | null> {
     this.logger.setContext({
       service: 'BookingService',
       operation: 'getNextAvailableSlot',
@@ -267,10 +268,10 @@ export class BookingService {
         // Call the repository directly to avoid nested log-context churn per day.
         const res = await this.repository.getAvailableSlotsForMode(clinicId, date);
         const slot = res.slots?.find(s => s.available);
-        if (slot) return `${date}T${slot.time}`;
-        // Fluid/queue day with capacity: bookable today, no fixed time.
+        if (slot) return { kind: 'datetime', value: `${date}T${slot.time}` };
+        // Fluid/queue day with capacity: bookable that day, no fixed time.
         if (res.available && (res.mode === 'fluid' || res.mode === null || res.mode === undefined)) {
-          return date;
+          return { kind: 'day', value: date };
         }
       }
       return null;
@@ -316,7 +317,7 @@ export class BookingService {
    * Get clinic information for booking
    */
   async getClinicInfo(clinicId: string): Promise<{
-    clinic: unknown;
+    clinic: ClinicDetails;
     appointmentTypes: AppointmentType[];
   }> {
     this.logger.setContext({

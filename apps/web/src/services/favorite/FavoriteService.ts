@@ -1,6 +1,8 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Logger } from '@/services/shared/logging/Logger';
-import type { PatientFavorite } from '@/integrations/supabase/types';
+import type { Tables } from '@/integrations/supabase/types';
+
+type PatientFavorite = Tables<'patient_favorites'>;
 
 export class FavoriteService {
   private logger: Logger;

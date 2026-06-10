@@ -7,8 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import type { ClinicRating, ClinicRatingStats } from "@/integrations/supabase/types";
+import type { Tables } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
+
+type ClinicRating = Tables<"clinic_ratings">;
+type ClinicRatingStats = Tables<"clinic_rating_stats">;
 
 interface ReviewModalProps {
   isOpen: boolean;

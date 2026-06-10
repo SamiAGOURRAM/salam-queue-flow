@@ -10,6 +10,10 @@
  * - Fluid: Priority-based mode (completely different paradigm)
  *   - Dynamic reordering based on priority score
  *   - Aggressive shifting: Everyone moves up when disruptions occur
+ * - Hybrid: Mixed mode (slotted lane + overflow lane)
+ *   - Scheduled patients keep their time ordering
+ *   - Overflow/walk-ins without a scheduled time are served from a secondary lane
+ *   - If earliest scheduled patient is not due yet, overflow patients can be called
  * 
  * Gap Filling Priority (when slot becomes available in Slotted mode):
  * 1. Waitlist patient (if enabled) - They're READY and EXPECTING a call
@@ -43,7 +47,7 @@ export interface IQueueStrategy {
 export interface QueueContext {
   currentTime: Date;
   clinicId: string;
-  staffId: string;
+  staffId?: string;
   allowWaitlist?: boolean; // Whether clinic allows waitlist
 }
 
@@ -95,7 +99,7 @@ export class SlottedQueueStrategy implements IQueueStrategy {
       const availableSlot = this.findAvailableSlot(schedule, now);
       if (availableSlot) {
         return {
-          patient: topWaitlist as any, // Will be converted to appointment
+          patient: topWaitlist,
           type: 'waitlist',
           reason: 'Waitlist patient ready - maximizes throughput',
           requiresNotification: true // Immediate notification
@@ -165,11 +169,33 @@ export class SlottedQueueStrategy implements IQueueStrategy {
       }
 
   async handleLateArrival(appointment: QueueEntry, schedule: QueueEntry[]): Promise<QueueAction> {
-    // Slotted Mode: Late arrivals can use original slot if available
-    // Otherwise, wait for next available slot or add to waitlist with priority
+    // Slotted mode keeps time ordering. If original slot is still open, return there.
+    const activeStatuses = new Set([
+      AppointmentStatus.SCHEDULED,
+      AppointmentStatus.WAITING,
+      AppointmentStatus.IN_PROGRESS,
+    ]);
+
+    const originalSlotTaken = schedule.some(entry =>
+      entry.id !== appointment.id &&
+      activeStatuses.has(entry.status) &&
+      entry.scheduledTime === appointment.scheduledTime
+    );
+
+    if (!originalSlotTaken && appointment.queuePosition > 0) {
+      return {
+        action: 'insert',
+        targetPosition: appointment.queuePosition,
+        reason: 'Original scheduled slot is still available',
+      };
+    }
+
+    const maxPosition = schedule.reduce((max, entry) => Math.max(max, entry.queuePosition || 0), 0);
+
     return {
       action: 'insert',
-      reason: 'Late arrival in Slotted Mode - check for available slot or waitlist',
+      targetPosition: maxPosition + 1,
+      reason: 'Original slot unavailable; reinsert at end of current queue',
     };
   }
 }
@@ -211,13 +237,121 @@ export class FluidQueueStrategy implements IQueueStrategy {
   }
 
   async handleLateArrival(appointment: QueueEntry, schedule: QueueEntry[]): Promise<QueueAction> {
-    // Fluid Mode: Late arrivals are just inserted back into the flow, 
-    // but with a penalty (lower priority score).
+    // Fluid mode applies a penalty by sending late arrivals to end-of-queue.
+    const maxPosition = schedule.reduce((max, entry) => Math.max(max, entry.queuePosition || 0), 0);
+
     return {
       action: 'insert',
-      targetPosition: -1, // Append to current priority group
-      reason: 'Late arrival in Fluid Mode - downgraded priority',
+      targetPosition: maxPosition + 1,
+      reason: 'Late arrival penalty applied in fluid mode (end-of-queue reinsertion)',
     };
+  }
+}
+
+/**
+ * Hybrid Strategy: Scheduled lane + Overflow lane.
+ * - Prefer due scheduled patients.
+ * - If the next scheduled patient is in the future, allow overflow lane throughput.
+ */
+export class HybridQueueStrategy implements IQueueStrategy {
+  private readonly slottedStrategy = new SlottedQueueStrategy();
+  private readonly fluidStrategy = new FluidQueueStrategy();
+
+  async getNextPatient(
+    schedule: QueueEntry[],
+    context: QueueContext,
+    waitlist?: WaitlistEntry[]
+  ): Promise<NextPatientResult | null> {
+    const waitingCandidates = schedule.filter(
+      (entry) =>
+        entry.status === AppointmentStatus.WAITING &&
+        entry.isPresent &&
+        !entry.skipReason
+    );
+
+    const scheduledLane = waitingCandidates
+      .filter((entry) => Boolean(entry.scheduledTime))
+      .sort((a, b) => {
+        const timeA = this.getScheduledTimestamp(a);
+        const timeB = this.getScheduledTimestamp(b);
+        if (timeA !== timeB) {
+          return timeA - timeB;
+        }
+
+        return (a.queuePosition ?? Number.MAX_SAFE_INTEGER) - (b.queuePosition ?? Number.MAX_SAFE_INTEGER);
+      });
+
+    const overflowLane = waitingCandidates
+      .filter((entry) => !entry.scheduledTime)
+      .sort((a, b) => {
+        const scoreA = a.priorityScore || 0;
+        const scoreB = b.priorityScore || 0;
+
+        if (scoreA !== scoreB) {
+          return scoreB - scoreA;
+        }
+
+        return (a.queuePosition ?? Number.MAX_SAFE_INTEGER) - (b.queuePosition ?? Number.MAX_SAFE_INTEGER);
+      });
+
+    const nextScheduled = scheduledLane[0] ?? null;
+    const nextOverflow = overflowLane[0] ?? null;
+
+    if (nextScheduled) {
+      const scheduledTimestamp = this.getScheduledTimestamp(nextScheduled);
+      const isDue = scheduledTimestamp <= context.currentTime.getTime();
+
+      if (isDue || !nextOverflow) {
+        return {
+          patient: nextScheduled,
+          type: 'scheduled',
+          reason: isDue
+            ? 'Next due scheduled patient in hybrid lane'
+            : 'No overflow candidate; calling earliest scheduled patient early',
+          canCallEarly: !isDue,
+          requiresNotification: !isDue,
+        };
+      }
+    }
+
+    if (nextOverflow) {
+      return {
+        patient: nextOverflow,
+        type: 'scheduled',
+        reason: 'Overflow lane patient selected in hybrid mode',
+      };
+    }
+
+    if (context.allowWaitlist && waitlist && waitlist.length > 0) {
+      return {
+        patient: waitlist[0],
+        type: 'waitlist',
+        reason: 'No present scheduled or overflow patient; using waitlist fallback',
+        requiresNotification: true,
+      };
+    }
+
+    return null;
+  }
+
+  async handleLateArrival(appointment: QueueEntry, schedule: QueueEntry[]): Promise<QueueAction> {
+    if (appointment.scheduledTime) {
+      return this.slottedStrategy.handleLateArrival(appointment, schedule);
+    }
+
+    return this.fluidStrategy.handleLateArrival(appointment, schedule);
+  }
+
+  private getScheduledTimestamp(entry: QueueEntry): number {
+    if (!entry.scheduledTime) return Infinity;
+
+    const dateStr = entry.appointmentDate.toISOString().split('T')[0];
+    const normalizedTime = entry.scheduledTime.length === 5
+      ? `${entry.scheduledTime}:00`
+      : entry.scheduledTime;
+
+    const parsed = new Date(`${dateStr}T${normalizedTime}`);
+    return Number.isNaN(parsed.getTime()) ? Infinity : parsed.getTime();
   }
 }
 
@@ -231,6 +365,8 @@ export class QueueStrategyFactory {
         return new SlottedQueueStrategy();
       case QueueMode.FLUID:
         return new FluidQueueStrategy();
+      case QueueMode.HYBRID:
+        return new HybridQueueStrategy();
       default:
         throw new Error(`Unsupported queue mode: ${mode}`);
     }

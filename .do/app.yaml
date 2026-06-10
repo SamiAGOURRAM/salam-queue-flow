@@ -1,0 +1,80 @@
+# DigitalOcean App Platform spec — QueueMed backend (chat-api + mcp-server).
+#
+# The frontend (apps/web) is a static SPA and is deployed separately
+# (Vercel / Netlify / DO Static Site) — see README "Deployment".
+#
+# Deploy/update:
+#   doctl apps create   --spec .do/app.yaml      # first time
+#   doctl apps update <APP_ID> --spec .do/app.yaml
+#
+# Set the SECRET values (GROQ_API_KEY, SUPABASE_SERVICE_KEY) in the DO dashboard
+# or via `doctl`. Replace <github-owner>/<repo> + branch below.
+
+name: queuemed-backend
+region: fra   # Frankfurt — closest to Morocco
+
+services:
+  # ── MCP tools server (Streamable HTTP) ────────────────────────────────────
+  - name: mcp-server
+    dockerfile_path: Dockerfile.mcp
+    source_dir: /
+    github:
+      repo: <github-owner>/<repo>
+      branch: main
+      deploy_on_push: true
+    http_port: 3001
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    health_check:
+      http_path: /health
+    # Internal only — not exposed publicly; chat-api reaches it via PRIVATE_URL.
+    internal_ports:
+      - 3001
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: SERVER_PORT
+        value: "3001"
+      - key: SUPABASE_URL
+        scope: RUN_TIME
+        value: ${SUPABASE_URL}
+      - key: SUPABASE_SERVICE_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${SUPABASE_SERVICE_KEY}
+      - key: SUPABASE_ANON_KEY
+        scope: RUN_TIME
+        value: ${SUPABASE_ANON_KEY}
+
+  # ── AI chatbot agent (public) ─────────────────────────────────────────────
+  - name: chat-api
+    dockerfile_path: Dockerfile.chat
+    source_dir: /
+    github:
+      repo: <github-owner>/<repo>
+      branch: main
+      deploy_on_push: true
+    http_port: 8787
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    health_check:
+      http_path: /health
+    routes:
+      - path: /
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: CHAT_API_PORT
+        value: "8787"
+      - key: MCP_SERVER_URL
+        value: ${mcp-server.PRIVATE_URL}/mcp
+      - key: LLM_PROVIDER
+        value: groq
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: GROQ_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${GROQ_API_KEY}
+      - key: CHAT_API_CORS_ORIGINS
+        value: ${FRONTEND_ORIGIN}

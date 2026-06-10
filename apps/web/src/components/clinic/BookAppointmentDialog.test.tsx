@@ -8,6 +8,7 @@ import { BookAppointmentDialog } from "./BookAppointmentDialog";
 const mocks = vi.hoisted(() => ({
   getAvailableSlotsForMode: vi.fn(),
   bookAppointmentForMode: vi.fn(),
+  reorderQueue: vi.fn(),
   getClinic: vi.fn(),
   getStaffByClinic: vi.fn(),
   findOrCreatePatient: vi.fn(),
@@ -37,6 +38,12 @@ vi.mock("@/services/patient", () => ({
   patientService: {
     findOrCreatePatient: mocks.findOrCreatePatient,
   },
+}));
+
+vi.mock("@/services/queue/QueueService", () => ({
+  QueueService: vi.fn().mockImplementation(() => ({
+    reorderQueue: mocks.reorderQueue,
+  })),
 }));
 
 vi.mock("@/hooks/use-toast", () => ({
@@ -74,7 +81,7 @@ describe("BookAppointmentDialog mode-aware behavior", () => {
   const onOpenChange = vi.fn();
   const onSuccess = vi.fn();
 
-  const renderDialog = () => {
+  const renderDialog = (overrides?: Partial<React.ComponentProps<typeof BookAppointmentDialog>>) => {
     render(
       <BookAppointmentDialog
         open
@@ -88,6 +95,8 @@ describe("BookAppointmentDialog mode-aware behavior", () => {
           phoneNumber: "+212600000001",
         }}
         defaultAppointmentType="consultation"
+        performedBy="user-staff-1"
+        {...overrides}
       />
     );
   };
@@ -111,6 +120,7 @@ describe("BookAppointmentDialog mode-aware behavior", () => {
     ]);
 
     mocks.findOrCreatePatient.mockResolvedValue({ patientId: "patient-1" });
+    mocks.reorderQueue.mockResolvedValue({ id: "apt-1" });
 
     mocks.bookAppointmentForMode.mockResolvedValue({
       success: true,
@@ -179,5 +189,60 @@ describe("BookAppointmentDialog mode-aware behavior", () => {
 
     await waitFor(() => expect(bookButton).toBeDisabled());
     expect(mocks.bookAppointmentForMode).not.toHaveBeenCalled();
+  });
+
+  it("shows booked slots as disabled with clear indicator", async () => {
+    mocks.getClinic.mockResolvedValue({
+      id: "clinic-1",
+      queueMode: QueueMode.SLOTTED,
+      settings: {
+        appointment_types: [{ name: "consultation", label: "Consultation", duration: 15 }],
+      },
+    });
+
+    mocks.getAvailableSlotsForMode.mockResolvedValue({
+      available: true,
+      slots: [
+        { time: "09:00", available: true },
+        { time: "09:15", available: false },
+      ],
+      mode: QueueMode.SLOTTED,
+    });
+
+    renderDialog();
+
+    await screen.findByText(/1 available • 1 booked/i);
+
+    const bookedSlotButton = screen.getByRole("button", { name: /09:15\s*Booked/i });
+    expect(bookedSlotButton).toBeDisabled();
+  });
+
+  it("applies urgent walk-in insertion override after booking", async () => {
+    mocks.getAvailableSlotsForMode.mockResolvedValue({
+      available: true,
+      slots: [],
+      mode: QueueMode.FLUID,
+    });
+
+    renderDialog({ isWalkIn: true });
+
+    const urgentToggle = await screen.findByRole("checkbox", { name: /urgent walk-in insertion/i });
+    await userEvent.click(urgentToggle);
+
+    const positionInput = screen.getByLabelText(/insert at queue position/i);
+    await userEvent.clear(positionInput);
+    await userEvent.type(positionInput, "2");
+
+    await userEvent.click(screen.getByRole("button", { name: "Book Appointment" }));
+
+    await waitFor(() => {
+      expect(mocks.reorderQueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          appointmentId: "apt-1",
+          newPosition: 2,
+          performedBy: "user-staff-1",
+        })
+      );
+    });
   });
 });

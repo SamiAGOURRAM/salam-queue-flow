@@ -1,0 +1,28 @@
+# syntax=docker/dockerfile:1
+#
+# Shared DEVELOPMENT image for the QueueMed pnpm + turbo monorepo.
+# A single image backs both the `web` (frontend) and `mcp-server` (backend)
+# services — each overrides the command in docker-compose.yml.
+#
+# At runtime the repo is bind-mounted over /app for hot reload, while the
+# installed node_modules (Linux-native) live in the image and are shielded by
+# named volumes so the host's (Windows) node_modules never shadow them.
+
+FROM node:20-bookworm-slim
+
+# pnpm is provided by corepack; the exact version comes from the root
+# package.json "packageManager" field (pnpm@9.15.0).
+ENV PNPM_HOME="/pnpm" \
+    PATH="/pnpm:$PATH" \
+    CI=true
+RUN corepack enable
+
+WORKDIR /app
+
+# Install dependencies for the entire workspace. node_modules / dist are
+# excluded via .dockerignore, so this is a clean, Linux-native install.
+COPY . .
+RUN pnpm install --frozen-lockfile
+
+# Overridden per-service in docker-compose.yml.
+CMD ["pnpm", "run", "dev"]

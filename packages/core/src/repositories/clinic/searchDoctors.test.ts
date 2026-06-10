@@ -17,6 +17,7 @@ function makeDb(tables: Record<string, unknown[]>) {
       eq: () => chain,
       ilike: () => chain,
       in: () => chain,
+      limit: () => chain,
       then: (resolve: (r: unknown) => unknown) => resolve(result),
     };
     return chain;
@@ -35,15 +36,19 @@ describe("ClinicRepository.searchDoctors", () => {
         { id: "s1", clinic_id: "c1", user_id: "u1", role: "doctor", specialization: null },
         { id: "s2", clinic_id: "c1", user_id: "u2", role: "receptionist", specialization: null },
         { id: "s3", clinic_id: "c1", user_id: "u3", role: "nurse", specialization: "Cardiology" },
+        { id: "s4", clinic_id: "c1", user_id: "u4", role: "dentist", specialization: null },
       ],
       profiles: [
         { id: "u1", full_name: "Dr. Amina" },
         { id: "u2", full_name: "Front Desk" },
         { id: "u3", full_name: "Nurse Karim" },
+        { id: "u4", full_name: "Dr. Sami" },
       ],
     });
     const docs = await r.searchDoctors({});
-    expect(docs.map((d) => d.staffId).sort()).toEqual(["s1", "s3"]); // receptionist excluded; nurse-with-specialization kept
+    // Role-based: doctor (s1) and the clinical-allowlist role dentist (s4) are kept.
+    // A receptionist (s2) AND a nurse with a free-text specialization (s3) are both excluded.
+    expect(docs.map((d) => d.staffId).sort()).toEqual(["s1", "s4"]);
   });
 
   it("maps clinic + profile fields onto the listing", async () => {

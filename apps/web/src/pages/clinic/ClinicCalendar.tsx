@@ -4,6 +4,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useClinicPermissions } from "@/hooks/useClinicPermissions";
+import { useQueueScope } from "@/hooks/useQueueScope";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -27,6 +28,7 @@ import { QueueEntry, SkipReason } from "@/services/queue";
 import { QueueService } from "@/services/queue/QueueService";
 import { staffService } from "@/services/staff/StaffService";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 type ClinicCalendarState = {
   id: string;
@@ -46,8 +48,9 @@ function getScheduledDateTime(appointment: QueueEntry): Date | null {
 }
 
 export default function ClinicCalendar() {
+  const navigate = useNavigate();
   const { user, loading } = useAuth();
-  const { clinic: scopedClinic, loading: accessLoading, can } = useClinicPermissions();
+  const { clinic: scopedClinic, loading: accessLoading, can, isClinicOwnerAtClinic } = useClinicPermissions();
   const canViewCalendar = can("view_calendar") || can("manage_calendar");
   const canManageCalendar = can("manage_calendar");
   const canManageAppointments = can("manage_appointments");
@@ -60,6 +63,42 @@ export default function ClinicCalendar() {
 
   // Use QueueService singleton instead of creating new repository
   const queueService = useMemo(() => new QueueService(), []);
+
+  const {
+    loading: queueScopeLoading,
+    error: queueScopeError,
+    resolvedScope,
+    useClinicWide: useClinicWideCalendar,
+    allowedStaffIds,
+  } = useQueueScope({
+    clinicId: clinic?.id,
+    staffId: staffId || undefined,
+  });
+
+  const isScopeReadyForNonOwnerStaff = useMemo(() => {
+    if (isClinicOwnerAtClinic) {
+      return true;
+    }
+
+    if (!staffId) {
+      return false;
+    }
+
+    // If scope resolution failed, continue in safe personal mode fallback.
+    if (queueScopeError) {
+      return true;
+    }
+
+    return resolvedScope.requesterStaffId === staffId;
+  }, [isClinicOwnerAtClinic, queueScopeError, resolvedScope.requesterStaffId, staffId]);
+
+  const shouldForcePersonalFallbackScope =
+    !isClinicOwnerAtClinic && Boolean(staffId) && Boolean(queueScopeError);
+
+  const calendarUseClinicWide = shouldForcePersonalFallbackScope ? false : useClinicWideCalendar;
+  const calendarAllowedStaffIds = shouldForcePersonalFallbackScope && staffId
+    ? [staffId]
+    : allowedStaffIds;
 
   // Fetch initial data using services
   useEffect(() => {
@@ -80,12 +119,11 @@ export default function ClinicCalendar() {
         if (scopedStaff) {
           setStaffId(scopedStaff.id);
         } else {
-          const clinicStaff = await staffService.getStaffByClinic(scopedClinic.id);
-          const fallbackStaffId = clinicStaff[0]?.id ?? null;
-          setStaffId(fallbackStaffId);
-          if (!fallbackStaffId) {
-            logger.debug("No clinic staff available for calendar schedule lookup", { clinicId: scopedClinic.id, userId: user.id });
-          }
+          setStaffId(null);
+          logger.debug("No staff profile found for clinic calendar context", {
+            clinicId: scopedClinic.id,
+            userId: user.id,
+          });
         }
       } catch (error) {
         logger.error("Error fetching initial calendar data", error as Error);
@@ -97,7 +135,26 @@ export default function ClinicCalendar() {
 
   // Fetch appointments using QueueService
   const fetchAppointments = useCallback(async () => {
-    if (!staffId) return;
+    if (!clinic?.id) return;
+
+    if (!staffId && !isClinicOwnerAtClinic) {
+      logger.warn("Skipping calendar schedule fetch: no staff profile for non-owner user", {
+        clinicId: clinic.id,
+        userId: user?.id,
+      });
+      return;
+    }
+
+    if (!isScopeReadyForNonOwnerStaff) {
+      logger.debug("Skipping calendar schedule fetch: queue scope not resolved yet", {
+        clinicId: clinic.id,
+        staffId,
+        requesterStaffId: resolvedScope.requesterStaffId,
+        queueScopeError,
+      });
+      return;
+    }
+
     setLoadingAppointments(true);
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -106,7 +163,11 @@ export default function ClinicCalendar() {
       
       logger.debug("Fetching appointments for calendar", {
         staffId,
+        clinicId: clinic.id,
         selectedDate: dateStr,
+        useClinicWide: calendarUseClinicWide,
+        allowedStaffCount: calendarAllowedStaffIds?.length ?? 0,
+        queueScopeError,
         today: todayStr,
         isViewingToday,
         note: isViewingToday 
@@ -114,7 +175,13 @@ export default function ClinicCalendar() {
           : "Calendar shows different date than Live Queue (which only shows today)"
       });
       
-      const scheduleData = await queueService.getDailySchedule(staffId, dateStr);
+      const scheduleData = await queueService.getDailySchedule(
+        staffId || undefined,
+        dateStr,
+        calendarUseClinicWide,
+        calendarAllowedStaffIds,
+        clinic.id
+      );
       const sortedAppointments = (scheduleData.schedule || []).sort((a, b) => {
         const getTime = (apt: QueueEntry) => {
           const scheduledDateTime = getScheduledDateTime(apt);
@@ -147,7 +214,19 @@ export default function ClinicCalendar() {
     } finally {
       setLoadingAppointments(false);
     }
-  }, [staffId, selectedDate, queueService]);
+  }, [
+    calendarAllowedStaffIds,
+    calendarUseClinicWide,
+    clinic?.id,
+    isClinicOwnerAtClinic,
+    isScopeReadyForNonOwnerStaff,
+    queueScopeError,
+    queueService,
+    resolvedScope.requesterStaffId,
+    selectedDate,
+    staffId,
+    user?.id,
+  ]);
 
   useEffect(() => {
     fetchAppointments();
@@ -227,7 +306,7 @@ export default function ClinicCalendar() {
     return { scheduled, inProgress, completed, absent, total: appointments.length };
   }, [appointments]);
 
-  if (loading || accessLoading) {
+  if (loading || accessLoading || queueScopeLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
@@ -413,12 +492,15 @@ export default function ClinicCalendar() {
                   })();
 
                   return (
-                    <div
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/clinic/appointments/${apt.id}`)}
                       key={apt.id}
                       className={cn(
-                        "flex items-center gap-3 p-3 rounded-lg border transition-all",
+                        "w-full text-left flex items-center gap-3 p-3 rounded-lg border transition-all",
                         statusStyle.bg,
                         statusStyle.border,
+                        "hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                         apt.status === 'completed' && "opacity-60"
                       )}
                     >
@@ -455,7 +537,7 @@ export default function ClinicCalendar() {
                       {apt.skipReason === SkipReason.PATIENT_ABSENT && !apt.returnedAt && (
                         <UserX className="w-4 h-4 text-red-500 flex-shrink-0" />
                       )}
-                    </div>
+                    </button>
                   );
                 })}
               </div>

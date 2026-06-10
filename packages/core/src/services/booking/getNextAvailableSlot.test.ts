@@ -21,7 +21,7 @@ describe("BookingService.getNextAvailableSlot", () => {
         { time: "09:30", available: true },
       ] },
     });
-    expect(await svc.getNextAvailableSlot("c1", "2026-06-04")).toBe("2026-06-04T09:30");
+    expect(await svc.getNextAvailableSlot("c1", "2026-06-04")).toEqual({ kind: "datetime", value: "2026-06-04T09:30" });
   });
 
   it("scans forward to a later day when earlier days are full", async () => {
@@ -30,12 +30,12 @@ describe("BookingService.getNextAvailableSlot", () => {
       "2026-06-05": { available: true, mode: "slotted", slots: [] },
       "2026-06-06": { available: true, mode: "slotted", slots: [{ time: "10:00", available: true }] },
     });
-    expect(await svc.getNextAvailableSlot("c1", "2026-06-04")).toBe("2026-06-06T10:00");
+    expect(await svc.getNextAvailableSlot("c1", "2026-06-04")).toEqual({ kind: "datetime", value: "2026-06-06T10:00" });
   });
 
-  it("returns a date-only string for a fluid day with capacity", async () => {
+  it("returns a day-kind slot for a fluid day with capacity", async () => {
     const svc = makeService({ "2026-06-04": { available: true, mode: "fluid", slots: [] } });
-    expect(await svc.getNextAvailableSlot("c1", "2026-06-04")).toBe("2026-06-04");
+    expect(await svc.getNextAvailableSlot("c1", "2026-06-04")).toEqual({ kind: "day", value: "2026-06-04" });
   });
 
   it("returns null when nothing is available within maxDays", async () => {

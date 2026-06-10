@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
@@ -17,7 +18,9 @@ import { staffService, StaffProfile } from "@/services/staff";
 import { clinicService } from "@/services/clinic";
 import type { ClinicSettings } from "@/services/clinic";
 import { bookingService } from "@/services/booking/BookingService";
+import type { BookingSlot } from "@/services/booking/types";
 import { QueueMode } from "@/services/booking/types";
+import { QueueService } from "@/services/queue/QueueService";
 import { logger } from "@/services/shared/logging/Logger";
 
 interface PrefillPatientInfo {
@@ -39,6 +42,8 @@ interface BookAppointmentDialogProps {
   isWalkIn?: boolean;
   title?: string;
   description?: string;
+  allowedStaffIds?: string[];
+  performedBy?: string;
 }
 
 export function BookAppointmentDialog({
@@ -54,6 +59,8 @@ export function BookAppointmentDialog({
   isWalkIn = false,
   title,
   description,
+  allowedStaffIds,
+  performedBy,
 }: BookAppointmentDialogProps) {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -67,14 +74,30 @@ export function BookAppointmentDialog({
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
 
   const [clinicSettings, setClinicSettings] = useState<ClinicSettings | null>(null);
-  const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
+  const [availableTimeSlots, setAvailableTimeSlots] = useState<BookingSlot[]>([]);
   const [queueMode, setQueueMode] = useState<QueueMode | null>(null);
+  const [hybridBookingLane, setHybridBookingLane] = useState<'slotted' | 'overflow'>('slotted');
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [urgentInsertion, setUrgentInsertion] = useState(false);
+  const [urgentPosition, setUrgentPosition] = useState("1");
+  const [isApplyingPriorityOverride, setIsApplyingPriorityOverride] = useState(false);
 
   const isFluidMode = queueMode === QueueMode.FLUID;
-  const requiresTimeSlot = queueMode !== QueueMode.FLUID;
+  const isHybridMode = queueMode === QueueMode.HYBRID;
+  const requiresTimeSlot =
+    queueMode === QueueMode.SLOTTED ||
+    (isHybridMode && hybridBookingLane === 'slotted');
+  const availableSlotCount = availableTimeSlots.filter((slot) => slot.available).length;
+  const bookedSlotCount = availableTimeSlots.filter((slot) => !slot.available).length;
 
-  const getAppointmentTypes = () => clinicSettings?.appointment_types ?? [];
+  const availableAppointmentTypes = useMemo(() => {
+    const selectedStaff = staffList.find((member) => member.id === selectedStaffId);
+    if (selectedStaff?.appointmentTypesOverride && selectedStaff.appointmentTypesOverride.length > 0) {
+      return selectedStaff.appointmentTypesOverride;
+    }
+
+    return clinicSettings?.appointment_types ?? [];
+  }, [clinicSettings, selectedStaffId, staffList]);
 
   const getStaffLabel = (staffMember: StaffProfile, index: number) => {
     const role = staffMember.role?.replace(/_/g, " ") || "Doctor";
@@ -117,6 +140,21 @@ export function BookAppointmentDialog({
   }, [open, isWalkIn, preselectedDate]);
 
   useEffect(() => {
+    if (!open) {
+      setUrgentInsertion(false);
+      setUrgentPosition("1");
+      setIsApplyingPriorityOverride(false);
+      setHybridBookingLane('slotted');
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!isHybridMode) {
+      setHybridBookingLane('slotted');
+    }
+  }, [isHybridMode]);
+
+  useEffect(() => {
     const fetchClinicSettings = async () => {
       if (!clinicId || !open) return;
       try {
@@ -140,21 +178,35 @@ export function BookAppointmentDialog({
       if (!clinicId || !open) return;
       try {
         const staff = await staffService.getStaffByClinic(clinicId);
-        setStaffList(staff);
+        const normalizedAllowedStaffIds = Array.from(
+          new Set((allowedStaffIds || []).filter((id): id is string => typeof id === "string" && id.length > 0))
+        );
+        const allowedStaffIdSet = new Set(normalizedAllowedStaffIds);
 
-        if (staff.length === 0) {
+        const scopedStaff = normalizedAllowedStaffIds.length > 0
+          ? staff.filter((member) => allowedStaffIdSet.has(member.id))
+          : staff;
+
+        setStaffList(scopedStaff);
+
+        if (scopedStaff.length === 0) {
           setSelectedStaffId(null);
-          logger.warn("No staff found for clinic", { clinicId });
+          logger.warn("No provider available for booking scope", {
+            clinicId,
+            allowedStaffCount: normalizedAllowedStaffIds.length,
+          });
           toast({
             title: "Configuration Error",
-            description: "No staff member found for this clinic. Please contact the clinic.",
+            description: normalizedAllowedStaffIds.length > 0
+              ? "No assigned provider is available for this queue scope."
+              : "No staff member found for this clinic. Please contact the clinic.",
             variant: "destructive",
           });
           return;
         }
 
-        const preferred = defaultStaffId ? staff.find((s) => s.id === defaultStaffId) : null;
-        setSelectedStaffId(preferred ? preferred.id : staff[0].id);
+        const preferred = defaultStaffId ? scopedStaff.find((s) => s.id === defaultStaffId) : null;
+        setSelectedStaffId(preferred ? preferred.id : scopedStaff[0].id);
       } catch (error) {
         logger.error("Failed to fetch staff", error instanceof Error ? error : new Error(String(error)), { clinicId });
         toast({
@@ -166,7 +218,20 @@ export function BookAppointmentDialog({
     };
 
     fetchStaff();
-  }, [clinicId, open, toast, defaultStaffId]);
+  }, [clinicId, open, toast, defaultStaffId, allowedStaffIds]);
+
+  useEffect(() => {
+    if (availableAppointmentTypes.length === 0) {
+      if (appointmentType) {
+        setAppointmentType("");
+      }
+      return;
+    }
+
+    if (!availableAppointmentTypes.some((type) => type.name === appointmentType)) {
+      setAppointmentType(availableAppointmentTypes[0].name);
+    }
+  }, [appointmentType, availableAppointmentTypes]);
 
   useEffect(() => {
     const fetchSlotsForMode = async () => {
@@ -186,7 +251,12 @@ export function BookAppointmentDialog({
         );
 
         setQueueMode(slotsResponse.mode ?? null);
-        setAvailableTimeSlots(slotsResponse.slots.map((slot) => slot.time));
+        setAvailableTimeSlots(
+          (slotsResponse.slots || []).map((slot) => ({
+            time: slot.time,
+            available: slot.available !== false,
+          }))
+        );
       } catch (error) {
         logger.error("Failed to fetch mode-aware slots", error instanceof Error ? error : new Error(String(error)), {
           clinicId,
@@ -206,6 +276,14 @@ export function BookAppointmentDialog({
   useEffect(() => {
     setTime("");
   }, [date, appointmentType, selectedStaffId]);
+
+  useEffect(() => {
+    if (!time) return;
+    const selectedSlot = availableTimeSlots.find((slot) => slot.time === time);
+    if (!selectedSlot || !selectedSlot.available) {
+      setTime("");
+    }
+  }, [availableTimeSlots, time]);
 
   const handleSubmit = async () => {
     if (isLoadingSlots) {
@@ -228,7 +306,8 @@ export function BookAppointmentDialog({
       return;
     }
 
-    if (requiresTimeSlot && !availableTimeSlots.includes(time)) {
+    const selectedSlot = availableTimeSlots.find((slot) => slot.time === time);
+    if (requiresTimeSlot && (!selectedSlot || !selectedSlot.available)) {
       toast({
         title: "Slot not available",
         description: "The selected time slot is no longer available. Please choose another time.",
@@ -237,9 +316,19 @@ export function BookAppointmentDialog({
       return;
     }
 
+    const parsedUrgentPosition = Number(urgentPosition);
+    if (isWalkIn && urgentInsertion && (!Number.isInteger(parsedUrgentPosition) || parsedUrgentPosition < 1)) {
+      toast({
+        title: "Invalid urgent position",
+        description: "Urgent insertion requires a queue position greater than zero.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      const configuredTypes = getAppointmentTypes();
+      const configuredTypes = availableAppointmentTypes;
       const selectedTypeData = configuredTypes.find((type) => type.name === appointmentType);
       if (!selectedTypeData) {
         throw new Error("Clinic appointment types are not configured.");
@@ -288,24 +377,72 @@ export function BookAppointmentDialog({
         throw new Error(bookingResult.error || "Failed to book appointment");
       }
 
+      let overrideWarning: string | null = null;
+
+      if (isWalkIn && urgentInsertion && bookingResult.appointmentId) {
+        if (!performedBy) {
+          overrideWarning = "Appointment was booked, but urgent insertion requires an authenticated staff user.";
+        } else {
+          setIsApplyingPriorityOverride(true);
+          try {
+            const queueService = new QueueService();
+            await queueService.reorderQueue({
+              appointmentId: bookingResult.appointmentId,
+              newPosition: parsedUrgentPosition,
+              performedBy,
+              reason: 'Urgent walk-in insertion override',
+              allowedStaffIds,
+            });
+          } catch (priorityError) {
+            overrideWarning =
+              priorityError instanceof Error
+                ? priorityError.message
+                : 'The appointment was booked, but urgent insertion could not be applied.';
+            logger.error(
+              "Urgent walk-in insertion override failed",
+              priorityError instanceof Error ? priorityError : new Error(String(priorityError)),
+              {
+                clinicId,
+                appointmentId: bookingResult.appointmentId,
+                requestedPosition: parsedUrgentPosition,
+              }
+            );
+          } finally {
+            setIsApplyingPriorityOverride(false);
+          }
+        }
+      }
+
       const queuePositionText = bookingResult.queuePosition
         ? ` Queue position #${bookingResult.queuePosition}.`
         : "";
 
+      const queuedWithoutSlot = isFluidMode || (isHybridMode && !requiresTimeSlot);
+
       toast({
         title: "Success",
-        description: isFluidMode
+        description: queuedWithoutSlot
           ? `${fullName} added to queue.${queuePositionText}`
           : `Appointment booked for ${fullName}.${queuePositionText}`,
       });
+
+      if (overrideWarning) {
+        toast({
+          title: "Booked with warning",
+          description: overrideWarning,
+          variant: "destructive",
+        });
+      }
 
       setFullName("");
       setPhone("");
       setDate(preselectedDate || undefined);
       setTime("");
-      const types = getAppointmentTypes();
+      const types = availableAppointmentTypes;
       setAppointmentType(types[0]?.name || "");
       setReason("");
+      setUrgentInsertion(false);
+      setUrgentPosition("1");
       onOpenChange(false);
       onSuccess();
     } catch (error: unknown) {
@@ -315,6 +452,7 @@ export function BookAppointmentDialog({
         variant: "destructive",
       });
     } finally {
+      setIsApplyingPriorityOverride(false);
       setLoading(false);
     }
   };
@@ -412,7 +550,7 @@ export function BookAppointmentDialog({
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent className="rounded-[4px]">
-                    {getAppointmentTypes().map((type) => (
+                    {availableAppointmentTypes.map((type) => (
                       <SelectItem key={type.name} value={type.name}>
                         {type.label || type.name.replace("_", " ")} ({type.duration} min)
                       </SelectItem>
@@ -445,14 +583,36 @@ export function BookAppointmentDialog({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs text-muted-foreground">
-                    {isFluidMode ? "Queue Mode" : "Time Slot *"}
+                    {isFluidMode || (isHybridMode && !requiresTimeSlot) ? "Queue Mode" : "Time Slot *"}
                   </Label>
-                  {!isLoadingSlots && !isFluidMode && availableTimeSlots.length > 0 && (
+                  {!isLoadingSlots && !isFluidMode && requiresTimeSlot && availableTimeSlots.length > 0 && (
                     <span className="text-xs text-emerald-600 font-medium">
-                      {availableTimeSlots.length} available
+                      {availableSlotCount} available{bookedSlotCount > 0 ? ` • ${bookedSlotCount} booked` : ""}
                     </span>
                   )}
                 </div>
+                {isHybridMode && selectedStaffId && !isLoadingSlots && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={hybridBookingLane === 'slotted' ? 'default' : 'outline'}
+                      onClick={() => setHybridBookingLane('slotted')}
+                      className="h-8 text-xs"
+                    >
+                      Book with Time Slot
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={hybridBookingLane === 'overflow' ? 'default' : 'outline'}
+                      onClick={() => setHybridBookingLane('overflow')}
+                      className="h-8 text-xs"
+                    >
+                      Overflow Queue
+                    </Button>
+                  </div>
+                )}
                 {!selectedStaffId ? (
                   <div className="text-sm text-muted-foreground p-4 bg-muted/50 rounded-[4px]">
                     Select a doctor to view availability.
@@ -466,6 +626,10 @@ export function BookAppointmentDialog({
                   <div className="text-sm text-muted-foreground p-4 bg-muted/50 rounded-[4px]">
                     No fixed time slots in fluid mode. This patient will join the FIFO queue for the selected date.
                   </div>
+                ) : isHybridMode && hybridBookingLane === 'overflow' ? (
+                  <div className="text-sm text-muted-foreground p-4 bg-muted/50 rounded-[4px]">
+                    Hybrid overflow lane selected. This patient will join the no-time queue while timed slots remain available for scheduled bookings.
+                  </div>
                 ) : availableTimeSlots.length === 0 ? (
                   <div className="text-sm text-muted-foreground p-4 bg-muted/50 rounded-[4px] text-center">
                     No available slots for this date
@@ -474,19 +638,64 @@ export function BookAppointmentDialog({
                   <div className="grid grid-cols-4 gap-1.5 max-h-40 overflow-y-auto p-1">
                     {availableTimeSlots.map((slot) => (
                       <button
-                        key={slot}
+                        key={slot.time}
                         type="button"
-                        onClick={() => setTime(slot)}
+                        onClick={() => {
+                          if (!slot.available) return;
+                          setTime(slot.time);
+                        }}
+                        disabled={!slot.available}
                         className={cn(
-                          "h-9 text-sm font-medium rounded-[4px] transition-all",
-                          time === slot
+                          "h-10 text-sm font-medium rounded-[4px] transition-all border",
+                          time === slot.time && slot.available
                             ? "bg-foreground text-background"
-                            : "bg-muted/50 hover:bg-muted text-foreground"
+                            : slot.available
+                              ? "bg-muted/50 hover:bg-muted text-foreground border-transparent"
+                              : "bg-muted/30 text-muted-foreground border-border/70 cursor-not-allowed"
                         )}
                       >
-                        {slot}
+                        <span className="block leading-none">{slot.time}</span>
+                        {!slot.available && <span className="mt-0.5 block text-[10px] uppercase tracking-wide">Booked</span>}
                       </button>
                     ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isWalkIn && (
+              <div className="space-y-3 rounded-[4px] border border-amber-200/80 bg-amber-50/60 p-3">
+                <div className="flex items-start gap-2">
+                  <Checkbox
+                    id="urgentInsertion"
+                    checked={urgentInsertion}
+                    onCheckedChange={(checked) => setUrgentInsertion(checked === true)}
+                  />
+                  <div className="space-y-0.5">
+                    <Label htmlFor="urgentInsertion" className="text-xs text-amber-900">
+                      Urgent walk-in insertion
+                    </Label>
+                    <p className="text-xs text-amber-800/90">
+                      Move this patient to a specific queue position right after booking.
+                    </p>
+                  </div>
+                </div>
+
+                {urgentInsertion && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="urgentPosition" className="text-xs text-muted-foreground">
+                      Insert at queue position *
+                    </Label>
+                    <Input
+                      id="urgentPosition"
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={urgentPosition}
+                      onChange={(event) => setUrgentPosition(event.target.value)}
+                      placeholder="1"
+                      className={inputClass}
+                    />
                   </div>
                 )}
               </div>
@@ -517,6 +726,7 @@ export function BookAppointmentDialog({
               onClick={handleSubmit}
               disabled={
                 loading ||
+                isApplyingPriorityOverride ||
                 isLoadingSlots ||
                 !fullName ||
                 !phone ||
@@ -527,10 +737,10 @@ export function BookAppointmentDialog({
               }
               className="flex-1 h-10 rounded-[4px] bg-foreground text-background hover:bg-foreground/90"
             >
-              {loading ? (
+              {loading || isApplyingPriorityOverride ? (
                 <span className="flex items-center gap-2">
                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-background border-t-transparent"></div>
-                  Booking...
+                  {isApplyingPriorityOverride ? "Applying Priority..." : "Booking..."}
                 </span>
               ) : (
                 "Book Appointment"

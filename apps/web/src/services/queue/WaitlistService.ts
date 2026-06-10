@@ -1,7 +1,14 @@
 import { WaitlistRepository } from './repositories/WaitlistRepository';
 import { QueueService } from './QueueService';
 import { logger } from '../shared/logging/Logger';
-import { WaitlistEntry, CreateQueueEntryDTO, AppointmentType } from './models/QueueModels';
+import { QueueConfig } from '@/config/QueueConfig';
+import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from '../shared/errors';
+import {
+  WaitlistEntry,
+  CreateQueueEntryDTO,
+  AppointmentType,
+  WaitlistStatus,
+} from './models/QueueModels';
 
 export class WaitlistService {
   private repository: WaitlistRepository;
@@ -42,20 +49,85 @@ export class WaitlistService {
     startTime: Date,
     endTime: Date
   ): Promise<void> {
-    // 1. Get the waitlist entry (we need to implement getById in repo or just fetch list and find)
-    // For MVP, let's assume we have the details or fetch fresh
-    // Adding getById to repo would be better, but I'll just rely on the passed ID being valid for now 
-    // and assume we can proceed if we had the full object. 
-    // Actually, safer to fetch. I'll add getById to Repo later if needed, or just use getWaitlist and filter.
-    
-    // TODO: Fetch waitlist entry to get patient details.
-    // For now, this is a placeholder for the "Gap Manager" logic.
-    logger.info('Promoting waitlist entry to appointment', { waitlistId, staffId, startTime });
-    
-    // Mock logic:
-    // const entry = await this.repository.getById(waitlistId);
-    // await this.queueService.createAppointment({ ... });
-    // await this.repository.updateStatus(waitlistId, 'promoted');
+    if (!staffId) {
+      throw new ValidationError('Staff ID is required to promote a waitlist entry');
+    }
+
+    if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
+      throw new ValidationError('Valid start and end times are required for waitlist promotion');
+    }
+
+    const waitlistEntry = await this.repository.getWaitlistEntryById(waitlistId);
+
+    if (!waitlistEntry) {
+      throw new NotFoundError('Waitlist entry', waitlistId);
+    }
+
+    if (
+      waitlistEntry.status !== WaitlistStatus.WAITING &&
+      waitlistEntry.status !== WaitlistStatus.NOTIFIED
+    ) {
+      throw new BusinessRuleError(
+        `Waitlist entry cannot be promoted from status: ${waitlistEntry.status}`
+      );
+    }
+
+    if (!waitlistEntry.patientId) {
+      throw new ValidationError('Waitlist entry is missing a linked patient and cannot be promoted');
+    }
+
+    const effectiveStart = new Date(Math.max(startTime.getTime(), Date.now()));
+    const effectiveEnd = endTime.getTime() > effectiveStart.getTime()
+      ? endTime
+      : new Date(
+          effectiveStart.getTime() +
+            QueueConfig.DEFAULTS.DEFAULT_APPOINTMENT_DURATION_MINUTES * 60_000
+        );
+
+    const createDto: CreateQueueEntryDTO = {
+      clinicId: waitlistEntry.clinicId,
+      patientId: waitlistEntry.patientId,
+      staffId,
+      appointmentType: AppointmentType.CONSULTATION,
+      isWalkIn: true,
+      startTime: effectiveStart.toISOString(),
+      endTime: effectiveEnd.toISOString(),
+      isGapFiller: true,
+      promotedFromWaitlist: true,
+    };
+
+    const claimedEntry = await this.repository.claimForPromotion(waitlistEntry.id);
+    if (!claimedEntry) {
+      throw new ConflictError('Waitlist entry was already promoted by another process');
+    }
+
+    let promotedAppointmentId: string;
+
+    try {
+      const promotedAppointment = await this.queueService.createAppointment(createDto);
+      promotedAppointmentId = promotedAppointment.id;
+    } catch (error) {
+      try {
+        await this.repository.updateStatus(waitlistEntry.id, waitlistEntry.status);
+      } catch (rollbackError) {
+        logger.error(
+          'Failed to rollback waitlist promotion claim after appointment creation error',
+          rollbackError as Error,
+          { waitlistId: waitlistEntry.id }
+        );
+      }
+
+      throw error;
+    }
+
+    logger.info('Promoted waitlist entry to appointment', {
+      waitlistId: waitlistEntry.id,
+      appointmentId: promotedAppointmentId,
+      clinicId: waitlistEntry.clinicId,
+      startTime: createDto.startTime,
+      endTime: createDto.endTime,
+      staffId,
+    });
   }
 }
 

@@ -60,6 +60,7 @@ Parameters:
 Returns:
 - In 'slotted' mode: List of time slots with availability status
 - In 'fluid' mode: Confirmation that walk-in queue is open
+- In 'hybrid' mode: Time slots are available and overflow queue booking is also allowed
 - appointmentTypes: List of available appointment types for this clinic
 
 Note: Use clinic_search first if you don't have the clinic ID.`,
@@ -98,7 +99,7 @@ interface AvailabilityResult {
   clinicId: string;
   clinicName?: string;
   date: string;
-  mode: "fluid" | "slotted";
+  mode: "fluid" | "slotted" | "hybrid";
   available: boolean;
   message?: string;
   appointmentTypes: AppointmentTypeInfo[];
@@ -218,6 +219,34 @@ export async function executeBookingGetAvailability(
   // Slotted mode - return time slots
   const slots = slotsResponse.slots || [];
   const availableSlots = slots.filter((s: { available: boolean }) => s.available);
+
+  if (mode === "hybrid") {
+    return {
+      success: true,
+      clinicId: params.clinicId,
+      clinicName: clinic.name,
+      date: params.date,
+      mode: "hybrid",
+      available: true,
+      message:
+        `Hybrid queue mode is active. You may pick a time slot or join overflow without a fixed time. ` +
+        `${availableSlots.length} slots currently available.`,
+      appointmentTypes: appointmentTypes.map((t: { name: string; label: string; duration: number }) => ({
+        name: t.name,
+        label: t.label,
+        duration: t.duration,
+      })),
+      slots: slots.map((slot: { time: string; available: boolean }) => ({
+        time: slot.time,
+        available: slot.available,
+      })),
+      summary: {
+        totalSlots: slots.length,
+        availableSlots: availableSlots.length,
+        bookedSlots: slots.length - availableSlots.length,
+      },
+    };
+  }
 
   return {
     success: true,

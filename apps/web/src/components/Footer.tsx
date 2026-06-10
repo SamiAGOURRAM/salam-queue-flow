@@ -1,4 +1,33 @@
 import { Facebook, Twitter, Linkedin, Instagram } from "lucide-react";
+import { Link } from "react-router-dom";
+
+const socialLinks = [
+  { href: "https://www.facebook.com/", label: "Facebook", icon: Facebook },
+  { href: "https://x.com/", label: "X", icon: Twitter },
+  { href: "https://www.linkedin.com/", label: "LinkedIn", icon: Linkedin },
+  { href: "https://www.instagram.com/", label: "Instagram", icon: Instagram },
+];
+
+const productLinks = [
+  { label: "Features", to: "/welcome#features" },
+  { label: "Pricing", to: "/welcome#pricing" },
+  { label: "Case Studies", to: "/welcome#case-studies" },
+  { label: "Integrations", to: "/welcome#integrations" },
+];
+
+const companyLinks = [
+  { label: "About Us", to: "/welcome" },
+  { label: "Careers", to: "/welcome#careers" },
+  { label: "Blog", to: "/welcome#blog" },
+  { label: "Contact", to: "/welcome#contact" },
+];
+
+const legalLinks = [
+  { label: "Privacy Policy", to: "/welcome#privacy-policy" },
+  { label: "Terms of Service", to: "/welcome#terms-of-service" },
+  { label: "Cookie Policy", to: "/welcome#cookie-policy" },
+  { label: "HIPAA Compliance", to: "/welcome#hipaa" },
+];
 
 const Footer = () => {
   return (
@@ -17,18 +46,21 @@ const Footer = () => {
               Modern queue management for Moroccan healthcare. Powered by AI.
             </p>
             <div className="flex gap-3">
-              <a href="#" className="w-9 h-9 rounded-lg bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors">
-                <Facebook className="w-4 h-4 text-primary" />
-              </a>
-              <a href="#" className="w-9 h-9 rounded-lg bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors">
-                <Twitter className="w-4 h-4 text-primary" />
-              </a>
-              <a href="#" className="w-9 h-9 rounded-lg bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors">
-                <Linkedin className="w-4 h-4 text-primary" />
-              </a>
-              <a href="#" className="w-9 h-9 rounded-lg bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors">
-                <Instagram className="w-4 h-4 text-primary" />
-              </a>
+              {socialLinks.map((link) => {
+                const Icon = link.icon;
+                return (
+                  <a
+                    key={link.label}
+                    href={link.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={link.label}
+                    className="w-9 h-9 rounded-lg bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors"
+                  >
+                    <Icon className="w-4 h-4 text-primary" />
+                  </a>
+                );
+              })}
             </div>
           </div>
 
@@ -36,10 +68,13 @@ const Footer = () => {
           <div>
             <h3 className="font-semibold mb-4">Product</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><a href="#" className="hover:text-primary transition-colors">Features</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Pricing</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Case Studies</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Integrations</a></li>
+              {productLinks.map((link) => (
+                <li key={link.label}>
+                  <Link to={link.to} className="hover:text-primary transition-colors">
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 
@@ -47,10 +82,13 @@ const Footer = () => {
           <div>
             <h3 className="font-semibold mb-4">Company</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><a href="#" className="hover:text-primary transition-colors">About Us</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Careers</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Blog</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Contact</a></li>
+              {companyLinks.map((link) => (
+                <li key={link.label}>
+                  <Link to={link.to} className="hover:text-primary transition-colors">
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 
@@ -58,10 +96,13 @@ const Footer = () => {
           <div>
             <h3 className="font-semibold mb-4">Legal</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><a href="#" className="hover:text-primary transition-colors">Privacy Policy</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Terms of Service</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Cookie Policy</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">HIPAA Compliance</a></li>
+              {legalLinks.map((link) => (
+                <li key={link.label}>
+                  <Link to={link.to} className="hover:text-primary transition-colors">
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
         </div>

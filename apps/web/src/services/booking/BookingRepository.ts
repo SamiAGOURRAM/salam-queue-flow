@@ -160,7 +160,7 @@ export class BookingRepository {
       throw new Error('Failed to fetch queue mode');
     }
 
-    if (data !== QueueMode.FLUID && data !== QueueMode.SLOTTED) {
+    if (data !== QueueMode.FLUID && data !== QueueMode.SLOTTED && data !== QueueMode.HYBRID) {
       throw new Error(`Unsupported queue mode: ${String(data)}`);
     }
 
@@ -176,16 +176,6 @@ export class BookingRepository {
     appointmentType: string,
     staffId: string
   ): Promise<AvailableSlotsResponse> {
-    const mode = await this.getQueueModeForDate(clinicId, date);
-    
-    if (mode === QueueMode.FLUID) {
-      return {
-        available: true,
-        slots: [],
-        mode: QueueMode.FLUID
-      };
-    }
-
     const { data, error } = await supabase.rpc('get_available_slots_for_mode', {
       p_clinic_id: clinicId,
       p_staff_id: staffId,
@@ -203,9 +193,19 @@ export class BookingRepository {
         ? (data as Record<string, unknown>)
         : {};
 
+    const responseModeRaw = responsePayload.mode;
+    const responseMode =
+      responseModeRaw === QueueMode.FLUID ||
+      responseModeRaw === QueueMode.SLOTTED ||
+      responseModeRaw === QueueMode.HYBRID
+        ? responseModeRaw
+        : null;
+
+    const fallbackMode = responseMode ?? await this.getQueueModeForDate(clinicId, date);
+
     return {
       ...responsePayload,
-      mode
+      mode: fallbackMode
     } as AvailableSlotsResponse;
   }
 

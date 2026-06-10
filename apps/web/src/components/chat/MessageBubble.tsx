@@ -3,28 +3,20 @@
  */
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-
-interface ChatMessage {
-  id: string;
-  text: string;
-  sender: "user" | "assistant";
-  timestamp: Date;
-}
+import type { ChatMessage } from "@/services/chat";
+import { DiscoveryCardsView } from "./DiscoveryCardsView";
 
 interface MessageBubbleProps {
   message: ChatMessage;
+  /** Called when a discovery card is tapped (e.g. to close the chat before navigating). */
+  onCardNavigate?: () => void;
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, onCardNavigate }: MessageBubbleProps) {
   const isUser = message.sender === "user";
 
   return (
-    <div
-      className={cn(
-        "flex w-full",
-        isUser ? "justify-end" : "justify-start"
-      )}
-    >
+    <div className={cn("flex w-full flex-col", isUser ? "items-end" : "items-start")}>
       <div
         className={cn(
           "max-w-[80%] rounded-lg px-4 py-2 shadow-sm",
@@ -45,7 +37,12 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           {format(message.timestamp, "HH:mm")}
         </p>
       </div>
+
+      {message.cards && (
+        <div className="mt-1 w-[90%]">
+          <DiscoveryCardsView cards={message.cards} onNavigate={onCardNavigate} />
+        </div>
+      )}
     </div>
   );
 }
-

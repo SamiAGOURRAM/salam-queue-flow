@@ -1,6 +1,9 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Logger } from '@/services/shared/logging/Logger';
-import type { ClinicRating, ClinicRatingStats } from '@/integrations/supabase/types';
+import type { Tables } from '@/integrations/supabase/types';
+
+type ClinicRating = Tables<'clinic_ratings'>;
+type ClinicRatingStats = Tables<'clinic_rating_stats'>;
 
 export class RatingService {
   private logger: Logger;

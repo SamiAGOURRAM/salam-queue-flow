@@ -3,6 +3,7 @@ import {
   medicalRecordSharingService,
   type AccessRequestResult,
   type ActiveGrantCheck,
+  type GrantScope,
   type OtpValidationResult,
   type SharedAppointmentDetail,
   type SharedAppointmentSummary,
@@ -78,14 +79,19 @@ export function useMedicalRecordAccess(patientId: string | undefined) {
   }, [patientId, syncActiveGrant]);
 
   const requestAccess = useCallback(
-    async (appointmentId: string, clinicId: string, ownerOverrideReason?: string): Promise<AccessRequestResult> => {
+    async (
+      appointmentId: string,
+      clinicId: string,
+      ownerOverrideReason?: string,
+      scope?: GrantScope
+    ): Promise<AccessRequestResult> => {
       if (!patientId) {
         throw new Error('No patient selected');
       }
 
       setState((prev) => ({ ...prev, loading: true, error: null }));
       try {
-        const result = await service.requestAccess(patientId, appointmentId, clinicId, ownerOverrideReason);
+        const result = await service.requestAccess(patientId, appointmentId, clinicId, ownerOverrideReason, scope);
         setState((prev) => ({
           ...prev,
           loading: false,

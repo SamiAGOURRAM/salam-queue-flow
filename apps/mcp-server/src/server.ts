@@ -12,8 +12,9 @@ import {
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { registerTools, executeToolCall } from "./tools/index.js";
+import { getAccessibleTools, executeToolCall } from "./tools/index.js";
 import { registerResources, getResource } from "./resources/index.js";
+import { resolveAuthContext } from "./middleware/auth/requestContext.js";
 import { logger } from "./utils/logger.js";
 
 /**
@@ -42,8 +43,14 @@ export function createMCPServer(): Server {
    */
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     logger.debug("Listing tools");
-    const tools = registerTools();
-    logger.info("Tools listed", { count: tools.length });
+    const context = await resolveAuthContext();
+    // Only advertise tools the caller is actually allowed to invoke.
+    const tools = getAccessibleTools(context);
+    logger.info("Tools listed", {
+      count: tools.length,
+      role: context.role,
+      isAuthenticated: context.isAuthenticated,
+    });
     return { tools };
   });
 
@@ -53,13 +60,17 @@ export function createMCPServer(): Server {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
     
-    logger.info("Tool call received", { 
-      tool: name, 
+    const context = await resolveAuthContext();
+
+    logger.info("Tool call received", {
+      tool: name,
       hasArgs: !!args,
+      role: context.role,
+      isAuthenticated: context.isAuthenticated,
     });
 
     try {
-      const result = await executeToolCall(name, args || {});
+      const result = await executeToolCall(name, args || {}, context);
       logger.info("Tool call completed", { tool: name, success: true });
       return result;
     } catch (error) {

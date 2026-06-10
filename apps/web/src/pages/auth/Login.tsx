@@ -15,12 +15,34 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sendingReset, setSendingReset] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useTranslation();
   
   // Force light mode on login page
   useForceLightMode();
+
+  const resolvePostLoginPath = (
+    roleRows: Array<{ role: "super_admin" | "clinic_owner" | "staff" | "patient" }>
+  ): string => {
+    const roleSet = new Set(roleRows.map((row) => row.role));
+
+    if (roleSet.has("super_admin")) {
+      return "/super-admin";
+    }
+
+    // Prioritize clinic roles when users have both patient and clinic identities.
+    if (roleSet.has("clinic_owner") || roleSet.has("staff")) {
+      return "/clinic/profile";
+    }
+
+    if (roleSet.has("patient")) {
+      return "/my-appointments";
+    }
+
+    return "/";
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,23 +57,21 @@ export default function Login() {
       if (error) throw error;
 
       if (data.user) {
-        // Fetch user role to redirect appropriately
-        const { data: roles } = await supabase
+        // Fetch all roles so users with multiple roles are routed deterministically.
+        const { data: roles, error: rolesError } = await supabase
           .from("user_roles")
           .select("role")
-          .eq("user_id", data.user.id)
-          .limit(1)
-          .single();
+          .eq("user_id", data.user.id);
 
-        if (roles?.role === "patient") {
-          navigate("/");
-        } else if (roles?.role === "clinic_owner") {
-          navigate("/clinic/dashboard");
-        } else if (roles?.role === "staff") {
-          navigate("/clinic/reception");
-        } else {
-          navigate("/");
+        if (rolesError) {
+          throw rolesError;
         }
+
+        const redirectPath = resolvePostLoginPath(
+          (roles ?? []) as Array<{ role: "super_admin" | "clinic_owner" | "staff" | "patient" }>
+        );
+
+        navigate(redirectPath);
 
         toast({
           title: t('auth.login.successTitle'),
@@ -70,6 +90,44 @@ export default function Login() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    const targetEmail = email.trim();
+
+    if (!targetEmail) {
+      toast({
+        title: t('auth.login.errorTitle'),
+        description: t('auth.login.emailRequiredForReset', { defaultValue: 'Enter your email first to reset your password.' }),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSendingReset(true);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(targetEmail);
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: t('auth.login.resetPasswordSentTitle', { defaultValue: 'Reset email sent' }),
+        description: t('auth.login.resetPasswordSentDescription', { defaultValue: 'Check your inbox for password reset instructions.' }),
+      });
+    } catch (error: unknown) {
+      toast({
+        title: t('auth.login.errorTitle'),
+        description:
+          error instanceof Error
+            ? error.message
+            : t('auth.login.errorDescription', { defaultValue: 'Unable to send reset email' }),
+        variant: "destructive",
+      });
+    } finally {
+      setSendingReset(false);
     }
   };
 
@@ -159,9 +217,16 @@ export default function Login() {
                     <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
                     <span className="text-gray-600">{t('auth.login.rememberMe', 'Remember me')}</span>
                   </label>
-                  <Link to="/auth/forgot-password" className="text-gray-600 hover:text-gray-900 font-medium">
-                    {t('auth.login.forgotPassword', 'Forgot password?')}
-                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={sendingReset}
+                    className="text-gray-600 hover:text-gray-900 font-medium disabled:opacity-60"
+                  >
+                    {sendingReset
+                      ? t('auth.login.sendingReset', { defaultValue: 'Sending...' })
+                      : t('auth.login.forgotPassword', 'Forgot password?')}
+                  </button>
                 </div>
 
                 {/* Submit Button */}
@@ -223,7 +288,7 @@ export default function Login() {
                 {/* Terms */}
                 <p className="text-xs text-gray-500 text-center">
                   By continuing, you acknowledge QueueMed's{" "}
-                  <Link to="/privacy" className="underline hover:text-gray-700">Privacy Policy</Link>.
+                  <Link to="/welcome#privacy-policy" className="underline hover:text-gray-700">Privacy Policy</Link>.
                 </p>
               </form>
 

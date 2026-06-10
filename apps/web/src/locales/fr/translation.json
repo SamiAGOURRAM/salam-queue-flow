@@ -18,13 +18,31 @@
       "morocco": "Maroc",
       "changeLocation": "Changer de lieu"
     },
+    "spotlight": {
+      "liveLabel": "Statut de file en direct",
+      "averageWaitDescription": "Temps d'attente moyen dans nos cliniques partenaires",
+      "waitUnavailable": "Le temps d'attente moyen s'affichera à mesure que les cliniques partagent plus de données d'horaire",
+      "title": "Nous supprimons les salles d'attente",
+      "description": "QueueMed synchronise votre arrivée avec votre rendez-vous. Plus d'attente inutile en salle. Arrivez, consultez, repartez.",
+      "partnerClinics": "Cliniques partenaires",
+      "patientReviews": "Avis patients",
+      "avgRating": "Note moyenne",
+      "noRating": "--",
+      "findClinic": "Trouver une clinique"
+    },
+    "accessibility": {
+      "heroImageAlt": "Réception moderne de clinique avec arrivée d'un patient",
+      "generalCareAlt": "Services de médecine générale",
+      "dentalAlt": "Services dentaires",
+      "specialistsAlt": "Services médicaux spécialisés"
+    },
     "stats": {
       "verifiedClinics": "Cliniques vérifiées",
       "avgRating": "Note moyenne",
       "patientsServed": "Patients servis"
     },
     "suggestions": {
-      "title": "Suggestions",
+      "title": "Recommandations",
       "generalCare": "Médecine générale",
       "generalCareDesc": "Bilans de santé, consultations et soins préventifs",
       "dental": "Dentaire",
@@ -37,31 +55,33 @@
       "title": "Connectez-vous pour gérer vos rendez-vous",
       "description": "Consultez vos rendez-vous à venir, vos visites passées, vos cliniques favorites et obtenez des recommandations personnalisées.",
       "signIn": "Se connecter",
-      "createAccount": "Créer un compte"
+      "createAccount": "Créer un compte",
+      "dashboardLabel": "Votre tableau de santé"
     },
     "forClinics": {
       "title": "Gérez votre clinique facilement",
       "description": "Réduisez les temps d'attente, gérez votre file en temps réel et offrez une meilleure expérience à vos patients grâce à notre plateforme IA.",
       "register": "Enregistrer votre clinique",
-      "learnMore": "En savoir plus"
+      "learnMore": "En savoir plus",
+      "dashboardLabel": "Tableau de bord clinique"
     },
     "footer": {
       "company": "Entreprise",
       "aboutUs": "À propos",
       "careers": "Carrières",
-      "blog": "Blog",
+      "blog": "Actualités",
       "products": "Produits",
       "findClinics": "Trouver des cliniques",
       "forClinics": "Pour les cliniques",
       "api": "API",
-      "support": "Support",
+      "support": "Assistance",
       "helpCenter": "Centre d'aide",
       "contactUs": "Nous contacter",
       "safety": "Sécurité",
       "legal": "Mentions légales",
       "terms": "Conditions",
       "privacy": "Confidentialité",
-      "cookies": "Cookies",
+      "cookies": "Cookies et traceurs",
       "copyright": "© 2025 QueueMed. Tous droits réservés."
     },
     "nav": {
@@ -191,22 +211,57 @@
     "patientsServed": "Patients servis",
     "avgRating": "Note moyenne",
     "rating": "Évaluation",
+    "allRatings": "Toutes les notes",
+    "minRatingTag": "{{rating}}+ étoiles",
     "clinics": "Cliniques",
     "clinic_one": "Clinique",
     "clinic_other": "Cliniques",
     "available": "Disponible",
     "noClinicsFound": "Aucune clinique trouvée",
+    "notFoundDescription": "La clinique recherchée n'existe pas ou a été supprimée.",
     "tryAdjustingFilters": "Essayez d'ajuster vos critères de recherche",
     "findPerfectProvider": "Trouvez le prestataire de santé parfait",
     "searchPlaceholder": "Rechercher par nom, spécialité ou lieu...",
+    "selectDate": "Date",
+    "timeSlots": {
+      "any": "Tout",
+      "morning": "Matin",
+      "afternoon": "Après-midi",
+      "evening": "Soir",
+      "morningShort": "AM",
+      "afternoonShort": "PM",
+      "eveningShort": "Soir"
+    },
     "bookAppointment": "Réserver un rendez-vous",
     "bookNow": "Réserver maintenant",
+    "book": "Réserver",
+    "details": "Détails",
+    "backToClinics": "Retour aux cliniques",
     "openNow": "OUVERT MAINTENANT",
     "newClinic": "Nouvelle clinique",
     "allSpecialtiesText": "Toutes les spécialités",
     "allSpecialtiesDesc": "Trouvez des médecins dans tous les domaines médicaux",
     "instantBooking": "Réservation instantanée",
-    "instantBookingDesc": "Aucune attente requise"
+    "instantBookingDesc": "Aucune attente requise",
+    "instantConfirmation": "Confirmation instantanée",
+    "reviewCount": "({{count}} avis)",
+    "availableServices": "Services disponibles",
+    "free": "Gratuit",
+    "clinicInfo": "Infos de la clinique",
+    "appointmentRequired": "Rendez-vous requis",
+    "maxQueue": "File maximale",
+    "patientCount": "{{count}} patients",
+    "bufferTime": "Temps tampon",
+    "bufferTimeMinutes": "{{count}} min entre deux rendez-vous",
+    "ourTeam": "Notre équipe",
+    "staffMember": "Membre du personnel",
+    "readyToBook": "Prêt à réserver ?",
+    "readyToBookDescription": "Planifiez votre rendez-vous maintenant et évitez l'attente.",
+    "paymentMethodsNotConfigured": "Les moyens de paiement ne sont pas encore configurés pour cette clinique.",
+    "preferencesNotConfigured": "Les préférences de la clinique ne sont pas encore configurées.",
+    "fallbackName": "Clinique",
+    "fallbackSpecialty": "Spécialité non disponible",
+    "fallbackCity": "Ville non disponible"
   },
   "doctorDirectory": {
     "title": "Parcourir les médecins",
@@ -247,7 +302,16 @@
     "hours": "Heures",
     "today": "Aujourd'hui",
     "schedule": "Horaire",
-    "workingHours": "Heures de travail"
+    "workingHours": "Heures de travail",
+    "days": {
+      "sunday": "dimanche",
+      "monday": "lundi",
+      "tuesday": "mardi",
+      "wednesday": "mercredi",
+      "thursday": "jeudi",
+      "friday": "vendredi",
+      "saturday": "samedi"
+    }
   },
   "favorites": {
     "addedToFavorites": "Ajouté aux favoris",
@@ -263,6 +327,38 @@
     "failedToLoad": "Échec du chargement",
     "tryAgain": "Veuillez réessayer",
     "somethingWentWrong": "Quelque chose s'est mal passé"
+  },
+  "publicQueueStatus": {
+    "loading": "Chargement du statut de file...",
+    "unavailableTitle": "Statut de file indisponible",
+    "backToHome": "Retour à l'accueil",
+    "liveStatus": "Statut de file en direct",
+    "currentPosition": "Position actuelle",
+    "autoRefresh": "Actualisation automatique toutes les 20 secondes",
+    "clinic": "Clinique",
+    "estimatedTime": "Heure estimée",
+    "appointmentDate": "Date du rendez-vous",
+    "visitType": "Type de visite",
+    "updatedAt": "Mis à jour à {{time}}",
+    "refresh": "Actualiser",
+    "calculating": "Calcul en cours...",
+    "notAvailable": "Non disponible",
+    "justNow": "à l'instant",
+    "status": {
+      "scheduled": "Planifié",
+      "waiting": "Dans la file",
+      "inProgress": "Votre tour",
+      "completed": "Terminé",
+      "cancelled": "Annulé",
+      "noShow": "Absent",
+      "unknown": "Inconnu"
+    },
+    "errors": {
+      "missingToken": "Jeton de statut manquant.",
+      "invalidLink": "Ce lien de statut de file est invalide ou expiré.",
+      "loadFailed": "Impossible de charger le statut de file pour le moment. Veuillez réessayer.",
+      "linkExpired": "Ce lien n'est plus valide."
+    }
   },
   "appointments": {
     "hero": {
@@ -322,7 +418,194 @@
     "favoritesTitle": "Mes cliniques favorites",
     "removeFavoriteError": "Échec de la suppression du favori : {{error}}"
   },
+  "clinicLayout": {
+    "loading": "Chargement...",
+    "nav": {
+      "dashboard": "Tableau de bord",
+      "liveQueue": "File en direct",
+      "calendar": "Calendrier",
+      "templates": "Modèles",
+      "medications": "Médicaments",
+      "team": "Équipe",
+      "profile": "Profil",
+      "settings": "Paramètres",
+      "signOut": "Se déconnecter"
+    },
+    "settingsTabs": {
+      "general": "Général",
+      "schedule": "Planning",
+      "queueMode": "Mode file",
+      "appointments": "Rendez-vous",
+      "doctorOverrides": "Paramètres médecins",
+      "resources": "Ressources",
+      "payments": "Paiements"
+    },
+    "search": {
+      "placeholder": "Rechercher des pages...",
+      "settingsPrefix": "Paramètres",
+      "noResultsTitle": "Aucun résultat",
+      "noResultsDescription": "Essayez tableau de bord, file, calendrier, modèles, médicaments, équipe, profil ou paramètres."
+    },
+    "header": {
+      "openCalendar": "Ouvrir le calendrier",
+      "emailSupport": "Contacter le support",
+      "online": "En ligne",
+      "userFallback": "Utilisateur",
+      "clinicFallback": "QueueMed"
+    }
+  },
+  "clinicDashboard": {
+    "stats": {
+      "queue": "File",
+      "queueDescription": "Patients actuellement en attente",
+      "active": "En cours",
+      "activeDescription": "En consultation maintenant",
+      "completed": "Terminés",
+      "completedDescription": "Rendez-vous terminés aujourd'hui",
+      "avgWait": "Attente moy.",
+      "avgWaitDescription": "Temps d'attente moyen des patients"
+    },
+    "chart": {
+      "title": "Aperçu des rendez-vous",
+      "completed": "Terminés",
+      "missed": "Manqués",
+      "filters": {
+        "7d": "7J",
+        "30d": "30J",
+        "90d": "3M",
+        "1y": "1A"
+      }
+    },
+    "quickActions": {
+      "title": "Actions rapides",
+      "manageQueue": "Gérer la file",
+      "manageQueueDescription": "Gérer le flux patient",
+      "calendar": "Calendrier",
+      "calendarDescription": "Voir le planning",
+      "team": "Équipe",
+      "teamDescription": "Gérer le personnel",
+      "settings": "Paramètres",
+      "settingsDescription": "Configurer la clinique"
+    },
+    "liveQueue": {
+      "title": "File en direct",
+      "patientCount_one": "{{count}} patient",
+      "patientCount_other": "{{count}} patients",
+      "viewAll": "Tout voir",
+      "loading": "Chargement de la file...",
+      "emptyTitle": "Aucun patient dans la file",
+      "emptyDescription": "Votre file est actuellement vide",
+      "addPatient": "Ajouter un patient",
+      "morePatients": "+{{count}} autres patients dans la file"
+    },
+    "table": {
+      "position": "#",
+      "patient": "Patient",
+      "type": "Type",
+      "time": "Heure",
+      "status": "Statut",
+      "consultationFallback": "Consultation",
+      "patientFallback": "Patient",
+      "initialFallback": "P"
+    },
+    "status": {
+      "inProgress": "En cours",
+      "waiting": "En attente"
+    },
+    "waitTime": {
+      "none": "-",
+      "minutes": "{{count}} min",
+      "hoursMinutes": "{{hours}} h {{minutes}} min"
+    }
+  },
+  "clinicQueue": {
+    "loading": {
+      "queueInfo": "Chargement des informations de la file...",
+      "queue": "Chargement de la file..."
+    },
+    "access": {
+      "noClinicTitle": "Aucun accès clinique",
+      "noClinicDescription": "Votre compte n'est lié à aucune clinique.",
+      "permissionTitle": "Permission requise",
+      "permissionDescription": "Votre rôle ne permet pas de gérer la file en direct."
+    },
+    "toasts": {
+      "errorTitle": "Erreur",
+      "successTitle": "Succès",
+      "queueUpdated": "La file a été mise à jour."
+    },
+    "header": {
+      "title": "File en direct",
+      "book": "Réserver",
+      "walkIn": "Sans rendez-vous",
+      "endDay": "Clore la journée"
+    },
+    "scope": {
+      "label": "Vue de la file",
+      "clinic": "Vue générale",
+      "personal": "Ma file"
+    },
+    "doctorQueues": {
+      "title": "Files des médecins",
+      "doctorOption": "File de {{name}}",
+      "openDoctorQueue": "Ouvrir la file de {{name}}",
+      "viewingNow": "File active",
+      "fallbackDoctor": "Médecin {{count}}"
+    },
+    "staffProfile": {
+      "title": "Profil staff requis",
+      "ownerDescription": "En tant que propriétaire de clinique, vous avez besoin d'un profil staff pour gérer la file.",
+      "staffDescription": "Un profil staff est requis. Contactez l'administrateur de votre clinique."
+    },
+    "booking": {
+      "walkInReason": "Patient sans rendez-vous",
+      "walkInTitle": "Ajouter un patient sans rendez-vous",
+      "walkInDescription": "Programmez un patient arrivé sans rendez-vous."
+    }
+  },
   "clinicSettings": {
+    "doctorOverrides": {
+      "tab": {
+        "title": "Paramètres médecins",
+        "description": "Définissez ce que chaque médecin peut personnaliser : horaires, types de rendez-vous et mode de file."
+      },
+      "overview": "Partez des réglages de la clinique, puis laissez chaque médecin utiliser ses propres réglages si nécessaire.",
+      "helper": "Autorisez le médecin à utiliser ses propres horaires, types de rendez-vous et mode de file par jour.",
+      "doctorLabel": "Médecin",
+      "selectDoctorPlaceholder": "Sélectionner un médecin",
+      "loading": "Chargement des paramètres médecin...",
+      "empty": "Aucun médecin actif trouvé pour cette clinique.",
+      "fallbackDoctor": "Médecin",
+      "fallbackDoctorWithSpecialty": "Médecin - {{specialty}}",
+      "fallbackDoctorName": "Médecin {{count}}",
+      "workingHours": {
+        "title": "Horaires personnels",
+        "description": "Autoriser le médecin à utiliser ses propres horaires."
+      },
+      "appointmentTypes": {
+        "title": "Types de rendez-vous personnels",
+        "description": "Autoriser le médecin à utiliser ses propres types de rendez-vous et durées.",
+        "add": "Ajouter un type de rendez-vous du médecin"
+      },
+      "queueMode": {
+        "title": "Mode de file personnel",
+        "description": "Autoriser le médecin à utiliser son propre mode de file par jour."
+      },
+      "actions": {
+        "save": "Enregistrer les paramètres du médecin",
+        "saving": "Enregistrement..."
+      },
+      "toasts": {
+        "loadFailed": "Impossible de charger les paramètres du médecin",
+        "doctorNotSelectedTitle": "Médecin non sélectionné",
+        "doctorNotSelectedDescription": "Veuillez sélectionner un médecin.",
+        "invalidAppointmentTypesTitle": "Types de rendez-vous invalides",
+        "invalidAppointmentTypesDescription": "Ajoutez au moins un type de rendez-vous pour ce médecin.",
+        "minAppointmentTypesDescription": "Au moins un type de rendez-vous est requis.",
+        "savedDescription": "Paramètres du médecin mis à jour",
+        "saveFailed": "Échec de l'enregistrement des paramètres du médecin"
+      }
+    },
     "resources": {
       "tab": {
         "title": "Ressources",
@@ -425,9 +708,483 @@
         "revokeAllDescription": "{{count}} partage(s) actif(s) ont ete revoques.",
         "revokeAllFailedTitle": "Echec de la revocation totale"
       }
+    },
+    "doctor": {
+      "requestDialog": {
+        "title": "Demander l'historique medical",
+        "descriptionWithPatient": "Demande d'acces pour {{patientName}}.",
+        "descriptionDefault": "Demander un acces temporaire a l'historique du patient.",
+        "intro": "Un code de verification a usage unique sera envoye au patient. L'acces reste limite dans le temps et revocable.",
+        "patientCodeLabel": "Code patient",
+        "accessDurationLabel": "Duree d'acces",
+        "accessScopeLabel": "Perimetre d'acces",
+        "patientHasAppHint": "Le patient peut aussi approuver dans l'application. Le code OTP reste disponible en secours.",
+        "patientNoAppHint": "Demandez au patient de lire le code a 6 chiffres recu par SMS ou email.",
+        "actions": {
+          "sendAccessCode": "Envoyer le code d'acces",
+          "resendCode": "Renvoyer le code",
+          "verifyAndOpen": "Verifier et ouvrir l'historique"
+        },
+        "durationOptions": {
+          "thisAppointment": "Cette consultation (1 heure)",
+          "hours24": "24 heures",
+          "oneWeek": "1 semaine"
+        },
+        "scopeOptions": {
+          "thisAppointment": "Cette consultation uniquement",
+          "fullHistory": "Historique medical complet"
+        },
+        "toasts": {
+          "missingContextTitle": "Impossible de demander l'acces",
+          "missingContextDescription": "Contexte patient ou rendez-vous manquant.",
+          "deliveryPendingTitle": "Envoi du code en attente",
+          "deliveryPendingDescription": "L'envoi a echoue. Vous pouvez reessayer.",
+          "codeSentTitle": "Code d'acces envoye",
+          "codeSentDescription": "Un code a usage unique a ete envoye via {{channel}}.",
+          "requestFailedTitle": "Echec de la demande d'historique medical",
+          "unexpectedError": "Erreur inattendue",
+          "waitBeforeRetryTitle": "Veuillez patienter avant de reessayer",
+          "retryInSeconds": "Reessayez dans {{seconds}} secondes.",
+          "cooldownActiveDescription": "Le delai avant renvoi est actif.",
+          "newCodeSentTitle": "Un nouveau code a ete envoye",
+          "newCodeSentDescription": "Demandez au patient le nouveau code a 6 chiffres.",
+          "resendFailedTitle": "Echec du renvoi du code",
+          "enterCodeTitle": "Saisissez un code a 6 chiffres",
+          "enterCodeDescription": "Veuillez saisir le code complet fourni par le patient.",
+          "invalidCodeTitle": "Code invalide",
+          "attemptsRemainingDescription": "{{count}} tentative(s) restante(s).",
+          "verifyCodeDescription": "Veuillez verifier le code puis reessayer.",
+          "codeLockedTitle": "Saisie du code verrouillee",
+          "retryAfterTimeDescription": "Reessayez apres {{time}}.",
+          "validateFailedTitle": "Impossible de valider le code",
+          "tryAgainDescription": "Veuillez reessayer.",
+          "unlockedTitle": "Historique medical debloque",
+          "unlockedDescription": "L'acces est maintenant actif pour la duree choisie.",
+          "validateRequestFailedTitle": "Echec de la validation du code"
+        }
+      },
+      "sharedRecords": {
+        "title": "Historique medical partage",
+        "expiryUnknown": "Inconnu",
+        "expired": "Expire",
+        "minRemaining": "{{count}} min",
+        "hourMinRemaining": "{{hours}}h {{minutes}}m",
+        "accessWithPatient": "{{patientName}} - L'acces expire dans {{expires}}",
+        "accessWithoutPatient": "L'acces expire dans {{expires}}",
+        "accessExpired": "Acces expire",
+        "expiresIn": "Expire dans {{expires}}",
+        "loading": "Chargement des dossiers partages...",
+        "empty": "Aucun rendez-vous precedent trouve pour ce patient.",
+        "diagnosisBadge": "Dx",
+        "prescriptionBadge": "Ord",
+        "labsBadge": "Lab",
+        "procedureReportsBadge": "Rapports",
+        "notesBadge": "Notes",
+        "selectAppointment": "Selectionnez un rendez-vous pour voir les details.",
+        "reasonForVisit": "Motif de visite",
+        "clinicalNotes": "Notes cliniques",
+        "diagnoses": "Diagnostics",
+        "noVisibleDiagnoses": "Aucun diagnostic visible.",
+        "prescriptions": "Ordonnances",
+        "noVisiblePrescriptions": "Aucune ordonnance visible.",
+        "labResults": "Resultats de laboratoire",
+        "noVisibleLabResults": "Aucun resultat de laboratoire visible.",
+        "procedureReports": "Rapports de procedure",
+        "noVisibleProcedureReports": "Aucun rapport de procedure visible.",
+        "errors": {
+          "loadHistory": "Echec du chargement des dossiers partages",
+          "loadDetail": "Echec du chargement du detail du dossier"
+        }
+      },
+      "medicationCatalog": {
+        "badge": "Catalogue medicaments",
+        "title": "Gestion des medicaments",
+        "description": "Revoyez les medicaments appris depuis les ordonnances, regroupez les variantes de nom via des alias et desactivez les doublons sans perdre l'historique clinique.",
+        "missingContext": "Le catalogue medicaments est indisponible car le contexte clinique ou utilisateur est manquant.",
+        "searchPlaceholder": "Rechercher par nom canonique ou alias",
+        "showInactive": "Afficher les inactifs",
+        "listTitle": "Entrees du catalogue",
+        "stats": "{{active}} actifs sur {{total}} entrees",
+        "usage": "Utilise {{count}} fois",
+        "lastUsed": "Derniere utilisation {{date}}",
+        "lastUsedNever": "Jamais utilise",
+        "empty": "Aucun medicament pour ce filtre.",
+        "status": {
+          "active": "Actif",
+          "inactive": "Inactif"
+        },
+        "fields": {
+          "name": "Nom canonique",
+          "namePlaceholder": "ex: Amoxicilline",
+          "aliases": "Alias",
+          "aliasesPlaceholder": "Alias separes par des virgules"
+        },
+        "actions": {
+          "refresh": "Rafraichir",
+          "deactivate": "Desactiver",
+          "activate": "Activer",
+          "save": "Sauvegarder",
+          "saving": "Sauvegarde..."
+        },
+        "toasts": {
+          "nameRequired": "Le nom du medicament est obligatoire.",
+          "updated": "Entree du catalogue medicaments mise a jour.",
+          "updateFailed": "Echec de la mise a jour du catalogue medicaments.",
+          "activated": "Entree medicament activee.",
+          "deactivated": "Entree medicament desactivee."
+        }
+      },
+      "consultation": {
+        "title": "Notes de consultation",
+        "subtitle": "Renseignez et sauvegardez le dossier medical de {{patientName}}.",
+        "genericPatient": "ce patient",
+        "tabs": {
+          "notes": "Notes",
+          "diagnoses": "Diagnostics",
+          "ordonnance": "Ordonnance",
+          "labs": "Bilans",
+          "report": "Rapport",
+          "referrals": "Orientations"
+        },
+        "actions": {
+          "retryLoad": "Reessayer",
+          "savingSection": "Sauvegarde...",
+          "saveNotes": "Sauvegarder les notes",
+          "addDiagnosis": "Ajouter un diagnostic",
+          "saveDiagnoses": "Sauvegarder les diagnostics",
+          "addPrescription": "Ajouter un medicament",
+          "saveOrdonnance": "Sauvegarder l'ordonnance",
+          "printOrdonnance": "Imprimer",
+          "insertPrescriptionPreset": "Inserer un preset",
+          "addLabResult": "Ajouter un resultat",
+          "saveLabResults": "Sauvegarder les resultats",
+          "saveReportDraft": "Sauvegarder brouillon",
+          "finalizeReport": "Finaliser rapport",
+          "remove": "Retirer"
+        },
+        "notes": {
+          "reasonForVisitLabel": "Motif de consultation",
+          "reasonForVisitPlaceholder": "Symptomes, plainte principale ou objectif de visite",
+          "clinicalNotesLabel": "Notes cliniques",
+          "clinicalNotesPlaceholder": "Constats cliniques, examen et plan therapeutique"
+        },
+        "diagnoses": {
+          "rowTitle": "Diagnostic {{number}}",
+          "codeLabel": "Code diagnostic",
+          "codePlaceholder": "ex: J02.9",
+          "labelLabel": "Libelle",
+          "labelPlaceholder": "ex: Pharyngite aigue",
+          "notesLabel": "Notes du diagnostic",
+          "notesPlaceholder": "Contexte complementaire",
+          "empty": "Aucun diagnostic ajoute."
+        },
+        "ordonnance": {
+          "rowTitle": "Medicament {{number}}",
+          "medicationLabel": "Nom du medicament",
+          "medicationPlaceholder": "ex: Amoxicilline",
+          "dosageLabel": "Posologie",
+          "dosagePlaceholder": "ex: 500 mg",
+          "routeLabel": "Voie",
+          "routePlaceholder": "ex: orale",
+          "routeOptions": [
+            "orale",
+            "injectable",
+            "topique",
+            "inhalation",
+            "ophtalmique",
+            "auriculaire"
+          ],
+          "frequencyLabel": "Frequence",
+          "frequencyPlaceholder": "ex: 2 fois/jour",
+          "frequencyOptions": [
+            "1 fois/jour",
+            "2 fois/jour",
+            "3 fois/jour",
+            "Toutes les 8h",
+            "Toutes les 12h",
+            "Si besoin"
+          ],
+          "durationLabel": "Duree (jours)",
+          "durationPlaceholder": "ex: 7",
+          "instructionsLabel": "Instructions",
+          "instructionsPlaceholder": "Conseils particuliers",
+          "empty": "Aucun medicament ajoute."
+        },
+        "labs": {
+          "rowTitle": "Resultat {{number}}",
+          "testLabel": "Nom du test",
+          "testPlaceholder": "ex: Glycemie a jeun",
+          "resultValueLabel": "Valeur",
+          "resultValuePlaceholder": "ex: 96",
+          "unitLabel": "Unite",
+          "unitPlaceholder": "ex: mg/dL",
+          "referenceRangeLabel": "Valeurs de reference",
+          "referenceRangePlaceholder": "ex: 70 - 110",
+          "interpretationLabel": "Interpretation",
+          "interpretationPlaceholder": "Normal, Anormal, Critique",
+          "interpretationOptions": [
+            "Normal",
+            "Anormal",
+            "Critique"
+          ],
+          "empty": "Aucun resultat ajoute."
+        },
+        "report": {
+          "titleLabel": "Titre du rapport",
+          "titlePlaceholder": "ex: Infiltration du genou sous echographie",
+          "placeholder": "Redigez un compte-rendu de procedure detaille...",
+          "defaultTitle": "Rapport de procedure",
+          "errors": {
+            "loadFailed": "Echec du chargement du rapport",
+            "saveDraftFailed": "Echec de la sauvegarde du brouillon",
+            "finalizeFailed": "Echec de la finalisation du rapport",
+            "uploadImageFailed": "Echec de l'envoi de l'image du rapport",
+            "missingAppointmentContext": "Le contexte du rendez-vous est manquant",
+            "missingPatientContext": "Le contexte du patient est manquant"
+          }
+        },
+        "editor": {
+          "toolbar": {
+            "bold": "Gras",
+            "italic": "Italique",
+            "underline": "Souligne",
+            "heading1": "Titre 1",
+            "heading2": "Titre 2",
+            "paragraph": "Paragraphe",
+            "bulletList": "Liste a puces",
+            "orderedList": "Liste numerotee",
+            "insertTable": "Inserer un tableau",
+            "templates": "Modeles",
+            "saveAsTemplate": "Enregistrer comme modele",
+            "image": "Image",
+            "docx": "DOCX"
+          },
+          "templateSearch": {
+            "title": "Inserer un modele",
+            "description": "Recherchez parmi les modeles personnels, de clinique et systeme.",
+            "searchPlaceholder": "Rechercher un modele par titre ou tags",
+            "loading": "Chargement des modeles...",
+            "empty": "Aucun modele disponible pour cette recherche.",
+            "groupHeading": "Modeles disponibles"
+          },
+          "saveTemplate": {
+            "title": "Enregistrer comme modele",
+            "description": "Creez un modele reutilisable depuis le contenu actuel.",
+            "titleLabel": "Titre",
+            "titlePlaceholder": "Titre du modele",
+            "descriptionLabel": "Description",
+            "descriptionPlaceholder": "Description facultative",
+            "tagsLabel": "Tags",
+            "tagsPlaceholder": "orthopedie, post-op, douleur",
+            "visibilityLabel": "Visibilite",
+            "scopeClinic": "Equipe de la clinique",
+            "scopePersonal": "Seulement moi",
+            "cancel": "Annuler",
+            "saving": "Enregistrement...",
+            "save": "Enregistrer le modele"
+          },
+          "combo": {
+            "title": "Presets d'ordonnance",
+            "description": "Inserez un combo de medicaments courant dans cette ordonnance.",
+            "searchPlaceholder": "Rechercher des combos",
+            "loading": "Chargement des combos...",
+            "empty": "Aucun combo d'ordonnance correspondant.",
+            "groupHeading": "Combos enregistres"
+          },
+          "slash": {
+            "heading": "Modeles slash",
+            "headingWithQuery": "Modeles slash - {{query}}",
+            "close": "Fermer le menu slash",
+            "loading": "Chargement des modeles...",
+            "empty": "Aucun modele trouve pour cette requete slash."
+          },
+          "errors": {
+            "imageUploadTitle": "Echec de l'envoi de l'image",
+            "imageUploadDescription": "Impossible d'ajouter l'image",
+            "docxImportTitle": "Echec de l'import DOCX",
+            "docxImportDescription": "Impossible d'importer le fichier DOCX",
+            "missingUserContext": "Contexte utilisateur manquant"
+          }
+        },
+        "print": {
+          "documentTitle": "ordonnance-{{patientName}}",
+          "clinicPhoneLabel": "Tel",
+          "doctorLicenseLabel": "No. Ordre",
+          "title": "ORDONNANCE",
+          "patientLabel": "Patient",
+          "patientFallback": "Patient",
+          "dateLabel": "Date",
+          "headers": {
+            "medication": "Medicament",
+            "dosage": "Posologie",
+            "frequency": "Frequence",
+            "duration": "Duree"
+          },
+          "durationDaysSuffix": "j",
+          "signatureLabel": "Signature et cachet"
+        },
+        "visibility": {
+          "patientVisible": "Visible pour le patient"
+        },
+        "toasts": {
+          "savedTitle": "Sauvegarde effectuee",
+          "saveFailedTitle": "Echec de la sauvegarde",
+          "notesSaved": "Notes de consultation mises a jour.",
+          "diagnosesSaved": "Diagnostics mis a jour.",
+          "prescriptionsSaved": "Ordonnance mise a jour.",
+          "labResultsSaved": "Resultats de laboratoire mis a jour.",
+          "reportDraftSaved": "Brouillon du rapport de procedure sauvegarde.",
+          "reportFinalized": "Rapport de procedure finalise.",
+          "templateSaved": "Modele sauvegarde et disponible dans la recherche.",
+          "comboInserted": "{{count}} medicaments inseres depuis le preset.",
+          "comboInsertEmpty": "Le preset selectionne ne contient aucun medicament valide.",
+          "printedTitle": "Ordonnance prete",
+          "printedDescription": "L'ordonnance a ete envoyee a l'impression."
+        },
+        "errors": {
+          "generic": "Erreur inattendue",
+          "codes": {
+            "CONSULTATION_UNEXPECTED_ERROR": "Erreur inattendue",
+            "CONSULTATION_DIAGNOSIS_LABEL_REQUIRED": "Le libelle du diagnostic est obligatoire.",
+            "CONSULTATION_MEDICATION_NAME_REQUIRED": "Le nom du medicament est obligatoire.",
+            "CONSULTATION_TEST_NAME_REQUIRED": "Le nom du test est obligatoire.",
+            "CONSULTATION_CONTEXT_MISSING_APPOINTMENT": "Le contexte du rendez-vous est manquant.",
+            "CONSULTATION_CONTEXT_MISSING_PATIENT": "Le contexte du patient est manquant.",
+            "CONSULTATION_CONTEXT_STALE": "Le contexte de consultation est obsolete. Rechargez avant de sauvegarder.",
+            "CONSULTATION_CONFLICT_RELOAD": "La consultation a ete modifiee par un autre clinicien. Rechargez puis reessayez.",
+            "CONSULTATION_NOTES_CONFLICT_RELOAD": "Les notes de consultation ont change dans une autre session. Rechargez avant de sauvegarder."
+          }
+        }
+      },
+      "templatesWorkspace": {
+        "badge": "Espace autonome",
+        "title": "Bibliotheque de modeles",
+        "description": "Creez, consultez, modifiez et retirez vos modeles reutilisables au meme endroit. Ce flux est independant des rendez-vous et optimise pour l'usage quotidien.",
+        "searchPlaceholder": "Rechercher par titre, tag ou specialite",
+        "scopeFilterPlaceholder": "Filtrer le perimetre",
+        "scopeFilters": {
+          "all": "Tous les perimetres",
+          "clinic": "Perimetre clinique",
+          "personal": "Perimetre personnel",
+          "system": "Perimetre systeme"
+        },
+        "scopeLabels": {
+          "system": "Systeme",
+          "clinic": "Clinique",
+          "personal": "Personnel"
+        },
+        "types": {
+          "consultation_note": {
+            "label": "Notes de consultation",
+            "subtitle": "Modeles narratifs reutilisables pour la documentation clinique."
+          },
+          "procedure_report": {
+            "label": "Rapports de procedure",
+            "subtitle": "Modeles structures pour les comptes rendus d'intervention."
+          },
+          "prescription_combo": {
+            "label": "Combos d'ordonnance",
+            "subtitle": "Groupes de medicaments pour les traitements frequents."
+          },
+          "report_section": {
+            "label": "Sections de rapport",
+            "subtitle": "Blocs modulaires pour composer des rapports complexes."
+          }
+        },
+        "list": {
+          "empty": "Aucun modele ne correspond aux filtres selectionnes.",
+          "richTextFallback": "Modele de texte enrichi",
+          "medicationsCount": "{{count}} medicaments",
+          "usedTimes": "Utilise {{count}} fois"
+        },
+        "details": {
+          "emptyTitle": "Selectionnez un modele",
+          "emptyDescription": "Choisissez un modele dans la liste a gauche pour en consulter le contenu.",
+          "selectedDescription": "Consultez les details ou passez en mode edition pour mettre a jour ce modele.",
+          "typePrefix": "Type",
+          "updatedPrefix": "Mis a jour",
+          "noPreview": "Aucun apercu disponible pour ce modele.",
+          "comboConfigured": "{{count}} medicaments configures.",
+          "comboEmpty": "Aucun medicament dans ce preset pour le moment."
+        },
+        "forms": {
+          "titleLabel": "Titre",
+          "descriptionLabel": "Description",
+          "tagsLabel": "Tags",
+          "visibilityLabel": "Visibilite",
+          "tagsPlaceholder": "suivi, sortie",
+          "titlePlaceholder": "Protocole pansement post-op",
+          "descriptionPlaceholder": "Resume court pour aider les medecins a choisir rapidement",
+          "createDialogTitle": "Creer un nouveau modele",
+          "createDialogDescription": "Construisez un modele reutilisable de type {{typeLabel}} pour les consultations.",
+          "contentLabel": "Contenu du modele",
+          "createEditorPlaceholder": "Redigez un contenu reutilisable...",
+          "editEditorPlaceholder": "Redigez le contenu reutilisable du modele..."
+        },
+        "combo": {
+          "itemTitle": "Medicament {{number}}",
+          "addMedication": "Ajouter un medicament"
+        },
+        "actions": {
+          "newTemplate": "Nouveau modele",
+          "edit": "Modifier",
+          "cancel": "Annuler",
+          "delete": "Supprimer",
+          "saveChanges": "Enregistrer les modifications",
+          "saveTemplate": "Enregistrer le modele",
+          "saving": "Enregistrement...",
+          "savingChanges": "Enregistrement...",
+          "deleting": "Suppression...",
+          "confirmDelete": "Supprimer le modele"
+        },
+        "deleteDialog": {
+          "title": "Supprimer ce modele ?",
+          "description": "Cette action retire le modele des prochaines recherches. Les rapports existants qui l'ont deja utilise restent inchanges."
+        },
+        "toasts": {
+          "titleRequired": "Le titre du modele est obligatoire.",
+          "comboRequired": "Ajoutez au moins un medicament pour enregistrer ce preset.",
+          "createFailed": "Echec de la creation du modele.",
+          "updateFailed": "Echec de l'enregistrement des modifications.",
+          "deleteFailed": "Echec de la suppression du modele.",
+          "updated": "Modifications du modele enregistrees.",
+          "deleted": "Modele supprime."
+        }
+      }
     }
   },
   "about": {
+    "badge": "Gestion des files d'attente médicales",
+    "actions": {
+      "findDoctor": "Trouver un médecin",
+      "getStartedFree": "Commencer gratuitement"
+    },
+    "featuresSection": {
+      "title": "Conçu pour la santé moderne",
+      "subtitle": "Tout ce qu'il faut pour fluidifier le parcours patient et améliorer la qualité des soins."
+    },
+    "benefits": {
+      "items": [
+        "Suivi en temps réel de la file pour les patients",
+        "Optimisation intelligente des plannings par IA",
+        "Sécurité des données conforme aux standards médicaux",
+        "Support multilingue (EN, FR, AR)",
+        "Notifications SMS et e-mail",
+        "Tableau de bord analytique pour les cliniques"
+      ]
+    },
+    "clinicCard": {
+      "title": "Pour les cliniques",
+      "subtitle": "Commencez à gérer votre file dès aujourd'hui",
+      "metricLabel": "Avis patients",
+      "register": "Enregistrer votre clinique"
+    },
+    "cta": {
+      "title": "Prêt à commencer ?",
+      "subtitle": "Rejoignez des milliers de patients et de cliniques déjà sur notre plateforme.",
+      "browseDoctors": "Parcourir les médecins",
+      "createAccount": "Créer un compte"
+    },
     "hero": {
       "title": "Tout ce dont vous avez besoin pour",
       "subtitle": "Rationaliser les soins aux patients",
@@ -462,19 +1219,70 @@
     "stats": {
       "patients": "Patients servis",
       "clinics": "Cliniques actives",
+      "specialties": "Spécialités couvertes",
       "uptime": "Disponibilité",
-      "rating": "Évaluation des utilisateurs"
+      "rating": "Évaluation des utilisateurs",
+      "loadingValue": "--",
+      "notAvailable": "--"
     },
     "mission": {
       "title": "Notre mission",
       "subtitle": "De meilleurs soins de santé pour tous",
-      "description": "INTIDAR se consacre à révolutionner la prestation de soins de santé grâce à une technologie innovante. Nous croyons que la gestion efficace des files d'attente et la planification transparente des rendez-vous ne devraient pas être un luxe, mais la norme. Notre plateforme permet aux cliniques d'offrir des expériences exceptionnelles aux patients tout en optimisant leurs opérations."
+      "description": "INTIDAR se consacre à révolutionner la prestation de soins de santé grâce à une technologie innovante. Nous croyons que la gestion efficace des files d'attente et la planification transparente des rendez-vous ne devraient pas être un luxe, mais la norme. Notre plateforme permet aux cliniques d'offrir des expériences exceptionnelles aux patients tout en optimisant leurs opérations.",
+      "standardLine": "Nous pensons qu'une gestion fluide de la file et des rendez-vous simples doivent être la norme, pas un luxe."
     },
     "footer": {
-      "copyright": "© 2025 Tous droits réservés",
-      "privacy": "Confidentialité",
+      "copyright": "\u00c2\u00a9 2025 Tous droits r\u00c3\u00a9serv\u00c3\u00a9s",
+      "privacy": "Confidentialit\u00c3\u00a9",
       "terms": "Conditions",
-      "contact": "Contact"
+      "contact": "Contactez-nous"
     }
+  },
+  "referral": {
+    "status": {
+      "pending": "En attente",
+      "accepted": "Accept\u00c3\u00a9e",
+      "declined": "Refus\u00c3\u00a9e",
+      "completed": "Termin\u00c3\u00a9e",
+      "cancelled": "Annul\u00c3\u00a9e"
+    },
+    "actions": {
+      "create": "Cr\u00c3\u00a9er une orientation",
+      "accept": "Accepter",
+      "decline": "Refuser",
+      "cancel": "Annuler",
+      "save": "Enregistrer",
+      "saving": "Enregistrement...",
+      "cancelDialog": "Annuler"
+    },
+    "dialog": {
+      "title": "Nouvelle orientation",
+      "targetDoctor": "M\u00c3\u00a9decin destinataire",
+      "targetDoctorPlaceholder": "Dr. Nom, H\u00c3\u00b4pital ou Clinique",
+      "targetSpecialty": "Sp\u00c3\u00a9cialit\u00c3\u00a9",
+      "targetSpecialtyPlaceholder": "p. ex. Cardiologie, Orthop\u00c3\u00a9die",
+      "targetClinic": "Clinique cible",
+      "targetClinicPlaceholder": "Nom de l'h\u00c3\u00b4pital ou de la clinique",
+      "reason": "Motif de l'orientation",
+      "reasonPlaceholder": "Pourquoi cette orientation est-elle n\u00c3\u00a9cessaire ?",
+      "notes": "Notes compl\u00c3\u00a9mentaires",
+      "notesPlaceholder": "Contexte ou instructions suppl\u00c3\u00a9mentaires"
+    },
+    "card": {
+      "targetClinic": "Clinique cible",
+      "response": "R\u00c3\u00a9ponse",
+      "createdAt": "Cr\u00c3\u00a9\u00c3\u00a9e"
+    },
+    "validation": {
+      "doctorNameRequired": "Le nom du m\u00c3\u00a9decin destinataire est requis",
+      "reasonRequired": "Le motif de l'orientation est requis"
+    },
+    "errors": {
+      "createFailed": "\u00c3\u0089chec de la cr\u00c3\u00a9ation de l'orientation"
+    },
+    "empty": "Aucune orientation",
+    "emptyDescription": "Orientez ce patient vers un autre m\u00c3\u00a9decin ou sp\u00c3\u00a9cialiste",
+    "count_one": "{{count}} orientation",
+    "count_other": "{{count}} orientations"
   }
 }

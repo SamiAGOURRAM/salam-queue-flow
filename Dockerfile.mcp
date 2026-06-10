@@ -1,0 +1,32 @@
+# syntax=docker/dockerfile:1
+#
+# PRODUCTION image for the MCP server (backend).
+# Multi-stage: compile @queuemed/core + the server to dist, then run with node.
+# The pnpm workspace layout (symlinked node_modules) is preserved so the
+# compiled server can resolve @queuemed/core from its built dist at runtime.
+
+# ---- build stage ----
+FROM node:20-bookworm-slim AS build
+ENV CI=true
+RUN corepack enable
+WORKDIR /app
+
+COPY . .
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @queuemed/core build \
+ && pnpm --filter @queuemed/mcp-server build
+
+# ---- runtime stage ----
+FROM node:20-bookworm-slim AS runtime
+ENV NODE_ENV=production \
+    SERVER_PORT=3001
+RUN corepack enable
+WORKDIR /app
+
+# Bring over the built workspace (dist output + resolved node_modules/symlinks).
+COPY --from=build /app /app
+
+# Deployable service uses the Streamable HTTP transport (network-reachable).
+# The stdio transport (dist/index.js) remains for desktop MCP clients.
+EXPOSE 3001
+CMD ["node", "apps/mcp-server/dist/http.js"]

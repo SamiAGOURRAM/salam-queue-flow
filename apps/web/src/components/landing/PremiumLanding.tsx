@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useForceLightMode } from "@/hooks/useForceLightMode";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { SiteHeader } from "@/components/SiteHeader";
 import CountUp from "@/components/ui/CountUp";
 import heroImage from "@/assets/hero_image.png";
 import stethoscopeImage from "@/assets/stetoscope.png";
@@ -22,7 +22,7 @@ import heartImage from "@/assets/heart.png";
 const PremiumLanding = () => {
   const navigate = useNavigate();
   const routeLocation = useLocation();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user, signOut } = useAuth();
   
   // Force light mode on landing page
@@ -30,6 +30,7 @@ const PremiumLanding = () => {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [location, setLocation] = useState("");
+  const locationInputRef = useRef<HTMLInputElement | null>(null);
 
   // Fetch clinic metadata for stats and specialties
   const { data: clinicStats } = useQuery({
@@ -37,23 +38,74 @@ const PremiumLanding = () => {
     queryFn: async () => {
       const { data: clinics, error } = await supabase
         .from('clinics')
-        .select('id, specialty, city')
+        .select('id, specialty, city, settings')
         .eq('is_active', true);
 
       if (error) throw error;
 
+      const clinicIds = clinics?.map((clinic) => clinic.id) ?? [];
+      let totalRatings = 0;
+      let weightedRatingSum = 0;
+
+      if (clinicIds.length > 0) {
+        const { data: ratingStats, error: ratingError } = await supabase
+          .from('clinic_rating_stats')
+          .select('average_rating, total_ratings')
+          .in('clinic_id', clinicIds);
+
+        if (ratingError) throw ratingError;
+
+        for (const rating of ratingStats ?? []) {
+          const total = Number(rating.total_ratings ?? 0);
+          const average = Number(rating.average_rating ?? 0);
+          if (total > 0 && Number.isFinite(average)) {
+            totalRatings += total;
+            weightedRatingSum += average * total;
+          }
+        }
+      }
+
       const specialties = [...new Set(clinics?.map(c => c.specialty) || [])];
       const cities = [...new Set(clinics?.map(c => c.city) || [])];
+      const waitDurations = (clinics ?? [])
+        .map((clinic) => {
+          const settings = clinic.settings;
+          if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+            return null;
+          }
+
+          const duration = Number((settings as { average_appointment_duration?: unknown }).average_appointment_duration);
+          if (!Number.isFinite(duration) || duration <= 0) {
+            return null;
+          }
+
+          return duration;
+        })
+        .filter((duration): duration is number => duration !== null);
+
+      const averageWaitMinutes = waitDurations.length > 0
+        ? Math.round(waitDurations.reduce((sum, duration) => sum + duration, 0) / waitDurations.length)
+        : null;
 
       return {
         totalClinics: clinics?.length || 0,
         specialties: specialties.slice(0, 6),
         cities,
-        avgRating: '4.8'
+        totalRatings,
+        avgRating: totalRatings > 0 ? weightedRatingSum / totalRatings : null,
+        averageWaitMinutes,
       };
     },
     staleTime: 10 * 60 * 1000,
   });
+
+  const formatCompactNumber = (value: number) => {
+    const locale = i18n.resolvedLanguage || i18n.language || 'en';
+    return new Intl.NumberFormat(locale, {
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    }).format(value);
+  };
 
   const handleSearch = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -71,136 +123,9 @@ const PremiumLanding = () => {
     navigate('/clinics');
   };
 
-  // Base navigation items available to everyone
-  const baseNavigationItems = [
-    {
-      name: t('nav.clinics'),
-      path: "/clinics",
-      icon: Search,
-    },
-    {
-      name: t('nav.about'),
-      path: "/welcome",
-      icon: Info,
-    },
-  ];
-
-  // Authenticated-only navigation items
-  const authenticatedNavigationItems = [
-    {
-      name: t('nav.appointments'),
-      path: "/my-appointments",
-      icon: Calendar,
-    },
-    {
-      name: t('nav.profile'),
-      path: "/patient/profile",
-      icon: User,
-    },
-  ];
-
-  // Combine navigation items based on auth status
-  const navigationItems = user
-    ? [...baseNavigationItems, ...authenticatedNavigationItems]
-    : baseNavigationItems;
-
-  const isActive = (path: string) => {
-    return routeLocation.pathname === path;
-  };
-
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="flex items-center justify-between h-14">
-            {/* Left Side: Logo + Language */}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => navigate("/")}
-                className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-              >
-                <div className="w-7 h-7 rounded-md flex items-center justify-center bg-obsidian">
-                  <span className="text-white text-sm font-bold">Q</span>
-                </div>
-                <span className="text-base font-semibold text-gray-900">QueueMed</span>
-              </button>
-              <div className="h-4 w-px bg-border" />
-              <LanguageSwitcher />
-            </div>
-
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-1">
-              {navigationItems.map((item) => {
-                const Icon = item.icon;
-                const active = isActive(item.path);
-
-                return (
-                  <button
-                    key={item.path}
-                    onClick={() => navigate(item.path)}
-                    className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                      active
-                        ? "text-gray-900 bg-gray-100"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                    )}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {item.name}
-                  </button>
-                );
-              })}
-            </nav>
-
-            {/* Right Side: Auth */}
-            <div className="flex items-center gap-2">
-              {user ? (
-                <Button
-                  variant="ghost"
-                  onClick={signOut}
-                  className="h-9 px-3 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
-                >
-                  <LogOut className="w-4 h-4 mr-1.5" />
-                  <span className="hidden sm:inline">{t('nav.logout')}</span>
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => navigate('/auth/login')}
-                  className="h-9 px-4 bg-obsidian hover:bg-obsidian-hover text-white text-sm font-medium rounded-md transition-colors"
-                >
-                  <LogIn className="w-4 h-4 mr-1.5" />
-                  <span className="hidden sm:inline">{t('nav.login')}</span>
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* Mobile Navigation */}
-          <nav className="md:hidden flex items-center gap-1 pb-3 overflow-x-auto">
-            {navigationItems.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.path);
-
-              return (
-                <button
-                  key={item.path}
-                  onClick={() => navigate(item.path)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap transition-colors",
-                    active
-                      ? "text-gray-900 bg-gray-100"
-                      : "text-gray-600 hover:text-gray-900"
-                  )}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {item.name}
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-      </header>
+    <div className="min-h-screen bg-background">
+      <SiteHeader />
 
       {/* Hero Section - Search Focus + Illustration */}
       <section className="relative overflow-hidden">
@@ -212,26 +137,30 @@ const PremiumLanding = () => {
               {/* Location Badge */}
               <div className="flex items-center gap-2 text-sm">
                 <MapPin className="w-4 h-4" />
-                <span className="text-gray-700">{t('landing.location.morocco')}</span>
-                <button className="text-black font-medium underline underline-offset-4 hover:no-underline">
+                <span className="text-foreground">{t('landing.location.morocco')}</span>
+                <button
+                  type="button"
+                  onClick={() => locationInputRef.current?.focus()}
+                  className="text-foreground font-medium underline underline-offset-4 hover:no-underline"
+                >
                   {t('landing.location.changeLocation')}
                 </button>
               </div>
 
               {/* Main Headline */}
               <div className="space-y-4">
-                <h1 className="text-5xl lg:text-6xl xl:text-7xl font-bold text-black leading-[1.1] tracking-tight">
+                <h1 className="text-5xl lg:text-6xl xl:text-7xl font-bold text-foreground leading-[1.1] tracking-tight">
                   {t('landing.hero.title1')}{' '}
                   <span className="block">{t('landing.hero.title2')}</span>
                   <span className="block">{t('landing.hero.title3')}</span>
                 </h1>
-                <p className="text-lg lg:text-xl text-gray-600 max-w-md">
+                <p className="text-lg lg:text-xl text-muted-foreground max-w-md">
                   {t('landing.hero.subtitle')}
                 </p>
               </div>
 
               {/* Search Card */}
-              <form onSubmit={handleSearch} className="bg-white rounded-2xl border border-gray-200 shadow-xl p-2 max-w-xl">
+              <form onSubmit={handleSearch} className="bg-card rounded-2xl border border-border shadow-xl p-2 max-w-xl">
                 <div className="space-y-1">
                   {/* Specialty/Clinic Search */}
                   <div className="relative flex items-center">
@@ -241,27 +170,32 @@ const PremiumLanding = () => {
                       placeholder={t('landing.search.specialtyPlaceholder')}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 pr-4 h-14 border-0 bg-gray-50 rounded-xl text-base placeholder:text-gray-400 focus-visible:ring-0 focus-visible:bg-gray-100"
+                      className="pl-10 pr-4 h-14 border-0 bg-muted rounded-xl text-base placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:bg-muted"
                     />
                   </div>
 
                   {/* Vertical Line Connector */}
                   <div className="flex items-center pl-[18px]">
-                    <div className="w-0.5 h-4 bg-gray-300"></div>
+                    <div className="w-0.5 h-4 bg-muted"></div>
                   </div>
 
                   {/* Location Search */}
                   <div className="relative flex items-center">
                     <div className="absolute left-4 w-2.5 h-2.5 bg-obsidian"></div>
                     <Input
+                      ref={locationInputRef}
                       type="text"
                       placeholder={t('landing.search.locationPlaceholder')}
                       value={location}
                       onChange={(e) => setLocation(e.target.value)}
-                      className="pl-10 pr-12 h-14 border-0 bg-gray-50 rounded-xl text-base placeholder:text-gray-400 focus-visible:ring-0 focus-visible:bg-gray-100"
+                      className="pl-10 pr-12 h-14 border-0 bg-muted rounded-xl text-base placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:bg-muted"
                     />
-                    <button type="button" className="absolute right-3 p-2 hover:bg-gray-200 rounded-lg transition-colors">
-                      <MapPin className="w-5 h-5 text-gray-600" />
+                    <button
+                      type="button"
+                      onClick={() => locationInputRef.current?.focus()}
+                      className="absolute right-3 p-2 hover:bg-muted rounded-lg transition-colors"
+                    >
+                      <MapPin className="w-5 h-5 text-muted-foreground" />
                     </button>
                   </div>
                 </div>
@@ -279,14 +213,14 @@ const PremiumLanding = () => {
               <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
                 <button
                   onClick={handleBrowseAll}
-                  className="text-black font-medium underline underline-offset-4 hover:no-underline flex items-center gap-1"
+                  className="text-foreground font-medium underline underline-offset-4 hover:no-underline flex items-center gap-1"
                 >
                   {t('landing.search.browseAll')}
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => navigate(user ? '/my-appointments' : '/auth/login')}
-                  className="text-gray-600 font-medium hover:text-black flex items-center gap-1 transition-colors"
+                  className="text-muted-foreground font-medium hover:text-foreground flex items-center gap-1 transition-colors"
                 >
                   {user ? t('landing.search.myAppointments') : t('landing.search.signIn')}
                   <ArrowRight className="w-4 h-4" />
@@ -299,7 +233,7 @@ const PremiumLanding = () => {
               <div className="relative w-full max-w-[600px]">
                 <img 
                   src={heroImage} 
-                  alt="Modern clinic reception with patient entering" 
+                  alt={t('landing.accessibility.heroImageAlt')}
                   className="w-full h-auto rounded-3xl shadow-2xl object-cover"
                 />
               </div>
@@ -321,7 +255,7 @@ const PremiumLanding = () => {
         <div className="relative max-w-[1400px] mx-auto px-6 lg:px-12">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center relative">
             {/* Center Vertical Divider - Dashboard feel */}
-            <div className="hidden lg:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[70%] w-px bg-white/10" />
+            <div className="hidden lg:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[70%] w-px bg-card/10" />
             
             {/* Left - The Countdown Instrument */}
             <div className="text-center lg:text-left">
@@ -331,29 +265,37 @@ const PremiumLanding = () => {
                   <div className="absolute inset-0 w-2 h-2 rounded-full bg-emerald-400 animate-ping opacity-75" />
                 </div>
                 <span className="text-xs font-semibold text-emerald-400 uppercase tracking-[0.2em]">
-                  Live Queue Status
+                  {t('landing.spotlight.liveLabel')}
                 </span>
               </div>
               
               {/* Precision Instrument Display */}
               <div className="flex items-baseline justify-center lg:justify-start gap-3">
-                <CountUp
-                  from={15}
-                  to={0}
-                  direction="down"
-                  duration={2.5}
-                  delay={0.3}
-                  className="text-[100px] lg:text-[140px] font-light text-white leading-none tracking-tight"
-                  style={{ fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace" }}
-                />
-                <span className="text-3xl lg:text-4xl font-light text-gray-500" style={{ fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace" }}>
-                  min
+                {typeof clinicStats?.averageWaitMinutes === 'number' ? (
+                  <CountUp
+                    from={0}
+                    to={clinicStats.averageWaitMinutes}
+                    duration={1.2}
+                    delay={0.1}
+                    className="text-[100px] lg:text-[140px] font-light text-white leading-none tracking-tight"
+                    style={{ fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace" }}
+                  />
+                ) : (
+                  <span
+                    className="text-[100px] lg:text-[140px] font-light text-white leading-none tracking-tight"
+                    style={{ fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace" }}
+                  >
+                    --
+                  </span>
+                )}
+                <span className="text-3xl lg:text-4xl font-light text-muted-foreground" style={{ fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace" }}>
+                  {t('features.minutes')}
                 </span>
               </div>
               
               {/* Amber/Gold precision bar */}
               <div className="flex justify-center lg:justify-start mt-4">
-                <div className="relative w-48 h-[2px] bg-white/10 rounded-full overflow-hidden">
+                <div className="relative w-48 h-[2px] bg-card/10 rounded-full overflow-hidden">
                   <div 
                     className="absolute inset-y-0 left-0 rounded-full"
                     style={{ 
@@ -365,44 +307,51 @@ const PremiumLanding = () => {
                 </div>
               </div>
               
-              <p className="text-lg lg:text-xl text-gray-400 mt-6 tracking-wide">
-                Average waiting time at our partner clinics
+              <p className="text-lg lg:text-xl text-muted-foreground mt-6 tracking-wide">
+                {typeof clinicStats?.averageWaitMinutes === 'number'
+                  ? t('landing.spotlight.averageWaitDescription')
+                  : t('landing.spotlight.waitUnavailable')}
               </p>
             </div>
 
             {/* Right - Value Props */}
             <div className="space-y-8 lg:pl-8">
               <h2 className="text-3xl lg:text-4xl font-bold leading-tight">
-                We're eliminating waiting rooms
+                {t('landing.spotlight.title')}
               </h2>
-              <p className="text-lg text-gray-400 max-w-md leading-relaxed">
-                QueueMed coordinates your arrival perfectly with your appointment. 
-                No more sitting in lobbies. Arrive, get seen, leave.
+              <p className="text-lg text-muted-foreground max-w-md leading-relaxed">
+                {t('landing.spotlight.description')}
               </p>
               
               {/* Trust Grid with dividers */}
               <div className="flex items-start">
                 <div className="flex-1 pr-6">
-                  <p className="text-3xl font-bold text-white" style={{ fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace" }}>{clinicStats?.totalClinics || '50'}+</p>
-                  <p className="text-sm text-gray-500 mt-1 uppercase tracking-wider">Partner Clinics</p>
+                  <p className="text-3xl font-bold text-white" style={{ fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace" }}>
+                    {formatCompactNumber(clinicStats?.totalClinics || 0)}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1 uppercase tracking-wider">{t('landing.spotlight.partnerClinics')}</p>
                 </div>
-                <div className="w-px h-14 bg-white/10" />
+                <div className="w-px h-14 bg-card/10" />
                 <div className="flex-1 px-6">
-                  <p className="text-3xl font-bold text-white" style={{ fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace" }}>10K+</p>
-                  <p className="text-sm text-gray-500 mt-1 uppercase tracking-wider">Happy Patients</p>
+                  <p className="text-3xl font-bold text-white" style={{ fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace" }}>
+                    {formatCompactNumber(clinicStats?.totalRatings || 0)}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1 uppercase tracking-wider">{t('landing.spotlight.patientReviews')}</p>
                 </div>
-                <div className="w-px h-14 bg-white/10" />
+                <div className="w-px h-14 bg-card/10" />
                 <div className="flex-1 pl-6">
-                  <p className="text-3xl font-bold text-white" style={{ fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace" }}>{clinicStats?.avgRating || '4.8'}</p>
-                  <p className="text-sm text-gray-500 mt-1 uppercase tracking-wider">Avg Rating</p>
+                  <p className="text-3xl font-bold text-white" style={{ fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace" }}>
+                    {typeof clinicStats?.avgRating === 'number' ? clinicStats.avgRating.toFixed(1) : t('landing.spotlight.noRating')}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1 uppercase tracking-wider">{t('landing.spotlight.avgRating')}</p>
                 </div>
               </div>
 
               <Button
                 onClick={handleBrowseAll}
-                className="h-12 px-8 bg-white text-gray-900 hover:bg-gray-100 font-semibold rounded-xl border-0"
+                className="h-12 px-8 bg-card text-foreground hover:bg-muted font-semibold rounded-xl border-0"
               >
-                Find a Clinic
+                {t('landing.spotlight.findClinic')}
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
@@ -413,7 +362,7 @@ const PremiumLanding = () => {
       {/* Suggestions Section */}
       <section className="py-16 lg:py-24">
         <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
-          <h2 className="text-3xl lg:text-4xl font-bold text-black mb-10">
+          <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-10">
             {t('landing.suggestions.title')}
           </h2>
 
@@ -421,16 +370,16 @@ const PremiumLanding = () => {
             {/* General Practice Card */}
             <button
               onClick={() => handleSpecialtyClick('General Practice')}
-              className="group relative bg-gray-50 hover:bg-gray-100 rounded-2xl p-6 text-left transition-all duration-300 overflow-hidden"
+              className="group relative bg-muted hover:bg-muted rounded-2xl p-6 text-left transition-all duration-300 overflow-hidden"
             >
               <div className="flex justify-between items-start">
                 <div className="space-y-2">
-                  <h3 className="text-xl font-bold text-black">{t('landing.suggestions.generalCare')}</h3>
-                  <p className="text-gray-600 text-sm max-w-[200px]">
+                  <h3 className="text-xl font-bold text-foreground">{t('landing.suggestions.generalCare')}</h3>
+                  <p className="text-muted-foreground text-sm max-w-[200px]">
                     {t('landing.suggestions.generalCareDesc')}
                   </p>
                   <div className="pt-2">
-                    <span className="inline-flex items-center gap-1 text-sm font-medium text-black group-hover:underline">
+                    <span className="inline-flex items-center gap-1 text-sm font-medium text-foreground group-hover:underline">
                       {t('landing.suggestions.details')}
                       <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </span>
@@ -439,7 +388,7 @@ const PremiumLanding = () => {
                 <div className="w-32 h-32 relative rounded-xl overflow-hidden" style={{ backgroundColor: '#EEEEE8' }}>
                   <img 
                     src={stethoscopeImage} 
-                    alt="General Practice" 
+                    alt={t('landing.accessibility.generalCareAlt')}
                     className="w-full h-full object-contain block mix-blend-multiply transform scale-110 group-hover:scale-[1.15] transition-transform"
                     style={{ filter: 'contrast(1.05) brightness(1.02)' }}
                   />
@@ -450,16 +399,16 @@ const PremiumLanding = () => {
             {/* Dentistry Card */}
             <button
               onClick={() => handleSpecialtyClick('Dentistry')}
-              className="group relative bg-gray-50 hover:bg-gray-100 rounded-2xl p-6 text-left transition-all duration-300 overflow-hidden"
+              className="group relative bg-muted hover:bg-muted rounded-2xl p-6 text-left transition-all duration-300 overflow-hidden"
             >
               <div className="flex justify-between items-start">
                 <div className="space-y-2">
-                  <h3 className="text-xl font-bold text-black">{t('landing.suggestions.dental')}</h3>
-                  <p className="text-gray-600 text-sm max-w-[200px]">
+                  <h3 className="text-xl font-bold text-foreground">{t('landing.suggestions.dental')}</h3>
+                  <p className="text-muted-foreground text-sm max-w-[200px]">
                     {t('landing.suggestions.dentalDesc')}
                   </p>
                   <div className="pt-2">
-                    <span className="inline-flex items-center gap-1 text-sm font-medium text-black group-hover:underline">
+                    <span className="inline-flex items-center gap-1 text-sm font-medium text-foreground group-hover:underline">
                       {t('landing.suggestions.details')}
                       <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </span>
@@ -468,7 +417,7 @@ const PremiumLanding = () => {
                 <div className="w-32 h-32 relative rounded-xl overflow-hidden" style={{ backgroundColor: '#EEEEE8' }}>
                   <img 
                     src={dentistryImage} 
-                    alt="Dentistry" 
+                    alt={t('landing.accessibility.dentalAlt')}
                     className="w-full h-full object-contain block mix-blend-multiply transform scale-110 group-hover:scale-[1.15] transition-transform"
                     style={{ filter: 'contrast(1.05) brightness(1.02)' }}
                   />
@@ -479,16 +428,16 @@ const PremiumLanding = () => {
             {/* Specialist Card */}
             <button
               onClick={() => handleSpecialtyClick('Cardiology')}
-              className="group relative bg-gray-50 hover:bg-gray-100 rounded-2xl p-6 text-left transition-all duration-300 overflow-hidden"
+              className="group relative bg-muted hover:bg-muted rounded-2xl p-6 text-left transition-all duration-300 overflow-hidden"
             >
               <div className="flex justify-between items-start">
                 <div className="space-y-2">
-                  <h3 className="text-xl font-bold text-black">{t('landing.suggestions.specialists')}</h3>
-                  <p className="text-gray-600 text-sm max-w-[200px]">
+                  <h3 className="text-xl font-bold text-foreground">{t('landing.suggestions.specialists')}</h3>
+                  <p className="text-muted-foreground text-sm max-w-[200px]">
                     {t('landing.suggestions.specialistsDesc')}
                   </p>
                   <div className="pt-2">
-                    <span className="inline-flex items-center gap-1 text-sm font-medium text-black group-hover:underline">
+                    <span className="inline-flex items-center gap-1 text-sm font-medium text-foreground group-hover:underline">
                       {t('landing.suggestions.details')}
                       <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </span>
@@ -497,7 +446,7 @@ const PremiumLanding = () => {
                 <div className="w-32 h-32 relative rounded-xl overflow-hidden" style={{ backgroundColor: '#EEEEE8' }}>
                   <img 
                     src={heartImage} 
-                    alt="Specialists" 
+                    alt={t('landing.accessibility.specialistsAlt')}
                     className="w-full h-full object-contain block mix-blend-multiply transform scale-110 group-hover:scale-[1.15] transition-transform"
                     style={{ filter: 'contrast(1.05) brightness(1.02)' }}
                   />
@@ -509,18 +458,18 @@ const PremiumLanding = () => {
       </section>
 
       {/* Account Section */}
-      <section className="py-16 lg:py-24 bg-gray-50">
+      <section className="py-16 lg:py-24 bg-muted">
         <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
             {/* Left Side - Image */}
             <div className="relative">
-              <div className="aspect-[4/3] bg-gray-100 rounded-3xl overflow-hidden">
+              <div className="aspect-[4/3] bg-muted rounded-3xl overflow-hidden">
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center space-y-4">
-                    <div className="w-24 h-24 bg-white rounded-full shadow-lg mx-auto flex items-center justify-center">
-                      <User className="w-12 h-12 text-gray-400" />
+                    <div className="w-24 h-24 bg-card rounded-full shadow-lg mx-auto flex items-center justify-center">
+                      <User className="w-12 h-12 text-muted-foreground" />
                     </div>
-                    <p className="text-gray-500">Your health dashboard</p>
+                    <p className="text-muted-foreground">{t('landing.account.dashboardLabel')}</p>
                   </div>
                 </div>
               </div>
@@ -528,10 +477,10 @@ const PremiumLanding = () => {
 
             {/* Right Side - Content */}
             <div className="space-y-6">
-              <h2 className="text-3xl lg:text-4xl font-bold text-black leading-tight">
+              <h2 className="text-3xl lg:text-4xl font-bold text-foreground leading-tight">
                 {t('landing.account.title')}
               </h2>
-              <p className="text-lg text-gray-600 max-w-md">
+              <p className="text-lg text-muted-foreground max-w-md">
                 {t('landing.account.description')}
               </p>
               <div className="flex flex-wrap gap-4">
@@ -560,10 +509,10 @@ const PremiumLanding = () => {
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
             {/* Left Side - Content */}
             <div className="space-y-6 order-2 lg:order-1">
-              <h2 className="text-3xl lg:text-4xl font-bold text-black leading-tight">
+              <h2 className="text-3xl lg:text-4xl font-bold text-foreground leading-tight">
                 {t('landing.forClinics.title')}
               </h2>
-              <p className="text-lg text-gray-600 max-w-md">
+              <p className="text-lg text-muted-foreground max-w-md">
                 {t('landing.forClinics.description')}
               </p>
               <div className="flex flex-wrap gap-4">
@@ -575,6 +524,7 @@ const PremiumLanding = () => {
                 </Button>
                 <Button
                   variant="outline"
+                  onClick={() => navigate('/welcome')}
                   className="h-12 px-8 border-2 border-obsidian text-obsidian font-semibold rounded-xl transition-colors hover:bg-obsidian hover:text-white"
                 >
                   {t('landing.forClinics.learnMore')}
@@ -587,10 +537,10 @@ const PremiumLanding = () => {
               <div className="aspect-[4/3] rounded-3xl overflow-hidden bg-obsidian">
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center space-y-4">
-                    <div className="w-24 h-24 bg-white rounded-full shadow-lg mx-auto flex items-center justify-center">
-                      <Building2 className="w-12 h-12 text-gray-700" />
+                    <div className="w-24 h-24 bg-card rounded-full shadow-lg mx-auto flex items-center justify-center">
+                      <Building2 className="w-12 h-12 text-foreground" />
                     </div>
-                    <p className="text-gray-400">Clinic dashboard</p>
+                    <p className="text-muted-foreground">{t('landing.forClinics.dashboardLabel')}</p>
                   </div>
                 </div>
               </div>
@@ -606,41 +556,41 @@ const PremiumLanding = () => {
             <div>
               <h3 className="font-bold text-lg mb-4">{t('landing.footer.company')}</h3>
               <ul className="space-y-3">
-                <li><a href="/welcome" className="text-gray-400 hover:text-white transition-colors">{t('landing.footer.aboutUs')}</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white transition-colors">{t('landing.footer.careers')}</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white transition-colors">{t('landing.footer.blog')}</a></li>
+                <li><a href="/welcome" className="text-muted-foreground hover:text-white transition-colors">{t('landing.footer.aboutUs')}</a></li>
+                <li><a href="/auth/signup" className="text-muted-foreground hover:text-white transition-colors">{t('landing.footer.careers')}</a></li>
+                <li><a href="/welcome" className="text-muted-foreground hover:text-white transition-colors">{t('landing.footer.blog')}</a></li>
               </ul>
             </div>
             <div>
               <h3 className="font-bold text-lg mb-4">{t('landing.footer.products')}</h3>
               <ul className="space-y-3">
-                <li><a href="/clinics" className="text-gray-400 hover:text-white transition-colors">{t('landing.footer.findClinics')}</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white transition-colors">{t('landing.footer.forClinics')}</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white transition-colors">{t('landing.footer.api')}</a></li>
+                <li><a href="/clinics" className="text-muted-foreground hover:text-white transition-colors">{t('landing.footer.findClinics')}</a></li>
+                <li><a href="/auth/signup" className="text-muted-foreground hover:text-white transition-colors">{t('landing.footer.forClinics')}</a></li>
+                <li><a href="/welcome" className="text-muted-foreground hover:text-white transition-colors">{t('landing.footer.api')}</a></li>
               </ul>
             </div>
             <div>
               <h3 className="font-bold text-lg mb-4">{t('landing.footer.support')}</h3>
               <ul className="space-y-3">
-                <li><a href="#" className="text-gray-400 hover:text-white transition-colors">{t('landing.footer.helpCenter')}</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white transition-colors">{t('landing.footer.contactUs')}</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white transition-colors">{t('landing.footer.safety')}</a></li>
+                <li><a href="/welcome" className="text-muted-foreground hover:text-white transition-colors">{t('landing.footer.helpCenter')}</a></li>
+                <li><a href="/welcome" className="text-muted-foreground hover:text-white transition-colors">{t('landing.footer.contactUs')}</a></li>
+                <li><a href="/welcome" className="text-muted-foreground hover:text-white transition-colors">{t('landing.footer.safety')}</a></li>
               </ul>
             </div>
             <div>
               <h3 className="font-bold text-lg mb-4">{t('landing.footer.legal')}</h3>
               <ul className="space-y-3">
-                <li><a href="#" className="text-gray-400 hover:text-white transition-colors">{t('landing.footer.terms')}</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white transition-colors">{t('landing.footer.privacy')}</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white transition-colors">{t('landing.footer.cookies')}</a></li>
+                <li><a href="/welcome" className="text-muted-foreground hover:text-white transition-colors">{t('landing.footer.terms')}</a></li>
+                <li><a href="/welcome" className="text-muted-foreground hover:text-white transition-colors">{t('landing.footer.privacy')}</a></li>
+                <li><a href="/welcome" className="text-muted-foreground hover:text-white transition-colors">{t('landing.footer.cookies')}</a></li>
               </ul>
             </div>
           </div>
 
-          <div className="border-t border-gray-800 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <p className="text-gray-400 text-sm">{t('landing.footer.copyright')}</p>
+          <div className="border-t border-border pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <p className="text-muted-foreground text-sm">{t('landing.footer.copyright')}</p>
             <div className="flex items-center gap-6">
-              <span className="text-gray-400 text-sm">{t('landing.location.morocco')}</span>
+              <span className="text-muted-foreground text-sm">{t('landing.location.morocco')}</span>
             </div>
           </div>
         </div>

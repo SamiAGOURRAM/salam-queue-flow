@@ -255,7 +255,7 @@ export async function executeMlEstimateWaitTime(
   
   // Count patients ahead (waiting or checked in, with lower queue position)
   const patientsAhead = queueEntries.filter((e: { status: string; queuePosition?: number }) => 
-    (e.status === "scheduled" || e.status === "checked_in") &&
+    (e.status === "scheduled" || e.status === "waiting") &&
     e.queuePosition !== undefined &&
     appointment.queuePosition !== undefined &&
     e.queuePosition < appointment.queuePosition

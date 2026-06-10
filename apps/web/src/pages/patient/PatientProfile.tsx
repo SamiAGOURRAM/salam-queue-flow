@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { PatientAllergySection } from "@/components/patient/PatientAllergySection";
+import { PatientMedicalPassportSection } from "@/components/patient/PatientMedicalPassportSection";
 
 // Define a type for the clinic data we'll fetch
 interface FavoriteClinic {
@@ -265,6 +267,20 @@ export default function PatientProfile() {
           )}
         </Button>
       </div>
+
+      {/* Allergies */}
+      {user?.id && (
+        <div className="mb-8">
+          <PatientAllergySection userId={user.id} />
+        </div>
+      )}
+
+      {/* Active conditions and medications */}
+      {user?.id && (
+        <div className="mb-8">
+          <PatientMedicalPassportSection userId={user.id} />
+        </div>
+      )}
 
       {/* Favorite Clinics */}
       <div>

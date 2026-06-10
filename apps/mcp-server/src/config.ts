@@ -18,6 +18,8 @@ export interface Config {
   // Supabase
   supabaseUrl: string;
   supabaseServiceKey: string;
+  /** Anon/publishable key — used to build per-user (JWT-scoped) clients so RLS applies. */
+  supabaseAnonKey: string;
 
   // LLM Providers (Phase 3)
   llmDefaultProvider: string;
@@ -62,6 +64,7 @@ export const config: Config = {
   // Supabase - Required for production, optional for testing
   supabaseUrl: getOptionalEnv("SUPABASE_URL", ""),
   supabaseServiceKey: getOptionalEnv("SUPABASE_SERVICE_KEY", ""),
+  supabaseAnonKey: getOptionalEnv("SUPABASE_ANON_KEY", ""),
 
   // LLM Providers
   llmDefaultProvider: getOptionalEnv("LLM_DEFAULT_PROVIDER", "groq"),

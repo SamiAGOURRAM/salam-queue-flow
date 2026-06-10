@@ -3,7 +3,7 @@
  * Provides a reactive, real-time interface to the full QueueService.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 // CORRECT: Imports the SERVICE, not the repository.
 import { QueueService } from '../services/queue/QueueService'; 
 
@@ -17,7 +17,14 @@ import { QueueEventType } from '../services/queue/events/QueueEvents';
 import { logger } from '../services/shared/logging/Logger';
 import { useToast } from './use-toast';
 // CORRECT: Imports the data models from the service layer's public interface.
-import { QueueEntry, CreateQueueEntryDTO, MarkAbsentDTO, ReorderQueueDTO, CallNextPatientDTO } from '../services/queue';
+import {
+  QueueEntry,
+  CreateQueueEntryDTO,
+  MarkAbsentDTO,
+  ReorderQueueDTO,
+  CallNextPatientDTO,
+  CallSpecificPatientDTO,
+} from '../services/queue';
 
 export interface ScheduleData {
   queueMode: string; // 'fluid' | 'slotted'
@@ -26,12 +33,22 @@ export interface ScheduleData {
 
 interface UseQueueServiceOptions {
   staffId?: string;
+  clinicId?: string;
   autoRefresh?: boolean;
   refreshInterval?: number;
+  useClinicWide?: boolean;
+  allowedStaffIds?: string[];
 }
 
 export function useQueueService(options: UseQueueServiceOptions) {
-  const { staffId, autoRefresh = true, refreshInterval } = options;
+  const {
+    staffId,
+    clinicId,
+    autoRefresh = true,
+    refreshInterval,
+    useClinicWide = true,
+    allowedStaffIds,
+  } = options;
 
   const [scheduleData, setScheduleData] = useState<ScheduleData>({ queueMode: 'fluid', schedule: [] });
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -39,6 +56,13 @@ export function useQueueService(options: UseQueueServiceOptions) {
   
   const [queueService] = useState(() => new QueueService());
   const { toast } = useToast();
+
+  const normalizedAllowedStaffIds = useMemo(
+    () => Array.from(new Set((allowedStaffIds || []).filter((id): id is string => typeof id === 'string' && id.length > 0))),
+    [allowedStaffIds]
+  );
+
+  const scopedStaffIds = normalizedAllowedStaffIds.length > 0 ? normalizedAllowedStaffIds : undefined;
 
   // Helper function to get today's date in local timezone (YYYY-MM-DD)
   const getTodayLocal = (): string => {
@@ -50,7 +74,7 @@ export function useQueueService(options: UseQueueServiceOptions) {
   };
 
   const refreshSchedule = useCallback(async () => {
-    if (!staffId) {
+    if (!staffId && !(useClinicWide && clinicId)) {
       setIsLoading(false);
       setScheduleData({ queueMode: 'fluid', schedule: [] });
       return;
@@ -60,11 +84,19 @@ export function useQueueService(options: UseQueueServiceOptions) {
       const today = getTodayLocal(); // Use local timezone instead of UTC
       logger.debug("Fetching appointments for Live Queue", {
         staffId,
+        clinicId,
         date: today,
+        useClinicWide,
         note: "Live Queue always shows today's appointments"
       });
       
-      const data = await queueService.getDailySchedule(staffId, today);
+      const data = await queueService.getDailySchedule(
+        staffId,
+        today,
+        useClinicWide,
+        scopedStaffIds,
+        clinicId
+      );
       
       logger.debug("Appointments fetched for Live Queue", {
         date: today,
@@ -87,11 +119,11 @@ export function useQueueService(options: UseQueueServiceOptions) {
     } catch (err) {
       const error = err as Error;
       setError(error);
-      logger.error('Failed to refresh schedule', error, { staffId, date: getTodayLocal() });
+      logger.error('Failed to refresh schedule', error, { staffId, clinicId, date: getTodayLocal(), useClinicWide });
     } finally {
       setIsLoading(false);
     }
-  }, [staffId, queueService]);
+  }, [staffId, clinicId, queueService, useClinicWide, scopedStaffIds]);
 
   useEffect(() => { 
     refreshSchedule(); 
@@ -150,47 +182,69 @@ export function useQueueService(options: UseQueueServiceOptions) {
   );
 
   const callNextPatient = (dto: CallNextPatientDTO) => performAction(
-    queueService.callNextPatient(dto),
+    queueService.callNextPatient({
+      ...dto,
+      allowedStaffIds: dto.allowedStaffIds ?? scopedStaffIds,
+    }),
     { success: 'Next Patient Called', error: 'Failed to Call Patient' }
   );
 
+  const callSpecificPatient = (dto: CallSpecificPatientDTO) => performAction(
+    queueService.callSpecificPatient({
+      ...dto,
+      allowedStaffIds: dto.allowedStaffIds ?? scopedStaffIds,
+    }),
+    { success: 'Patient Called', error: 'Failed to Call Patient' }
+  );
+
   const markPatientAbsent = (dto: MarkAbsentDTO) => performAction(
-    queueService.markPatientAbsent(dto),
+    queueService.markPatientAbsent({
+      ...dto,
+      allowedStaffIds: dto.allowedStaffIds ?? scopedStaffIds,
+    }),
     { success: 'Patient Marked Absent', error: 'Failed to Mark Absent' }
   );
 
   const markPatientReturned = (appointmentId: string, performedBy: string) => performAction(
-    queueService.markPatientReturned(appointmentId, performedBy),
+    queueService.markPatientReturned(appointmentId, performedBy, scopedStaffIds),
     { success: 'Patient Returned to Queue', error: 'Failed to Return Patient' }
   );
 
   const resolveAbsentAppointment = (appointmentId: string, performedBy: string, resolution: 'rebooked' | 'waitlist') => performAction(
-    queueService.resolveAbsentAppointment({ appointmentId, performedBy, resolution }),
+    queueService.resolveAbsentAppointment({
+      appointmentId,
+      performedBy,
+      resolution,
+      allowedStaffIds: scopedStaffIds,
+    }),
     { success: 'Absent patient resolved', error: 'Failed to resolve absent patient' }
   );
 
   const completeAppointment = (appointmentId: string, performedBy: string) => performAction(
-    queueService.completeAppointment(appointmentId, performedBy),
+    queueService.completeAppointment(appointmentId, performedBy, scopedStaffIds),
     { success: 'Appointment Completed', error: 'Failed to Complete' }
   );
 
   const reorderQueue = (dto: ReorderQueueDTO) => performAction(
-    queueService.reorderQueue(dto),
+    queueService.reorderQueue({
+      ...dto,
+      allowedStaffIds: dto.allowedStaffIds ?? scopedStaffIds,
+    }),
     { success: 'Queue Reordered', error: 'Failed to Reorder' }
   );
 
     const checkInPatient = (appointmentId: string) => performAction(
-    queueService.checkInPatient(appointmentId),
+    queueService.checkInPatient(appointmentId, scopedStaffIds),
     { success: 'Patient Checked In', error: 'Failed to Check In' }
   );
 
   const markPatientPresent = (appointmentId: string, performedBy: string) => performAction(
-    queueService.markPatientPresent(appointmentId, performedBy),
+    queueService.markPatientPresent(appointmentId, performedBy, scopedStaffIds),
     { success: 'Patient Marked as Present', error: 'Failed to Mark Present' }
   );
 
   const markPatientNotPresent = (appointmentId: string, performedBy: string) => performAction(
-    queueService.markPatientNotPresent(appointmentId, performedBy),
+    queueService.markPatientNotPresent(appointmentId, performedBy, scopedStaffIds),
     { success: 'Patient Marked as Not Present', error: 'Failed to Mark Not Present' }
   );
 
@@ -204,6 +258,7 @@ export function useQueueService(options: UseQueueServiceOptions) {
     createAppointment,
     checkInPatient,
     callNextPatient,
+    callSpecificPatient,
     markPatientAbsent,
     markPatientReturned,
     markPatientPresent,
