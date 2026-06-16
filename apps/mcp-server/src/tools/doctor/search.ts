@@ -54,16 +54,17 @@ Parameters:
 - query: Provider name to search for (optional)
 - city: City name to filter by (optional)
 - specialty: Medical specialty to filter by (optional)
-- limit: Max results to return (1-50, default 10)
 
 Returns active providers with their clinic and next available appointment slot.`,
+  // NOTE: `limit` is intentionally NOT advertised to LLM callers — the model
+  // tends to emit it as a string ("10"), which strict tool-call validators
+  // (e.g. Groq) reject. The Zod schema still applies its default(10).
   inputSchema: {
     type: "object",
     properties: {
       query: { type: "string", description: "Provider name to search for" },
       city: { type: "string", description: "City name (e.g., 'Casablanca')" },
       specialty: { type: "string", description: "Medical specialty (e.g., 'Dermatologie')" },
-      limit: { type: "number", description: "Maximum results (default: 10)", default: 10 },
     },
     required: [],
   },

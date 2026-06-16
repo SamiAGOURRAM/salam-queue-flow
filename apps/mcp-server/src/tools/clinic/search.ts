@@ -64,10 +64,12 @@ Use this tool when users want to:
 Parameters:
 - query: Search term for clinic/doctor name (optional)
 - city: City name to filter by (optional)
-- specialty: Medical specialty to filter by (optional)  
-- limit: Max results to return (1-50, default 10)
+- specialty: Medical specialty to filter by (optional)
 
 Returns a list of active clinics with their details.`,
+  // NOTE: `limit` is intentionally NOT advertised to LLM callers — the model
+  // tends to emit it as a string ("10"), which strict tool-call validators
+  // (e.g. Groq) reject. The Zod schema still applies its default(10).
   inputSchema: {
     type: "object",
     properties: {
@@ -76,17 +78,12 @@ Returns a list of active clinics with their details.`,
         description: "Search term (clinic name, doctor name)",
       },
       city: {
-        type: "string", 
+        type: "string",
         description: "City name (e.g., 'Casablanca', 'Rabat')",
       },
       specialty: {
         type: "string",
         description: "Medical specialty (e.g., 'Dermatologie', 'Cardiologie')",
-      },
-      limit: {
-        type: "number",
-        description: "Maximum results (default: 10)",
-        default: 10,
       },
     },
     required: [],

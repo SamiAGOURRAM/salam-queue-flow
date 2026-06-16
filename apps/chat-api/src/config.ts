@@ -35,6 +35,9 @@ export const config = {
   /** Max agent steps (tool-call rounds) per chat turn. */
   maxSteps: int("CHAT_MAX_STEPS", 5),
 
+  /** Retries on a transient provider tool-call rejection (HTTP 400, non-retryable by the SDK). */
+  toolCallRetries: int("CHAT_TOOL_CALL_RETRIES", 2),
+
   /** CORS allow-list (comma-separated). "*" allows any origin. */
   corsOrigins: str("CHAT_API_CORS_ORIGINS", "*"),
 };
