@@ -44,7 +44,7 @@ export async function streamChatToResponse(opts: {
 
   // No model configured -> deterministic mock.
   if (!resolved) {
-    res.json({ message: mockReply(messages[messages.length - 1]?.content ?? ""), cards: undefined });
+    res.json({ message: mockReply(messages[messages.length - 1]?.content ?? ""), cards: undefined, outcome: undefined });
     return;
   }
 
@@ -70,13 +70,14 @@ export async function streamChatToResponse(opts: {
     // Await the full text (the tool loop runs to completion, populating any
     // side-channeled cards on the session), then return both as one JSON envelope.
     const message = await result.text;
-    res.json({ message, cards: session?.getCollectedCards() });
+    res.json({ message, cards: session?.getCollectedCards(), outcome: session?.getOutcome() });
   } catch (error) {
     console.error("[chat-api] generation failed:", error);
     if (!res.headersSent) {
       res.status(502).json({
         message: "⚠️ Sorry, I couldn't complete that request. Please try again.",
         cards: undefined,
+        outcome: "backend_unavailable",
       });
     }
   } finally {

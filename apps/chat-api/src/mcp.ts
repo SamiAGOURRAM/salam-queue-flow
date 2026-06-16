@@ -10,11 +10,19 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { tool, jsonSchema, type ToolSet } from "ai";
 import type { JSONSchema7 } from "json-schema";
+import {
+  classifyToolResult,
+  aggregateOutcomes,
+  summarizeForModel,
+  type ToolOutcomeKind,
+} from "./outcomes.js";
 
 export interface McpSession {
   tools: ToolSet;
   /** Structured discovery `cards` captured from the last card-bearing tool result this request (or undefined). */
   getCollectedCards: () => unknown | undefined;
+  /** Aggregate outcome across every tool called this request (worst wins), or undefined if no tool ran. */
+  getOutcome: () => ToolOutcomeKind | undefined;
   close: () => Promise<void>;
 }
 
@@ -63,8 +71,10 @@ export async function createMcpSession(mcpUrl: string, token?: string): Promise<
 
   const { tools: mcpTools } = await client.listTools();
 
-  // Per-request accumulator: the latest structured `cards` payload a tool returned.
+  // Per-request accumulators: the latest structured `cards` payload a tool
+  // returned, and every tool's classified outcome (aggregated worst-wins).
   let collectedCards: unknown | undefined;
+  const outcomes: ToolOutcomeKind[] = [];
 
   const tools: ToolSet = {};
   for (const t of mcpTools) {
@@ -77,11 +87,15 @@ export async function createMcpSession(mcpUrl: string, token?: string): Promise<
           arguments: (args ?? {}) as Record<string, unknown>,
         });
         const text = extractText(result.content);
-        // Side-channel any discovery cards (last card-bearing tool wins); the model
-        // still receives `text` unchanged.
+        // Classify the raw result so the agent/UI can distinguish failure modes.
+        const kind = classifyToolResult({ isError: !!result.isError, text });
+        outcomes.push(kind);
+        // Side-channel any discovery cards (last card-bearing tool wins).
         const cards = parseCards(text);
         if (cards) collectedCards = cards;
-        return text;
+        // The model sees a compact, outcome-shaped summary — not the raw error
+        // JSON (which would leak IDs/hrefs and let it paraphrase failures).
+        return summarizeForModel(kind, text);
       },
     });
   }
@@ -89,6 +103,7 @@ export async function createMcpSession(mcpUrl: string, token?: string): Promise<
   return {
     tools,
     getCollectedCards: () => collectedCards,
+    getOutcome: () => aggregateOutcomes(outcomes),
     close: async () => {
       await client.close();
     },
