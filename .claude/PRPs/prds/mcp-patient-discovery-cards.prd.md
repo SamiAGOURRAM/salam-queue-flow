@@ -26,7 +26,7 @@ We believe **clickable doctor/clinic cards in chat** will **turn discovery into 
 | Chat→booking-started rate | Beat text-list baseline (set baseline first) | Funnel event from card tap → BookingFlow open |
 | Card deep-link accuracy | 100% open correct prefilled clinic/doctor | E2E assertion |
 | Discovery tool p95 latency | < 1.5s incl. next-slot | Server timing log |
-| Cross-role denial | 100% (patient cannot reach staff/doctor tools) | Auth eval suite |
+| Cross-role denial | 100% (patient cannot reach staff/doctor tools) | Auth eval suite — `roleGuard.eval.test.ts`, 136 deterministic assertions, drift-locked, negative-control verified ✓ |
 
 ## Users & Context
 **Primary user** — a patient in the chat. *Current behavior:* asks for clinics/doctors, gets text, leaves chat to book. *Trigger:* "doctors in Casablanca for dermatology". *Success state:* taps a card, lands in BookingFlow prefilled.
@@ -86,7 +86,7 @@ A patient asks for clinics/doctors by city/specialty → the agent calls the dis
 | 2 | clinic_search cards | Extend `clinic_search` output to card payload | complete | 1 | → reports/mcp-clinic-search-cards-report.md
 | 3 | doctor_search tool | New patient/public tool → doctor cards incl. next slot | complete | 1 | → reports/mcp-doctor-search-cards-report.md (infra: reports/core-nodenext-resolution-report.md)
 | 4 | Chat rendering | Extend chat contract → {message,cards}; render DoctorCard/ClinicCard, deep-link to BookingFlow | complete | 2,3 | → reports/mcp-chat-card-rendering-report.md
-| 5 | Auth + evals | Register perms; eval suite for capability + cross-role denial | pending | 2,3 |
+| 5 | Auth + evals | Deterministic RBAC matrix eval — cross-role denial over every registered tool × role | complete | 2,3 | → reports/mcp-auth-eval-suite-report.md
 
 ## Open Questions
 - [ ] When do we land the distinct `doctor` role — now as a no-op foundation, or with the first doctor-tool phase? (No v1 consumer.)
