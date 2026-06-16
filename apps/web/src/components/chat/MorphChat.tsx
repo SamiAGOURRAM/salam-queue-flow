@@ -11,6 +11,8 @@ import { useTranslation } from "react-i18next";
 import { createChatService } from "@/services/chat";
 import type { ApiChatService } from "@/services/chat/ApiChatService";
 import { cn } from "@/lib/utils";
+import { DiscoveryCardsView } from "./DiscoveryCardsView";
+import type { DiscoveryCards } from "@queuemed/core";
 
 const ORB_BASE = "oklch(22.64% 0 0)";
 
@@ -64,6 +66,7 @@ interface Msg {
   id: string;
   role: "user" | "assistant";
   text: string;
+  cards?: DiscoveryCards;
 }
 
 const SPRING = { type: "spring" as const, stiffness: 520, damping: 44, mass: 0.7 };
@@ -124,12 +127,15 @@ export function MorphChat() {
     try {
       const stream = (service as ApiChatService).sendMessageStream;
       if (typeof stream === "function") {
-        await stream.call(service, text, (_chunk: string, full: string) => {
+        // Stream the text as it resolves, then attach any discovery cards from
+        // the final response envelope.
+        const res = await stream.call(service, text, (_chunk: string, full: string) => {
           setMessages((prev) => prev.map((m) => (m.id === aId ? { ...m, text: full } : m)));
         });
+        setMessages((prev) => prev.map((m) => (m.id === aId ? { ...m, text: res.message, cards: res.cards } : m)));
       } else {
         const res = await service.sendMessage(text);
-        setMessages((prev) => prev.map((m) => (m.id === aId ? { ...m, text: res.message } : m)));
+        setMessages((prev) => prev.map((m) => (m.id === aId ? { ...m, text: res.message, cards: res.cards } : m)));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong. Please try again.");
@@ -271,7 +277,10 @@ export function MorphChat() {
                     ) : (
                       <div key={m.id} className="flex items-start gap-2.5">
                         <ColorOrb dimension="20px" tones={{ base: ORB_BASE }} className="mt-0.5 shrink-0" />
-                        <p className="whitespace-pre-wrap text-sm leading-[1.6rem] text-white/90">{m.text}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="whitespace-pre-wrap text-sm leading-[1.6rem] text-white/90">{m.text}</p>
+                          {m.cards && <DiscoveryCardsView cards={m.cards} onNavigate={triggerClose} />}
+                        </div>
                       </div>
                     );
                   })}
