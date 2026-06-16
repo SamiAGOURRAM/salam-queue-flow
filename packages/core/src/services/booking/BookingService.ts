@@ -254,6 +254,7 @@ export class BookingService {
   async getNextAvailableSlot(
     clinicId: string,
     fromDate: string,
+    staffId: string,
     maxDays = 14
   ): Promise<NextAvailableSlot | null> {
     this.logger.setContext({
@@ -266,7 +267,7 @@ export class BookingService {
       for (let i = 0; i < maxDays; i++) {
         const date = this.addDaysUtc(fromDate, i);
         // Call the repository directly to avoid nested log-context churn per day.
-        const res = await this.repository.getAvailableSlotsForMode(clinicId, date);
+        const res = await this.repository.getAvailableSlotsForMode(clinicId, date, undefined, staffId);
         const slot = res.slots?.find(s => s.available);
         if (slot) return { kind: 'datetime', value: `${date}T${slot.time}` };
         // Fluid/queue day with capacity: bookable that day, no fixed time.

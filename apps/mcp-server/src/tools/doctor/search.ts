@@ -90,7 +90,7 @@ interface DoctorSearchResult {
 // CARD MAPPING (pure — unit-tested without a DB)
 // ============================================
 
-function toDoctorCard(d: DoctorListing, slotByClinic: Map<string, NextAvailableSlot | null>): DoctorCardItem {
+function toDoctorCard(d: DoctorListing, slotByDoctor: Map<string, NextAvailableSlot | null>): DoctorCardItem {
   return {
     doctorId: d.staffId,
     fullName: d.fullName,
@@ -98,7 +98,7 @@ function toDoctorCard(d: DoctorListing, slotByClinic: Map<string, NextAvailableS
     clinicId: d.clinicId,
     clinicName: d.clinicName,
     city: d.city,
-    nextAvailableSlot: slotByClinic.get(d.clinicId) ?? undefined,
+    nextAvailableSlot: slotByDoctor.get(d.staffId) ?? undefined,
     // SECURITY: the deep link is minted in code, never by the model (branded type).
     bookingHref: buildBookingHref({ clinicId: d.clinicId, staffId: d.staffId }),
   };
@@ -111,9 +111,9 @@ function toDoctorCard(d: DoctorListing, slotByClinic: Map<string, NextAvailableS
  */
 export function buildDoctorCards(
   doctors: DoctorListing[],
-  slotByClinic: Map<string, NextAvailableSlot | null>,
+  slotByDoctor: Map<string, NextAvailableSlot | null>,
 ): DiscoveryCards | undefined {
-  const [first, ...rest] = doctors.map((d) => toDoctorCard(d, slotByClinic));
+  const [first, ...rest] = doctors.map((d) => toDoctorCard(d, slotByDoctor));
   if (!first) return undefined;
   return { kind: "doctor_cards", items: [first, ...rest] };
 }
@@ -148,20 +148,21 @@ export async function executeDoctorSearch(
     limit: params.limit,
   });
 
-  // Next available slot is clinic+date level, so compute ONCE per unique clinic
-  // (deduped) and share across that clinic's doctors — avoids an N+1 scan.
+  // Next available slot is per DOCTOR (the booking model is doctor-first: the
+  // slot RPC requires a staff id), so compute once per unique staffId.
   // Civil "today" in the clinic market's timezone (not UTC) so the next-slot scan
   // anchors on the right day around midnight. `en-CA` formats as YYYY-MM-DD;
   // `Africa/Casablanca` tracks Morocco's civil offset (incl. Ramadan shifts).
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Casablanca" }).format(new Date());
-  const slotByClinic = new Map<string, NextAvailableSlot | null>();
-  for (const clinicId of new Set(doctors.map((d) => d.clinicId))) {
-    slotByClinic.set(clinicId, await bookingService.getNextAvailableSlot(clinicId, today));
+  const slotByDoctor = new Map<string, NextAvailableSlot | null>();
+  for (const d of doctors) {
+    if (slotByDoctor.has(d.staffId)) continue;
+    slotByDoctor.set(d.staffId, await bookingService.getNextAvailableSlot(d.clinicId, today, d.staffId));
   }
 
   logger.info("Doctor search completed via @queuemed/core", {
     resultCount: doctors.length,
-    uniqueClinics: slotByClinic.size,
+    uniqueDoctors: slotByDoctor.size,
     filters: params,
   });
 
@@ -169,6 +170,6 @@ export async function executeDoctorSearch(
     success: true,
     count: doctors.length,
     doctors,
-    cards: buildDoctorCards(doctors, slotByClinic),
+    cards: buildDoctorCards(doctors, slotByDoctor),
   };
 }

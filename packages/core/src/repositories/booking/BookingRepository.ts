@@ -226,7 +226,8 @@ export class BookingRepository extends BaseRepository {
   async getAvailableSlotsForMode(
     clinicId: string,
     date: string,
-    appointmentType?: string
+    appointmentType?: string,
+    staffId?: string
   ): Promise<AvailableSlotsResponse> {
     // Check queue mode first
     const mode = await this.getQueueModeForDate(clinicId, date);
@@ -241,10 +242,14 @@ export class BookingRepository extends BaseRepository {
     }
 
     // For time slots mode (slotted), use the RPC function
+    // The DB function is doctor-first: it requires a staff id (p_staff_id) and
+    // computes the effective queue mode per staff. Callers that need a concrete
+    // slot (e.g. doctor discovery) must pass staffId.
     const data = await this.executeRpc<AvailableSlotsResponse>(
       'get_available_slots_for_mode',
       {
         p_clinic_id: clinicId,
+        p_staff_id: staffId,
         p_appointment_date: date,
         p_appointment_type: appointmentType || 'consultation'
       },
