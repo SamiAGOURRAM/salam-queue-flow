@@ -18,9 +18,13 @@ export default defineConfig(({ mode }) => ({
     },
     dedupe: ["react", "react-dom"],
   },
-  // Optimize deps for workspace packages
   optimizeDeps: {
-    include: ["@queuemed/core", "@tanstack/react-table"],
+    // NOTE: do NOT pre-bundle "@queuemed/core" here. It is aliased to source
+    // (packages/core/src) and edited in-place; pre-bundling snapshots it into
+    // .vite/deps and the snapshot goes stale when a new export is added (Vite
+    // doesn't invalidate it), causing "does not provide an export named ..."
+    // at runtime. Let Vite process it as source like the rest of the app graph.
+    include: ["@tanstack/react-table"],
   },
   build: {
     rollupOptions: {
