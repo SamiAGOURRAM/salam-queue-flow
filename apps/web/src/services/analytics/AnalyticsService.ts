@@ -281,7 +281,7 @@ export async function getKPIDashboard(
   const summary = computeSummary(normalizedDaily, Number(realtimeMetrics.active_staff_count ?? 0));
 
   const revenueKpis = canViewBilling && revenueKpisResult.data
-    ? (revenueKpisResult.data as RevenueKpis)
+    ? (revenueKpisResult.data as unknown as RevenueKpis)
     : null;
 
   return {

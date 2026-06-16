@@ -7,6 +7,31 @@ export type Json =
   | Json[]
 
 export type Database = {
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       absent_patients: {
@@ -1953,6 +1978,102 @@ export type Database = {
           },
         ]
       }
+      patient_referrals: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          id: string
+          linked_appointment_id: string | null
+          notes: string | null
+          patient_id: string
+          reason: string
+          responded_at: string | null
+          responded_by: string | null
+          response_notes: string | null
+          source_staff_id: string
+          status: Database["public"]["Enums"]["referral_status"]
+          target_clinic_id: string | null
+          target_clinic_name: string | null
+          target_doctor_name: string
+          target_specialty: string | null
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          id?: string
+          linked_appointment_id?: string | null
+          notes?: string | null
+          patient_id: string
+          reason: string
+          responded_at?: string | null
+          responded_by?: string | null
+          response_notes?: string | null
+          source_staff_id: string
+          status?: Database["public"]["Enums"]["referral_status"]
+          target_clinic_id?: string | null
+          target_clinic_name?: string | null
+          target_doctor_name: string
+          target_specialty?: string | null
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          linked_appointment_id?: string | null
+          notes?: string | null
+          patient_id?: string
+          reason?: string
+          responded_at?: string | null
+          responded_by?: string | null
+          response_notes?: string | null
+          source_staff_id?: string
+          status?: Database["public"]["Enums"]["referral_status"]
+          target_clinic_id?: string | null
+          target_clinic_name?: string | null
+          target_doctor_name?: string
+          target_specialty?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_referrals_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_referrals_linked_appointment_id_fkey"
+            columns: ["linked_appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_referrals_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_referrals_source_staff_id_fkey"
+            columns: ["source_staff_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_referrals_target_clinic_id_fkey"
+            columns: ["target_clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patients: {
         Row: {
           consent_data_processing: boolean
@@ -2646,6 +2767,7 @@ export type Database = {
         }
         Returns: Json
       }
+      cancel_referral: { Args: { p_referral_id: string }; Returns: boolean }
       check_active_grant_for_patient: {
         Args: { p_patient_id: string }
         Returns: Json
@@ -2731,6 +2853,21 @@ export type Database = {
           p_phone_number: string
           p_source?: string
           p_user_id?: string
+        }
+        Returns: string
+      }
+      create_patient_referral: {
+        Args: {
+          p_clinic_id: string
+          p_linked_appointment_id?: string
+          p_notes?: string
+          p_patient_id: string
+          p_reason: string
+          p_source_staff_id: string
+          p_target_clinic_id?: string
+          p_target_clinic_name?: string
+          p_target_doctor_name: string
+          p_target_specialty?: string
         }
         Returns: string
       }
@@ -2918,6 +3055,10 @@ export type Database = {
         Args: { p_patient_id: string }
         Returns: Json
       }
+      get_patient_referrals: {
+        Args: { p_clinic_id: string; p_patient_id: string }
+        Returns: Json
+      }
       get_public_queue_status: {
         Args: { p_queue_status_token: string }
         Returns: Json
@@ -3006,6 +3147,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      refresh_demo_queue: { Args: never; Returns: undefined }
       replace_staff_queue_assignments: {
         Args: { p_assigned_staff_ids?: string[]; p_staff_id: string }
         Returns: Json
@@ -3034,6 +3176,14 @@ export type Database = {
       resolve_queue_scope_for_staff: {
         Args: { p_staff_id: string }
         Returns: Json
+      }
+      respond_to_referral: {
+        Args: {
+          p_new_status: Database["public"]["Enums"]["referral_status"]
+          p_referral_id: string
+          p_response_notes?: string
+        }
+        Returns: boolean
       }
       revoke_all_medical_record_access: { Args: never; Returns: Json }
       revoke_medical_record_access: {
@@ -3153,6 +3303,12 @@ export type Database = {
       patient_allergy_source: "patient" | "clinician"
       patient_medical_entry_source: "patient" | "clinician"
       practice_type: "solo_practice" | "group_clinic" | "hospital"
+      referral_status:
+        | "pending"
+        | "accepted"
+        | "declined"
+        | "completed"
+        | "cancelled"
       skip_reason_type:
         | "patient_absent"
         | "patient_present"
@@ -3286,6 +3442,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       app_role: ["super_admin", "clinic_owner", "staff", "patient"],
@@ -3329,6 +3488,13 @@ export const Constants = {
       patient_allergy_source: ["patient", "clinician"],
       patient_medical_entry_source: ["patient", "clinician"],
       practice_type: ["solo_practice", "group_clinic", "hospital"],
+      referral_status: [
+        "pending",
+        "accepted",
+        "declined",
+        "completed",
+        "cancelled",
+      ],
       skip_reason_type: [
         "patient_absent",
         "patient_present",

@@ -220,8 +220,7 @@ export class QueueRepository {
 
           if (
             first.error &&
-            typeof first.error === 'object' &&
-            (first.error as Record<string, unknown>).code === '42501' &&
+            first.error.code === '42501' &&
             staffId
           ) {
             logger.warn('Clinic‑wide scope denied for user; falling back to provider scope', {
@@ -245,13 +244,16 @@ export class QueueRepository {
         }
 
         if (error) {
-          logger.error('Failed to fetch clinic-wide schedule via RPC', error, {
+          const cause = error instanceof Error
+            ? error
+            : new Error(String((error as { message?: unknown })?.message ?? error));
+          logger.error('Failed to fetch clinic-wide schedule via RPC', cause, {
             staffId,
             targetDate,
             clinicId: resolvedClinicId,
             allowedStaffCount: normalizedAllowedStaffIds.length,
           });
-          throw new DatabaseError('Failed to fetch schedule', error);
+          throw new DatabaseError('Failed to fetch schedule', cause);
         }
 
         return this.mapScheduleResponse(data);
