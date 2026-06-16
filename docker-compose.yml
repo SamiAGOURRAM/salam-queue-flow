@@ -42,6 +42,9 @@ services:
       # Gate: skip queue notifications when Twilio is not wired.
       # Must be the string "true" (Vite inlines this at build time).
       VITE_SMS_ENABLED: false
+      # Windows bind mount → no inotify in the container; poll for file changes
+      # so Vite HMR actually picks up host edits.
+      CHOKIDAR_USEPOLLING: "true"
     volumes:
       - ./:/app
       - web_root_node_modules:/app/node_modules

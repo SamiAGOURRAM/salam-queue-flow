@@ -8,6 +8,14 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    // Bind-mounted source on a Windows host doesn't deliver inotify events to
+    // the Linux container, so the file watcher misses edits. Enable chokidar
+    // polling when CHOKIDAR_USEPOLLING=true (set for the dockerized dev server);
+    // left off for native host dev to avoid the polling CPU cost.
+    watch:
+      process.env.CHOKIDAR_USEPOLLING === "true"
+        ? { usePolling: true, interval: 200 }
+        : undefined,
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
