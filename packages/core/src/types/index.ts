@@ -33,6 +33,8 @@ export interface AvailableSlotsResponse {
 
 export interface BookingRequest {
   clinicId: string;
+  /** Provider/staff to book with. Required: the booking RPCs are doctor-first (per-staff). */
+  staffId: string;
   patientId: string;
   appointmentDate: string;
   scheduledTime: string | null;  // Can be null for free queue

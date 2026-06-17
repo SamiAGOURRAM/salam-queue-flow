@@ -30,55 +30,20 @@ export class BookingRepository extends BaseRepository {
    * Check if a specific time slot is available
    */
   async checkAvailability(
-    clinicId: string, 
-    date: string, 
+    clinicId: string,
+    staffId: string,
+    date: string,
     time: string
   ): Promise<AppointmentAvailability> {
     return this.executeRpc<AppointmentAvailability>(
       'check_appointment_availability',
       {
         p_clinic_id: clinicId,
+        p_staff_id: staffId,
         p_appointment_date: date,
         p_scheduled_time: time
       },
       'Failed to check appointment availability'
-    );
-  }
-
-  /**
-   * Get all available time slots for a clinic on a specific date
-   */
-  async getAvailableSlots(
-    clinicId: string,
-    date: string,
-    appointmentType?: string
-  ): Promise<AvailableSlotsResponse> {
-    return this.executeRpc<AvailableSlotsResponse>(
-      'get_available_slots',
-      {
-        p_clinic_id: clinicId,
-        p_appointment_date: date,
-        p_appointment_type: appointmentType
-      },
-      'Failed to fetch available time slots'
-    );
-  }
-
-  /**
-   * Create a new appointment with atomic validation
-   */
-  async createAppointment(booking: BookingRequest): Promise<BookingResponse> {
-    return this.executeRpc<BookingResponse>(
-      'create_appointment_with_validation',
-      {
-        p_clinic_id: booking.clinicId,
-        p_patient_id: booking.patientId,
-        p_appointment_date: booking.appointmentDate,
-        p_scheduled_time: booking.scheduledTime,
-        p_appointment_type: booking.appointmentType,
-        p_reason: booking.reasonForVisit
-      },
-      'Failed to create appointment'
     );
   }
 
@@ -272,7 +237,7 @@ export class BookingRepository extends BaseRepository {
         {
           p_clinic_id: booking.clinicId,
           p_patient_id: booking.patientId,
-          p_staff_id: null,
+          p_staff_id: booking.staffId,
           p_appointment_date: booking.appointmentDate,
           p_scheduled_time: booking.scheduledTime,
           p_appointment_type: booking.appointmentType,
@@ -303,6 +268,7 @@ export class BookingRepository extends BaseRepository {
    */
   async checkAvailabilityForMode(
     clinicId: string,
+    staffId: string,
     date: string,
     time: string | null
   ): Promise<AppointmentAvailability> {
@@ -315,8 +281,8 @@ export class BookingRepository extends BaseRepository {
       };
     }
 
-    // For time slots, use existing availability check
-    return this.checkAvailability(clinicId, date, time);
+    // For time slots, use the per-staff availability check
+    return this.checkAvailability(clinicId, staffId, date, time);
   }
 
   /**

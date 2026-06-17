@@ -51,68 +51,6 @@ export class BookingService {
   ) {}
 
   /**
-   * Book an appointment with full validation
-   */
-  async bookAppointment(request: BookingRequest): Promise<BookingResponse> {
-    this.logger.setContext({
-      service: 'BookingService',
-      operation: 'bookAppointment',
-      clinicId: request.clinicId,
-      userId: request.patientId
-    });
-
-    try {
-      this.logger.info('Starting appointment booking', {
-        date: request.appointmentDate,
-        time: request.scheduledTime,
-        type: request.appointmentType
-      });
-
-      // Check availability
-      const availability = await this.repository.checkAvailability(
-        request.clinicId,
-        request.appointmentDate,
-        request.scheduledTime!
-      );
-
-      if (!availability.available) {
-        this.logger.warn('Slot not available', {
-          existingCount: availability.existingCount,
-          capacity: availability.capacity
-        });
-
-        await this.publishBookingFailed(request, 'Slot not available');
-
-        return {
-          success: false,
-          error: 'This time slot is no longer available'
-        };
-      }
-
-      // Create the appointment
-      const result = await this.repository.createAppointment(request);
-
-      if (result.success) {
-        await this.publishBookingCreated(request, result.appointmentId!);
-        this.logger.info('Appointment created successfully', {
-          appointmentId: result.appointmentId,
-          queuePosition: result.queuePosition
-        });
-      } else {
-        this.logger.error('Failed to create appointment', new Error(result.error || 'Unknown error'));
-      }
-
-      return result;
-    } catch (error) {
-      this.logger.error('Booking failed with exception', error as Error);
-      await this.publishBookingFailed(request, (error as Error).message);
-      throw error;
-    } finally {
-      this.logger.clearContext();
-    }
-  }
-
-  /**
    * Book appointment with dual-mode support (free queue or time slots)
    */
   async bookAppointmentForMode(request: BookingRequest): Promise<BookingResponse> {
@@ -130,9 +68,10 @@ export class BookingService {
         type: request.appointmentType
       });
 
-      // Check availability (mode-aware)
+      // Check availability (mode-aware, per-staff)
       const availability = await this.repository.checkAvailabilityForMode(
         request.clinicId,
+        request.staffId,
         request.appointmentDate,
         request.scheduledTime
       );
@@ -176,45 +115,13 @@ export class BookingService {
   }
 
   /**
-   * Get available slots for a clinic on a specific date
-   */
-  async getAvailableSlots(
-    clinicId: string,
-    date: string,
-    appointmentType?: string
-  ): Promise<AvailableSlotsResponse> {
-    this.logger.setContext({
-      service: 'BookingService',
-      operation: 'getAvailableSlots',
-      clinicId
-    });
-
-    try {
-      this.logger.debug('Fetching available slots', { date, appointmentType });
-
-      const slots = await this.repository.getAvailableSlots(clinicId, date, appointmentType);
-
-      this.logger.info('Available slots fetched', {
-        totalSlots: slots.slots?.length || 0,
-        availableCount: slots.slots?.filter(s => s.available).length || 0
-      });
-
-      return slots;
-    } catch (error) {
-      this.logger.error('Failed to fetch available slots', error as Error);
-      throw error;
-    } finally {
-      this.logger.clearContext();
-    }
-  }
-
-  /**
    * Get available slots with mode awareness
    */
   async getAvailableSlotsForMode(
     clinicId: string,
     date: string,
-    appointmentType?: string
+    appointmentType?: string,
+    staffId?: string
   ): Promise<AvailableSlotsResponse> {
     this.logger.setContext({
       service: 'BookingService',
@@ -225,7 +132,7 @@ export class BookingService {
     try {
       this.logger.debug('Fetching available slots for mode', { date, appointmentType });
 
-      const slots = await this.repository.getAvailableSlotsForMode(clinicId, date, appointmentType);
+      const slots = await this.repository.getAvailableSlotsForMode(clinicId, date, appointmentType, staffId);
 
       this.logger.info('Available slots fetched', {
         mode: slots.mode,

@@ -2,11 +2,11 @@
  * QueueMed chat-api — HTTP entry point.
  *
  * POST /api/chat   { messages: [{ role, content }] }  +  Authorization: Bearer <supabase-jwt>
- *                  -> streamed text/plain assistant reply
+ *                  -> AI SDK v5 UI message stream (text deltas + data-cards / data-outcome parts)
  * GET  /health
  */
 import express, { type Request, type Response } from "express";
-import { streamChatToResponse, type ChatMessage } from "./agent.js";
+import { streamChatToResponse, type QueueMedUIMessage } from "./agent.js";
 import { resolveModel } from "./llm.js";
 import { config } from "./config.js";
 
@@ -18,17 +18,25 @@ function extractBearerToken(req: Request): string | undefined {
   return undefined;
 }
 
-function isValidMessages(value: unknown): value is ChatMessage[] {
+/**
+ * Validate the AI SDK v5 UI message shape the web client sends: each message has
+ * a role and a `parts` array. (Phase C: the full UI messages — including tool
+ * calls + their approval results — must reach the server for the HITL gate, so
+ * we no longer accept the old flattened `{ role, content }` form.)
+ */
+function isValidMessages(value: unknown): value is QueueMedUIMessage[] {
   return (
     Array.isArray(value) &&
-    value.every(
-      (m) =>
-        !!m &&
-        typeof m === "object" &&
-        (m as ChatMessage).role &&
-        ["user", "assistant"].includes((m as ChatMessage).role) &&
-        typeof (m as ChatMessage).content === "string",
-    )
+    value.every((m) => {
+      const msg = m as { role?: unknown; parts?: unknown };
+      return (
+        !!msg &&
+        typeof msg === "object" &&
+        typeof msg.role === "string" &&
+        ["user", "assistant", "system"].includes(msg.role) &&
+        Array.isArray(msg.parts)
+      );
+    })
   );
 }
 

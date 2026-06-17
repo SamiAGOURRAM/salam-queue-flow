@@ -7,33 +7,28 @@ import { Send, Minimize2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
 import { MessageBubble } from "./MessageBubble";
-import { createChatService } from "@/services/chat";
+import { BookingConfirmCard } from "./BookingConfirmCard";
 import type { ChatMessage } from "@/services/chat";
-import { useAuth } from "@/hooks/useAuth";
-import { useLocation } from "react-router-dom";
+import { useQueueMedChat, readMessage } from "@/services/chat/useQueueMedChat";
 
 interface ChatWindowProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+const GREETING: ChatMessage = {
+  id: "greeting",
+  text: "Hello! I'm your AI assistant. How can I help you today?",
+  sender: "assistant",
+  timestamp: new Date(),
+};
+
 export function ChatWindow({ isOpen, onClose }: ChatWindowProps) {
-  const { user, isClinicOwner, isStaff } = useAuth();
-  const location = useLocation();
-  const chatService = useRef(createChatService()).current;
-  
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "1",
-      text: "Hello! I'm your AI assistant. How can I help you today?",
-      sender: "assistant",
-      timestamp: new Date(),
-    },
-  ]);
+  const { messages, sendMessage, status, addToolResult } = useQueueMedChat();
+
   const [inputValue, setInputValue] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const isLoading = status === "submitted" || status === "streaming";
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -51,56 +46,11 @@ export function ChatWindow({ isOpen, onClose }: ChatWindowProps) {
     }
   }, [isOpen]);
 
-  const handleSend = async () => {
+  const handleSend = () => {
     if (!inputValue.trim() || isLoading) return;
-
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      text: inputValue,
-      sender: "user",
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    const messageText = inputValue;
+    const text = inputValue;
     setInputValue("");
-    setIsLoading(true);
-
-    try {
-      // Determine user role
-      let userRole: "patient" | "staff" | "clinic_owner" | undefined;
-      if (isClinicOwner) userRole = "clinic_owner";
-      else if (isStaff) userRole = "staff";
-      else if (user) userRole = "patient";
-
-      // Send message to chat service with context
-      const response = await chatService.sendMessage(messageText, {
-        userId: user?.id,
-        userRole,
-        currentRoute: location.pathname,
-      });
-
-      const assistantMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        text: response.message,
-        sender: "assistant",
-        timestamp: response.timestamp,
-        cards: response.cards,
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
-    } catch (error) {
-      console.error("Chat error:", error);
-      const errorMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        text: "Sorry, I encountered an error. Please try again.",
-        sender: "assistant",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
+    void sendMessage({ text });
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -145,9 +95,30 @@ export function ChatWindow({ isOpen, onClose }: ChatWindowProps) {
       {/* Messages Area */}
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
         <div className="space-y-4">
-          {messages.map((message) => (
-            <MessageBubble key={message.id} message={message} onCardNavigate={onClose} />
-          ))}
+          <MessageBubble message={GREETING} />
+          {messages.map((m) => {
+            const { text, cards, bookingCalls } = readMessage(m);
+            if (m.role === "assistant" && text.trim() === "" && !cards && bookingCalls.length === 0) return null;
+            return (
+              <div key={m.id} className="flex w-full flex-col gap-1">
+                {(text.trim() !== "" || cards) && (
+                  <MessageBubble
+                    message={{ id: m.id, text, sender: m.role === "user" ? "user" : "assistant", timestamp: new Date(), cards }}
+                    onCardNavigate={onClose}
+                  />
+                )}
+                {bookingCalls.map((bc) => (
+                  <BookingConfirmCard
+                    key={bc.toolCallId}
+                    call={bc}
+                    onDecide={(approved) =>
+                      addToolResult({ tool: bc.toolName, toolCallId: bc.toolCallId, output: { approved } })
+                    }
+                  />
+                ))}
+              </div>
+            );
+          })}
           {isLoading && (
             <div className="flex items-center gap-2 text-gray-500">
               <div className="flex gap-1">

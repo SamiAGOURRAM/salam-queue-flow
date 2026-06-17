@@ -23,6 +23,8 @@
     "test:smoke:templates-local": "node ./scripts/run-templates-flow-smoke.mjs"
   },
   "dependencies": {
+    "@ai-sdk/react": "^2.0.0",
+    "ai": "^5.0.0",
     "@tiptap/extension-image": "^2.26.1",
     "@tiptap/extension-link": "^2.26.1",
     "@tiptap/extension-placeholder": "^2.26.1",

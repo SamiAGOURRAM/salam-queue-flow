@@ -1,18 +1,17 @@
 /**
  * MorphChat — "Ask AI" dock that morphs from a pill into a full conversational
- * panel. Ported from the Digital_portfolio MorphPanel aesthetic, but wired to
- * QueueMed's own JWT-authenticated chat-api (via ApiChatService streaming) and
- * react-i18next.
+ * panel. Ported from the Digital_portfolio MorphPanel aesthetic, wired to
+ * QueueMed's own JWT-authenticated chat-api via AI SDK v5 `useChat` (real token
+ * streaming + typed discovery cards) and react-i18next.
  */
 import React from "react";
 import { AnimatePresence, motion, useAnimationControls } from "framer-motion";
 import { X, ArrowUp, Square, SquarePen } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { createChatService } from "@/services/chat";
-import type { ApiChatService } from "@/services/chat/ApiChatService";
+import { useQueueMedChat, readMessage } from "@/services/chat/useQueueMedChat";
 import { cn } from "@/lib/utils";
 import { DiscoveryCardsView } from "./DiscoveryCardsView";
-import type { DiscoveryCards } from "@queuemed/core";
+import { BookingConfirmCard } from "./BookingConfirmCard";
 
 const ORB_BASE = "oklch(22.64% 0 0)";
 
@@ -62,13 +61,6 @@ export const ColorOrb: React.FC<OrbProps> = ({ dimension = "192px", className, t
 };
 
 /* ── Chat ──────────────────────────────────────────────────────────────── */
-interface Msg {
-  id: string;
-  role: "user" | "assistant";
-  text: string;
-  cards?: DiscoveryCards;
-}
-
 const SPRING = { type: "spring" as const, stiffness: 520, damping: 44, mass: 0.7 };
 
 function DockPill({ onOpen, label }: { onOpen: () => void; label: string }) {
@@ -82,7 +74,7 @@ function DockPill({ onOpen, label }: { onOpen: () => void; label: string }) {
 
 export function MorphChat() {
   const { t } = useTranslation();
-  const service = React.useRef(createChatService()).current;
+  const { messages, sendMessage, status, error, stop, setMessages, addToolResult } = useQueueMedChat();
 
   const wrapperRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLTextAreaElement>(null);
@@ -91,14 +83,15 @@ export function MorphChat() {
 
   const [open, setOpen] = React.useState(false);
   const [input, setInput] = React.useState("");
-  const [messages, setMessages] = React.useState<Msg[]>([]);
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
 
+  const busy = status === "submitted" || status === "streaming";
   const hasMessages = messages.length > 0;
   const last = messages[messages.length - 1];
-  const lastEmptyAssistant = last?.role === "assistant" && last.text.trim() === "";
-  const showThinking = busy && (!last || last.role === "user" || lastEmptyAssistant);
+  const lastAssistant = last?.role === "assistant" ? readMessage(last) : undefined;
+  // Show the thinking dots until the assistant's first token (or cards) arrives.
+  const showThinking =
+    status === "submitted" ||
+    (status === "streaming" && (!lastAssistant || (lastAssistant.text.trim() === "" && !lastAssistant.cards)));
 
   const suggestions: string[] = [
     t("chat.suggest1", "Find a clinic in Casablanca"),
@@ -115,41 +108,17 @@ export function MorphChat() {
     inputRef.current?.blur();
   };
 
-  const submit = async (raw: string) => {
+  const submit = (raw: string) => {
     const text = raw.trim();
     if (!text || busy) return;
     setInput("");
-    setError(null);
-    const userId = `u-${Date.now()}`;
-    const aId = `a-${Date.now()}`;
-    setMessages((prev) => [...prev, { id: userId, role: "user", text }, { id: aId, role: "assistant", text: "" }]);
-    setBusy(true);
-    try {
-      const stream = (service as ApiChatService).sendMessageStream;
-      if (typeof stream === "function") {
-        // Stream the text as it resolves, then attach any discovery cards from
-        // the final response envelope.
-        const res = await stream.call(service, text, (_chunk: string, full: string) => {
-          setMessages((prev) => prev.map((m) => (m.id === aId ? { ...m, text: full } : m)));
-        });
-        setMessages((prev) => prev.map((m) => (m.id === aId ? { ...m, text: res.message, cards: res.cards } : m)));
-      } else {
-        const res = await service.sendMessage(text);
-        setMessages((prev) => prev.map((m) => (m.id === aId ? { ...m, text: res.message, cards: res.cards } : m)));
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong. Please try again.");
-      setMessages((prev) => prev.filter((m) => m.id !== aId));
-    } finally {
-      setBusy(false);
-    }
+    void sendMessage({ text });
   };
 
-  const clearConversation = async () => {
+  const clearConversation = () => {
+    stop();
     setMessages([]);
     setInput("");
-    setError(null);
-    await service.clearHistory();
     setTimeout(() => inputRef.current?.focus(), 40);
   };
 
@@ -269,17 +238,29 @@ export function MorphChat() {
                   )}
 
                   {messages.map((m) => {
-                    if (m.role === "assistant" && m.text.trim() === "") return null;
+                    const { text, cards, bookingCalls } = readMessage(m);
+                    if (m.role === "assistant" && text.trim() === "" && !cards && bookingCalls.length === 0) return null;
                     return m.role === "user" ? (
                       <div key={m.id} className="flex justify-end">
-                        <div className="max-w-[82%] rounded-2xl rounded-br-md bg-white/10 px-3.5 py-2 text-sm leading-relaxed text-white">{m.text}</div>
+                        <div className="max-w-[82%] rounded-2xl rounded-br-md bg-white/10 px-3.5 py-2 text-sm leading-relaxed text-white">{text}</div>
                       </div>
                     ) : (
                       <div key={m.id} className="flex items-start gap-2.5">
                         <ColorOrb dimension="20px" tones={{ base: ORB_BASE }} className="mt-0.5 shrink-0" />
                         <div className="min-w-0 flex-1">
-                          <p className="whitespace-pre-wrap text-sm leading-[1.6rem] text-white/90">{m.text}</p>
-                          {m.cards && <DiscoveryCardsView cards={m.cards} onNavigate={triggerClose} />}
+                          {text.trim() !== "" && (
+                            <p className="whitespace-pre-wrap text-sm leading-[1.6rem] text-white/90">{text}</p>
+                          )}
+                          {cards && <DiscoveryCardsView cards={cards} onNavigate={triggerClose} />}
+                          {bookingCalls.map((bc) => (
+                            <BookingConfirmCard
+                              key={bc.toolCallId}
+                              call={bc}
+                              onDecide={(approved) =>
+                                addToolResult({ tool: bc.toolName, toolCallId: bc.toolCallId, output: { approved } })
+                              }
+                            />
+                          ))}
                         </div>
                       </div>
                     );
@@ -299,7 +280,9 @@ export function MorphChat() {
                   {error && !busy && (
                     <div className="flex items-start gap-2.5">
                       <ColorOrb dimension="20px" tones={{ base: ORB_BASE }} className="mt-0.5 shrink-0" />
-                      <p className="text-sm leading-[1.6rem] text-rose-300">{error}</p>
+                      <p className="text-sm leading-[1.6rem] text-rose-300">
+                        {error.message || t("chat.error", "Something went wrong. Please try again.")}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -319,7 +302,7 @@ export function MorphChat() {
                       className="max-h-24 flex-1 resize-none bg-transparent py-1 text-sm text-white placeholder:text-white/40"
                     />
                     {busy ? (
-                      <button type="button" onClick={() => setBusy(false)} aria-label={t("chat.stop", "Stop")} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-neutral-900 transition-all duration-200 hover:scale-105">
+                      <button type="button" onClick={() => stop()} aria-label={t("chat.stop", "Stop")} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-neutral-900 transition-all duration-200 hover:scale-105">
                         <Square className="h-3.5 w-3.5 fill-current" />
                       </button>
                     ) : (

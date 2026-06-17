@@ -103,8 +103,10 @@ Phase A alone is shippable and high-value: the agent distinguishes failure modes
 | # | Phase | Description | Status | Depends |
 |---|-------|-------------|--------|---------|
 | A | Structured tool-outcomes + evals | Typed `ToolOutcome` contract; deterministic mapping in `mcp.ts`; compact model summary; evals first | complete | - | → reports/ai-chatbot-agent-hardening-phase-a-report.md |
-| B | Typed streaming transport | `toUIMessageStreamResponse` on chat-api; `useChat` on web; cards/outcome as typed data parts; drop JSON.parse side-channel | pending | A |
-| C | Mutation HITL gate | `booking_*` as client-approved tool calls; confirm card UI; execute on approval; HITL eval | pending | B |
+| B | Typed streaming transport | `toUIMessageStreamResponse` on chat-api; `useChat` on web; cards/outcome as typed data parts; drop JSON.parse side-channel | complete (browser-verify pending) | A |
+| C | Mutation HITL gate | `booking_*` as client-approved tool calls; confirm card UI; execute on approval; HITL eval | complete (browser-verify pending) | B |
+
+**Phase B/C build note (2026-06-17):** implemented with `LLM_PROVIDER=mock` (a deterministic, zero-token `LanguageModelV2` that drives the real MCP/stream/HITL pipeline) because the Groq free-tier daily token quota was exhausted. B: `createUIMessageStream` + `pipeUIMessageStreamToResponse`, `useChat` via `useQueueMedChat`, cards/outcome as `data-*` parts. C: booking tools registered without `execute`; `processApprovedBookings` (hitl.ts) executes only on `{approved:true}`; `BookingConfirmCard` → `addToolResult` → `sendAutomaticallyWhen`. Gate proven via mock + real JWT (surfaced→not executed; approved→executed). chat-api 38 tests green. Open: a pre-existing `BookingService` availability `DatabaseError` on the MCP path blocks a *successful* seed booking (separate from the gate).
 
 ## Open Questions
 - [ ] Keep the offline **Mock** chat path under `useChat`, or gate it behind a dev flag / separate route?

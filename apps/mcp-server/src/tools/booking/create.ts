@@ -31,12 +31,17 @@ const BookingCreateInputSchema = z.object({
     .uuid("Invalid clinic ID format")
     .describe("UUID of the clinic to book at"),
   
+  staffId: z
+    .string()
+    .uuid("Invalid staff ID format")
+    .describe("UUID of the provider/doctor to book with (from doctor_search). Bookings are doctor-first."),
+
   patientId: z
     .string()
     .uuid("Invalid patient ID format")
     .optional()
     .describe("Patient UUID (optional - defaults to authenticated user)"),
-  
+
   appointmentDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD format")
@@ -102,6 +107,10 @@ Note: Use booking_getAvailability first to check available slots and appointment
         type: "string",
         description: "Clinic UUID",
       },
+      staffId: {
+        type: "string",
+        description: "Provider/doctor UUID to book with (from doctor_search) - bookings are doctor-first",
+      },
       patientId: {
         type: "string",
         description: "Patient UUID (optional)",
@@ -123,7 +132,7 @@ Note: Use booking_getAvailability first to check available slots and appointment
         description: "Reason for visit",
       },
     },
-    required: ["clinicId", "appointmentDate", "appointmentType"],
+    required: ["clinicId", "staffId", "appointmentDate", "appointmentType"],
   },
 };
 
@@ -259,6 +268,7 @@ export async function executeBookingCreate(
   // This is the SINGLE SOURCE OF TRUTH for booking logic
   const result = await bookingService.bookAppointmentForMode({
     clinicId: params.clinicId,
+    staffId: params.staffId,
     patientId,
     appointmentDate: params.appointmentDate,
     scheduledTime: params.scheduledTime || null,

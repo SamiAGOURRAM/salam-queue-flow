@@ -10,9 +10,14 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import type { LanguageModel } from "ai";
 import { config } from "./config.js";
+import { createMockModel } from "./mockModel.js";
 
 export function resolveModel(): { model: LanguageModel; label: string } | null {
   switch (config.llmProvider) {
+    case "mock":
+      // Deterministic, zero-cost model that drives the real tool/stream pipeline.
+      // Use during development to avoid burning provider quota (e.g. Groq's TPD).
+      return { model: createMockModel(), label: "mock:rule-based" };
     case "openai":
       if (!config.openaiApiKey) return null;
       return {

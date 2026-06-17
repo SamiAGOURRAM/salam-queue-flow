@@ -17,12 +17,26 @@ import {
   type ToolOutcomeKind,
 } from "./outcomes.js";
 
+/**
+ * Mutation tools gated behind human-in-the-loop (Phase C): they are exposed to
+ * the model WITHOUT an `execute`, so a call surfaces to the client for explicit
+ * confirmation instead of running automatically. chat-api runs them via
+ * `executeTool` only after the user approves.
+ */
+export const HITL_TOOLS = new Set(["booking_create", "booking_cancel"]);
+
 export interface McpSession {
   tools: ToolSet;
   /** Structured discovery `cards` captured from the last card-bearing tool result this request (or undefined). */
   getCollectedCards: () => unknown | undefined;
   /** Aggregate outcome across every tool called this request (worst wins), or undefined if no tool ran. */
   getOutcome: () => ToolOutcomeKind | undefined;
+  /**
+   * Directly invoke an MCP tool (bypassing the AI-SDK wrapper) and return its
+   * compact model-facing summary. Used to execute a HITL mutation tool AFTER the
+   * user has confirmed it. Card/outcome accumulators are updated as usual.
+   */
+  executeTool: (name: string, args: unknown) => Promise<{ outcome: ToolOutcomeKind; summary: string }>;
   close: () => Promise<void>;
 }
 
@@ -76,34 +90,43 @@ export async function createMcpSession(mcpUrl: string, token?: string): Promise<
   let collectedCards: unknown | undefined;
   const outcomes: ToolOutcomeKind[] = [];
 
+  // Shared executor: call the MCP tool, classify the result, capture cards, and
+  // return both the outcome and the compact model-facing summary.
+  const runTool = async (name: string, args: unknown): Promise<{ outcome: ToolOutcomeKind; summary: string }> => {
+    const result = await client.callTool({
+      name,
+      arguments: (args ?? {}) as Record<string, unknown>,
+    });
+    const text = extractText(result.content);
+    // Classify the raw result so the agent/UI can distinguish failure modes.
+    const kind = classifyToolResult({ isError: !!result.isError, text });
+    outcomes.push(kind);
+    // Side-channel any discovery cards (last card-bearing tool wins).
+    const cards = parseCards(text);
+    if (cards) collectedCards = cards;
+    // The model sees a compact, outcome-shaped summary — not the raw error JSON
+    // (which would leak IDs/hrefs and let it paraphrase failures).
+    return { outcome: kind, summary: summarizeForModel(kind, text) };
+  };
+
   const tools: ToolSet = {};
   for (const t of mcpTools) {
-    tools[t.name] = tool({
+    const base = {
       description: t.description ?? t.name,
       inputSchema: jsonSchema((t.inputSchema ?? { type: "object", properties: {} }) as JSONSchema7),
-      execute: async (args: unknown) => {
-        const result = await client.callTool({
-          name: t.name,
-          arguments: (args ?? {}) as Record<string, unknown>,
-        });
-        const text = extractText(result.content);
-        // Classify the raw result so the agent/UI can distinguish failure modes.
-        const kind = classifyToolResult({ isError: !!result.isError, text });
-        outcomes.push(kind);
-        // Side-channel any discovery cards (last card-bearing tool wins).
-        const cards = parseCards(text);
-        if (cards) collectedCards = cards;
-        // The model sees a compact, outcome-shaped summary — not the raw error
-        // JSON (which would leak IDs/hrefs and let it paraphrase failures).
-        return summarizeForModel(kind, text);
-      },
-    });
+    };
+    // HITL mutation tools are registered WITHOUT execute: a call surfaces to the
+    // client and runs only after explicit confirmation (see agent.ts).
+    tools[t.name] = HITL_TOOLS.has(t.name)
+      ? tool(base)
+      : tool({ ...base, execute: async (args: unknown) => (await runTool(t.name, args)).summary });
   }
 
   return {
     tools,
     getCollectedCards: () => collectedCards,
     getOutcome: () => aggregateOutcomes(outcomes),
+    executeTool: runTool,
     close: async () => {
       await client.close();
     },

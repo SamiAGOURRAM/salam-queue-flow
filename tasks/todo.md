@@ -1393,3 +1393,167 @@
 - Unit tests: `pnpm --filter web exec vitest run --reporter verbose src/services/referrals/ReferralService.test.ts` (4/4 passed)
 - Strict typecheck (web): `npx tsc --noEmit` (passed)
 - Production build (web): `npx vite build` (passed)
+
+## AI Chatbot Agent Hardening — Phase B (Typed streaming transport)
+
+Context: Re-tested committed Phase A chat after Groq quota reset (2026-06-17). Found the chat-api
+container was running STALE 18h-old streaming code (Windows/Docker watcher never reloaded after the
+source was reverted to the res.json envelope). Restarted container → committed Phase A verified working
+(ok / no_results / booking-guidance all correct, typed doctor_cards w/ code-minted bookingHref).
+
+Decision (user): drop the Mock path from the UI under `useChat`. chat-api keeps its server-side no-key
+mock responder so "runs with no key" is preserved. AI SDK v5.0.194 signatures verified against installed
+source (toUIMessageStreamResponse, createUIMessageStream, pipeUIMessageStreamToResponse for Express,
+UIMessageStreamWriter.write/merge, UIMessage<METADATA,DATA_PARTS,TOOLS>).
+
+### Backend (chat-api) — self-verifiable via curl  ✅ DONE
+- [x] Shared `QueueMedUIMessage = UIMessage<never, { cards: unknown; outcome: ToolOutcomeKind }>`
+      (chat-api stays decoupled from core; web validates against DiscoveryCards).
+- [x] agent.ts: `createUIMessageStream({ execute, onError, onFinish })` +
+      `pipeUIMessageStreamToResponse({ response: res, stream })`. execute: `streamText(...)`,
+      `writer.merge(result.toUIMessageStream())`, `await result.finishReason`, then
+      `writer.write({type:'data-cards'|'data-outcome'})` from the mcp session accumulators.
+- [x] No-key mock path emits a single text part via the same stream (writeText helper).
+- [x] mcp.ts unchanged: parseCards capture + outcome classification stay internal; cards reach the
+      client as a typed data part now, not via the JSON envelope.
+- [x] Curl-verified: 45 text-delta frames before finish; `data-cards` (full doctor card + bookingHref)
+      + `data-outcome:"ok"`. chat-api tests 25/25; tsc clean.
+- [~] DROPPED silent Groq retry on this path (incompatible with live streaming — can't un-send a partial
+      stream); transient error degrades to a friendly message via stream `onError`.
+
+### Frontend (web) — IMPLEMENTED; needs user browser test
+- [x] Added `@ai-sdk/react@2.0.206` + `ai@5.0.204` to apps/web; installed into the container volume via
+      `docker compose exec web pnpm install --no-frozen-lockfile` (no full reseed — node_modules are
+      named volumes, source bind-mounted).
+- [x] New `useQueueMedChat` hook: `useChat` over `DefaultChatTransport`, async JWT via
+      `prepareSendMessagesRequest` (flattens UI history → `{role,content}`), + `readMessage` helper.
+- [x] MorphChat.tsx + ChatWindow.tsx use the hook; render text parts + `data-cards` → DiscoveryCardsView.
+- [x] Deleted dead ApiChatService/MockChatService/createChatService; trimmed ChatService barrel.
+- [x] web tsc clean; Vite re-optimized @ai-sdk/react + ai; app serves 200; hook transforms cleanly.
+- [x] Masked raw provider errors at the `toUIMessageStream({ onError })` boundary (browser was seeing the
+      raw Groq 400 JSON — the createUIMessageStream onError does NOT see merged-stream errors).
+- [x] Client auto-retry (`regenerate` once per turn) for the transient tool-call glitch, restoring Phase A
+      resilience under streaming; gated to RETRYABLE_ERROR only (capacity/rate-limit is NOT retried).
+- [x] Distinct friendly messages: transient → "try again"; rate-limit/quota → "at capacity, try again in a
+      few minutes" (`friendlyError()` classifier). Verified both via curl.
+- [ ] **USER:** browser-test once Groq daily quota resets — BLOCKED 2026-06-17: Groq free-tier TPD limit
+      (100k tokens/day) exhausted again mid-test; every turn masks to the capacity message. Code verified
+      working via curl BEFORE exhaustion (45 text-deltas + doctor card + data-outcome:ok). Resets ~daily.
+      Re-test: "find a doctor in Casablanca" (cards + streaming), a no-results query, authed + anon.
+
+### NOT building in Phase B
+- No new MCP tools / business logic. No HITL gate (that's Phase C). No persistence/sessions.
+- No rate limiting. No auth/RBAC changes. Card components unchanged — only their data source swaps.
+
+### Patterns to mirror
+- AI SDK v5 tool wrapper already in mcp.ts (tool()/jsonSchema). Outcome contract in outcomes.ts (unchanged).
+- DiscoveryCards typed contract from @queuemed/core. Card render already in MessageBubble.
+
+## Mock LLM for offline / zero-token development (2026-06-17)
+
+Reason: Groq free-tier TPD (100k/day) exhausted repeatedly during browser testing, blocking Phase C dev.
+Solution: a deterministic fake model that drives the REAL pipeline (MCP tools, auth, streaming, data parts,
+and the upcoming HITL gate) — only the LLM's token output is faked. Zero provider tokens.
+
+- [x] `apps/chat-api/src/mockModel.ts`: plain `LanguageModelV2` object (NOT `ai/test`'s MockLanguageModelV2 —
+      that pulls `msw` in at runtime → ERR_MODULE_NOT_FOUND). Uses `simulateReadableStream` from core `ai`.
+      Rule-based `decide()`: doctor/clinic intent → real `doctor_search`/`clinic_search` tool call; post-tool
+      step → text summary honoring the real outcome (found / no-results / forbidden); else guidance/fallback.
+- [x] `llm.ts`: `case "mock"` → `{ model: createMockModel(), label: "mock:rule-based" }`. Toggle via
+      `LLM_PROVIDER=mock` (added `@ai-sdk/provider` devDep for the V2 types).
+- [x] Activated: `.env` LLM_PROVIDER=mock; `.env.example` documents the option. Recreate chat-api to apply
+      env: `docker compose up -d --no-deps --force-recreate chat-api`.
+- [x] E2E curl verified: "find a doctor in Casablanca" → real MCP doctor_search → real card (Dr. Benjelloun
+      + code-minted bookingHref) + data-outcome:ok + streamed text. Clinic + booking + fallback paths OK.
+- [x] `mockModel.test.ts` (5 tests) locks routing. chat-api 30/30 tests + tsc clean.
+- Switch back to the real LLM anytime: set `LLM_PROVIDER=groq` in `.env` and recreate chat-api.
+
+### Phase B + mock — current state
+Phase B (typed streaming transport) is code-complete and now fully browser-testable with ZERO tokens via the
+mock. Ready to start Phase C (HITL booking-confirmation gate) — booking_create/booking_cancel as
+client-approved tool calls. The mock can emit a booking tool call to exercise the HITL round-trip offline.
+
+## AI Chatbot Agent Hardening — Phase C (HITL mutation gate) — 2026-06-17
+
+booking_create / booking_cancel are now client-approved tool calls: surfaced to the UI without
+auto-execution, run by the server ONLY after an explicit Confirm. Structural guarantee, not a prompt.
+
+### Contract change
+- Client now sends FULL UIMessages (not flattened {role,content}) so tool calls + approval results reach
+  the server. chat-api uses `convertToModelMessages`. index.ts validates `{ role, parts[] }`.
+
+### Backend
+- [x] mcp.ts: `HITL_TOOLS = {booking_create, booking_cancel}` registered WITHOUT `execute` (so a call
+      surfaces for confirmation); shared `runTool`; `session.executeTool(name,args)` for post-approval run.
+- [x] hitl.ts: `processApprovedBookings(messages, session)` — executes only `{approved:true}` gated calls,
+      rewrites the part output to the real result; declined → "not performed"; idempotent. Handles static
+      (`tool-<name>`) + `dynamic-tool` wire shapes.
+- [x] agent.ts: runs processApprovedBookings BEFORE generating, then convertToModelMessages → stream.
+- [x] mockModel.ts: emits a real `booking_create` call on booking intent when the tool is available (authed).
+- [x] hitl.test.ts (6) + mockModel booking tests (2). chat-api 38/38 + tsc clean.
+
+### Frontend
+- [x] useQueueMedChat: send UIMessages; `sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls`
+      (auto-resubmit after confirm); typed QueueMedTools so `addToolResult` is type-safe; `readMessage` now
+      also extracts `bookingCalls`.
+- [x] BookingConfirmCard.tsx: Confirm / Keep-it buttons → addToolResult({approved}); shows resolved state.
+- [x] MorphChat + ChatWindow render booking calls via the confirm card. web tsc clean; app serves 200.
+
+### Verified end-to-end (mock + real JWT, demo.patient@queuemed.test)
+- [x] GATE: authed "book an appointment" → `tool-input-available` for booking_create, NO execution
+      (no tool-output, no MCP booking log). ✅ no mutation without confirm.
+- [x] APPROVAL: resend with output:{approved:true} → `[chat-api] HITL: executed 1 approved mutation(s)`
+      → MCP runs booking_create. ✅ executes only after approval.
+- [ ] **USER:** browser-test (signed in): "book an appointment" → confirm card → Confirm → booking runs;
+      Keep-it → not performed. Discovery (cards) + no-results still work.
+
+### Known separate issue (NOT Phase C / not the gate)
+- The seed booking via MCP fails at `BookingService.bookAppointmentForMode`:
+  `DatabaseError: Failed to check appointment availability` (any date). Pre-existing booking-service/RPC
+  issue on the MCP path — affects real chat bookings too, independent of the HITL gate. Worth a separate look.
+
+## BookingService availability error — root-cause fix (2026-06-17)
+
+Symptom: chat booking failed at `BookingService.bookAppointmentForMode` →
+`DatabaseError: Failed to check appointment availability` ("Could not find the function
+public.check_appointment_availability(p_appointment_date, p_clinic_id, p_scheduled_time) in the schema cache").
+
+Root cause (contract drift): migration `20260403000000_doctor_first_booking_path` made the booking RPCs
+doctor-first (require `p_staff_id`). The CORE booking path (used by MCP/chat) was never updated — a stale
+duplicate of the WEB booking path (which WAS updated and passes staffId). Core `createAppointmentForMode`
+passed `p_staff_id: null`; `checkAvailability` called a dead 3-arg signature.
+
+Fix (backend-first, mirror the working web copy):
+- [x] core `BookingRequest`: add required `staffId`.
+- [x] core `BookingRepository`: `checkAvailability` + `checkAvailabilityForMode` + `createAppointmentForMode`
+      + `createAppointment` now pass `p_staff_id`.
+- [x] core `BookingService.bookAppointment(ForMode)`: pass `request.staffId`.
+- [x] MCP `booking_create` tool: `staffId` now a required input (doctor-first; from doctor_search).
+- [x] mock: emits booking_create with the seed doctor's staffId.
+
+Verified: chat approval → MCP "Appointment created successfully", outcome `ok`, DB row has the right staff_id
+(then cleaned up). Tests: core 14, mcp-server 146, chat-api 38, web booking 6, web tsc — all green.
+
+Follow-up debt (not fixed): booking logic is DUPLICATED (core vs web). True SSOT = collapse to one impl.
+
+## Booking SSOT consolidation + simplify (2026-06-17)
+
+Goal: one booking implementation. Booking logic was DUPLICATED — web `apps/web/src/services/booking/*`
+(used by the UI) and core `packages/core/src/...booking/*` (used by chat/MCP) drifted independently.
+
+Approach (chosen with user): thin facade (lowest risk on the un-browser-testable booking UI).
+- [x] Core is the SSOT: `createServiceContainer({ supabaseClient })` already existed (designed for web + MCP).
+- [x] Core parity: core service `getAvailableSlotsForMode` now takes `staffId` (repo already did).
+- [x] Web `BookingService.ts` → ~30-line facade delegating to core (wired to the web supabase client);
+      web public API + `./types` + all consumers unchanged. Only nominal `QueueMode` enum/union gap →
+      cast at the facade boundary (runtime values identical).
+- [x] Deleted web `BookingRepository.ts` (−308 lines) and the web BookingService body (−~440 lines).
+- [x] Simplify: removed the now-dead non-mode booking path (core service `bookAppointment` +
+      `getAvailableSlots`; core repo `createAppointment` + `getAvailableSlots`; facade `bookAppointment` +
+      `getAvailableSlots`) — verified zero callers/tests.
+
+Verified: tsc green (core, mcp-server, chat-api, web); tests core 14 / mcp 146 / chat-api 38 / web booking 6;
+chat booking e2e books successfully (real JWT); app serves 200. Net ~ −600 lines, single booking source.
+
+- [ ] **USER:** browser-test the WEB booking flow (BookingFlow / BookAppointmentDialog) once — the facade is
+      tsc+test-verified but the live UI booking is the one path I can't exercise myself.
