@@ -8,15 +8,22 @@
     },
     "search": {
       "specialtyPlaceholder": "Specialty or clinic name",
+      "doctorPlaceholder": "Doctor, specialty, or clinic",
       "locationPlaceholder": "City or neighborhood",
       "searchButton": "Search clinics",
+      "searchDoctorsButton": "Find a doctor",
+      "specialtyGroup": "Specialties",
+      "specialtyCount": "{{count}} doctors",
       "browseAll": "Browse all clinics with filters",
       "myAppointments": "My appointments",
       "signIn": "Sign in"
     },
     "location": {
       "morocco": "Morocco",
-      "changeLocation": "Change location"
+      "changeLocation": "Change location",
+      "useExactLocation": "Use my exact location",
+      "detecting": "Detecting your location…",
+      "near": "Near {{city}}"
     },
     "spotlight": {
       "liveLabel": "Live Queue Status",

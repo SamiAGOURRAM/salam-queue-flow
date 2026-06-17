@@ -20,15 +20,22 @@
     },
     "search": {
       "specialtyPlaceholder": "التخصص ولا سميت العيادة",
+      "doctorPlaceholder": "طبيب، تخصص ولا عيادة",
       "locationPlaceholder": "المدينة ولا الحي",
       "searchButton": "قلّب على العيادات",
+      "searchDoctorsButton": "قلّب على طبيب",
+      "specialtyGroup": "التخصصات",
+      "specialtyCount": "{{count}} طبيب",
       "browseAll": "شوف جميع العيادات مع الفيلترات",
       "myAppointments": "المواعيد ديالي",
       "signIn": "دخول"
     },
     "location": {
       "morocco": "المغرب",
-      "changeLocation": "بدّل المدينة"
+      "changeLocation": "بدّل المدينة",
+      "useExactLocation": "استعمل الموقع ديالي بالضبط",
+      "detecting": "كنقلّبو على الموقع ديالك…",
+      "near": "حدا {{city}}"
     },
     "spotlight": {
       "liveLabel": "وضع الصف مباشر",

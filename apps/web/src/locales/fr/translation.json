@@ -8,15 +8,22 @@
     },
     "search": {
       "specialtyPlaceholder": "Spécialité ou nom de clinique",
+      "doctorPlaceholder": "Médecin, spécialité ou clinique",
       "locationPlaceholder": "Ville ou quartier",
       "searchButton": "Rechercher",
+      "searchDoctorsButton": "Trouver un médecin",
+      "specialtyGroup": "Spécialités",
+      "specialtyCount": "{{count}} médecins",
       "browseAll": "Parcourir toutes les cliniques",
       "myAppointments": "Mes rendez-vous",
       "signIn": "Se connecter"
     },
     "location": {
       "morocco": "Maroc",
-      "changeLocation": "Changer de lieu"
+      "changeLocation": "Changer de lieu",
+      "useExactLocation": "Utiliser ma position exacte",
+      "detecting": "Détection de votre position…",
+      "near": "Près de {{city}}"
     },
     "spotlight": {
       "liveLabel": "Statut de file en direct",

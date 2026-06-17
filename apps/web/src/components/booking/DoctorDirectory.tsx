@@ -1,10 +1,7 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
-import type { DoctorListing } from "@queuemed/core";
+import { useDoctorSearch } from "@/hooks/useDoctorSearch";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,102 +21,21 @@ function formatRole(role: string, fallbackRoleLabel: string): string {
     .join(" ");
 }
 
-function isDoctorLikeRole(role: string): boolean {
-  const normalized = role.toLowerCase();
-  if (normalized.includes("doctor")) return true;
-
-  const clinicalRoles = new Set([
-    "surgeon",
-    "dentist",
-    "radiologist",
-    "anesthesiologist",
-    "physiotherapist",
-    "cardiologist",
-    "neurologist",
-    "pediatrician",
-    "orthopedist",
-    "dermatologist",
-  ]);
-
-  return clinicalRoles.has(normalized);
-}
-
 const DoctorDirectory = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCity, setSelectedCity] = useState("all");
-  const [selectedSpecialty, setSelectedSpecialty] = useState("all");
+  const [searchParams] = useSearchParams();
 
-  const { data: doctors = [], isLoading } = useQuery({
-    queryKey: ["doctor-directory"],
-    queryFn: async () => {
-      type StaffRow = Pick<Database["public"]["Tables"]["clinic_staff"]["Row"], "id" | "clinic_id" | "user_id" | "role" | "specialization">;
-      type ClinicRow = Pick<Database["public"]["Tables"]["clinics"]["Row"], "id" | "name" | "specialty" | "city" | "is_active">;
-      type ProfileRow = Pick<Database["public"]["Tables"]["profiles"]["Row"], "id" | "full_name">;
+  // Seed filters from the deep-link (?search=&city=&specialty=) so the hero search
+  // lands the directory pre-filtered. Defaults keep the directory's "show all" UX.
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get("search") ?? "");
+  const [selectedCity, setSelectedCity] = useState(() => searchParams.get("city") ?? "all");
+  const [selectedSpecialty, setSelectedSpecialty] = useState(() => searchParams.get("specialty") ?? "all");
 
-      const { data: staffData, error: staffError } = await supabase
-        .from("clinic_staff")
-        .select("id, clinic_id, user_id, role, specialization")
-        .eq("is_active", true);
-
-      if (staffError) throw staffError;
-
-      const staffRows = (staffData as StaffRow[]) || [];
-      if (staffRows.length === 0) return [] as DoctorListing[];
-
-      const clinicIds = [...new Set(staffRows.map((row) => row.clinic_id))];
-      const { data: clinicsData, error: clinicsError } = await supabase
-        .from("clinics")
-        .select("id, name, specialty, city, is_active")
-        .in("id", clinicIds)
-        .eq("is_active", true);
-
-      if (clinicsError) throw clinicsError;
-
-      const clinicRows = (clinicsData as ClinicRow[]) || [];
-      const clinicsById = new Map(clinicRows.map((clinic) => [clinic.id, clinic]));
-
-      const userIds = [...new Set(staffRows.map((row) => row.user_id))];
-      const { data: profilesData, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .in("id", userIds);
-
-      if (profilesError) throw profilesError;
-
-      const profileRows = (profilesData as ProfileRow[]) || [];
-      const profilesById = new Map(profileRows.map((profile) => [profile.id, profile]));
-
-      const listings: DoctorListing[] = [];
-      let fallbackCounter = 1;
-
-      for (const staff of staffRows) {
-        const clinic = clinicsById.get(staff.clinic_id);
-        if (!clinic) continue;
-        if (!isDoctorLikeRole(staff.role)) continue;
-
-        const profile = profilesById.get(staff.user_id);
-        const fullName =
-          profile?.full_name?.trim() ||
-          t("doctorDirectory.fallbackDoctorName", "Doctor {{count}}", { count: fallbackCounter++ });
-
-        listings.push({
-          staffId: staff.id,
-          clinicId: clinic.id,
-          fullName,
-          role: formatRole(staff.role, t("doctorDirectory.fallbackRole", "Doctor")),
-          specialization: staff.specialization ?? undefined,
-          clinicName: clinic.name,
-          clinicSpecialty: clinic.specialty,
-          city: clinic.city,
-        });
-      }
-
-      return listings.sort((a, b) => a.fullName.localeCompare(b.fullName));
-    },
-    staleTime: 5 * 60 * 1000,
-  });
+  // Single source of truth: the shared doctor-search contract (ClinicService.searchDoctors).
+  // We fetch the full set once and refine client-side below, which keeps the city/specialty
+  // dropdown options stable as the user narrows.
+  const { data: doctors = [], isLoading } = useDoctorSearch({});
 
   const cities = useMemo(
     () => [...new Set(doctors.map((doctor) => doctor.city))]
@@ -138,27 +54,29 @@ const DoctorDirectory = () => {
   const filteredDoctors = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
-    return doctors.filter((doctor) => {
-      if (selectedCity !== "all" && doctor.city !== selectedCity) return false;
+    return doctors
+      .filter((doctor) => {
+        if (selectedCity !== "all" && doctor.city !== selectedCity) return false;
 
-      const specialtyValue = doctor.specialization || doctor.clinicSpecialty;
-      if (selectedSpecialty !== "all" && specialtyValue !== selectedSpecialty) return false;
+        const specialtyValue = doctor.specialization || doctor.clinicSpecialty;
+        if (selectedSpecialty !== "all" && specialtyValue !== selectedSpecialty) return false;
 
-      if (!normalizedSearch) return true;
+        if (!normalizedSearch) return true;
 
-      const searchable = [
-        doctor.fullName,
-        doctor.role,
-        doctor.specialization || "",
-        doctor.clinicName,
-        doctor.clinicSpecialty,
-        doctor.city,
-      ]
-        .join(" ")
-        .toLowerCase();
+        const searchable = [
+          doctor.fullName,
+          doctor.role,
+          doctor.specialization || "",
+          doctor.clinicName,
+          doctor.clinicSpecialty,
+          doctor.city,
+        ]
+          .join(" ")
+          .toLowerCase();
 
-      return searchable.includes(normalizedSearch);
-    });
+        return searchable.includes(normalizedSearch);
+      })
+      .sort((a, b) => a.fullName.localeCompare(b.fullName));
   }, [doctors, searchTerm, selectedCity, selectedSpecialty]);
 
   if (isLoading) {
@@ -272,7 +190,7 @@ const DoctorDirectory = () => {
                     {doctor.fullName.charAt(0).toUpperCase()}
                   </div>
                   <Badge className="bg-gray-100 text-gray-700 border-0 text-[10px] font-medium">
-                    {doctor.role}
+                    {formatRole(doctor.role, t("doctorDirectory.fallbackRole", "Doctor"))}
                   </Badge>
                 </div>
 

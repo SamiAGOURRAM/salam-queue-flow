@@ -25,8 +25,39 @@ describe('ClinicService', () => {
       getClinicSettings: vi.fn(),
       updateClinicSettings: vi.fn(),
       updateClinic: vi.fn(),
+      searchDoctors: vi.fn(),
     };
     service = new ClinicService(mockRepository as ClinicRepository);
+  });
+
+  describe('searchDoctors', () => {
+    it('delegates to the repository and returns its result', async () => {
+      const listings = [
+        {
+          staffId: 'staff-1',
+          clinicId: 'clinic-1',
+          fullName: 'Dr. Amine Benali',
+          role: 'doctor',
+          specialization: 'Cardiology',
+          clinicName: 'Clinique Atlas',
+          clinicSpecialty: 'Cardiology',
+          city: 'Casablanca',
+        },
+      ];
+      mockRepository.searchDoctors = vi.fn().mockResolvedValue(listings);
+
+      const params = { name: 'amine', city: 'Casablanca', limit: 8 };
+      const result = await service.searchDoctors(params);
+
+      expect(result).toEqual(listings);
+      expect(mockRepository.searchDoctors).toHaveBeenCalledWith(params);
+    });
+
+    it('coerces an unexpected error into a DatabaseError', async () => {
+      mockRepository.searchDoctors = vi.fn().mockRejectedValue(new Error('boom'));
+
+      await expect(service.searchDoctors({ name: 'x' })).rejects.toThrow(DatabaseError);
+    });
   });
 
   describe('getClinic', () => {

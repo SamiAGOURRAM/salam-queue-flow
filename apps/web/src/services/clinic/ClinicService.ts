@@ -7,6 +7,7 @@
 import { ClinicRepository } from './repositories/ClinicRepository';
 import { logger } from '../shared/logging/Logger';
 import { NotFoundError, ValidationError, DatabaseError } from '../shared/errors';
+import type { DoctorListing, DoctorSearchParams } from '@queuemed/core';
 
 export interface Clinic {
   id: string;
@@ -99,6 +100,23 @@ export class ClinicService {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error fetching clinic by owner', error as Error, { ownerId });
       throw new DatabaseError('Unexpected error fetching clinic by owner', error as Error);
+    }
+  }
+
+  /**
+   * Search doctors (active providers at active clinics) for patient discovery.
+   * Delegates to the repository (clinics → clinic_staff → profiles join).
+   */
+  async searchDoctors(params: DoctorSearchParams): Promise<DoctorListing[]> {
+    try {
+      logger.debug('Searching doctors', params as Record<string, unknown>);
+      const doctors = await this.repository.searchDoctors(params);
+      logger.info('Doctors found', { count: doctors.length });
+      return doctors;
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logger.error('Unexpected error searching doctors', error as Error, params as Record<string, unknown>);
+      throw new DatabaseError('Unexpected error searching doctors', error as Error);
     }
   }
 

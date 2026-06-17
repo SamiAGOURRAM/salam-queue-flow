@@ -1,15 +1,17 @@
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
-  MapPin, ArrowRight,
+  MapPin, ArrowRight, Navigation, Loader2, Stethoscope,
   User, Building2, Search, Info, Calendar, LogOut, LogIn, Clock
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useDoctorSearch } from "@/hooks/useDoctorSearch";
+import { useDetectedLocation } from "@/hooks/useDetectedLocation";
 import { useAuth } from "@/hooks/useAuth";
 import { useForceLightMode } from "@/hooks/useForceLightMode";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -30,7 +32,14 @@ const PremiumLanding = () => {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [location, setLocation] = useState("");
+  const [locationTouched, setLocationTouched] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const locationInputRef = useRef<HTMLInputElement | null>(null);
+  const blurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Silent IP-based location (GPS opt-in via the badge button). Falls back to "Morocco".
+  const detected = useDetectedLocation();
 
   // Fetch clinic metadata for stats and specialties
   const { data: clinicStats } = useQuery({
@@ -107,20 +116,103 @@ const PremiumLanding = () => {
     }).format(value);
   };
 
+  // Prefill the location field from the detected city, but never clobber a user edit.
+  useEffect(() => {
+    if (!locationTouched && detected.city) {
+      setLocation(detected.city);
+    }
+  }, [detected.city, locationTouched]);
+
+  // Live doctor typeahead — debounced, server-filtered, capped for the dropdown.
+  const trimmedQuery = searchQuery.trim();
+  const typeaheadEnabled = trimmedQuery.length >= 2;
+  const { data: doctorResults = [], isFetching: isSearching } = useDoctorSearch({
+    search: searchQuery,
+    city: location || undefined,
+    limit: 8,
+    enabled: typeaheadEnabled,
+  });
+
+  // Distinct specialties among the matches (the "Specialties" group in the dropdown).
+  const specialtyGroups = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const d of doctorResults) {
+      const s = d.specialization || d.clinicSpecialty;
+      if (s) counts.set(s, (counts.get(s) ?? 0) + 1);
+    }
+    return [...counts.entries()].slice(0, 2);
+  }, [doctorResults]);
+
+  // Flat navigable list: doctors first, then specialty rows.
+  const navItems = useMemo(
+    () => [
+      ...doctorResults.map((doctor) => ({ kind: 'doctor' as const, doctor })),
+      ...specialtyGroups.map(([value, count]) => ({ kind: 'specialty' as const, value, count })),
+    ],
+    [doctorResults, specialtyGroups],
+  );
+
+  const showDropdown = isSearchFocused && typeaheadEnabled && navItems.length > 0;
+
+  const goToDoctor = (clinicId: string, staffId: string) => {
+    navigate(`/booking/${clinicId}?staffId=${encodeURIComponent(staffId)}`);
+  };
+
+  const goToSpecialty = (specialty: string) => {
+    const params = new URLSearchParams();
+    params.set('specialty', specialty);
+    if (location) params.set('city', location);
+    navigate(`/doctors?${params.toString()}`);
+  };
+
+  const selectNavItem = (item: (typeof navItems)[number]) => {
+    setIsSearchFocused(false);
+    setActiveIndex(-1);
+    if (item.kind === 'doctor') {
+      goToDoctor(item.doctor.clinicId, item.doctor.staffId);
+    } else {
+      goToSpecialty(item.value);
+    }
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showDropdown) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((i) => (i + 1) % navItems.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((i) => (i <= 0 ? navItems.length - 1 : i - 1));
+    } else if (e.key === 'Enter') {
+      if (activeIndex >= 0 && activeIndex < navItems.length) {
+        e.preventDefault();
+        selectNavItem(navItems[activeIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setIsSearchFocused(false);
+      setActiveIndex(-1);
+    }
+  };
+
   const handleSearch = (e?: React.FormEvent) => {
     e?.preventDefault();
     const params = new URLSearchParams();
     if (searchQuery) params.set('search', searchQuery);
     if (location) params.set('city', location);
-    navigate(`/clinics${params.toString() ? '?' + params.toString() : ''}`);
+    navigate(`/doctors${params.toString() ? '?' + params.toString() : ''}`);
   };
 
   const handleSpecialtyClick = (specialty: string) => {
-    navigate(`/clinics?specialty=${encodeURIComponent(specialty)}`);
+    navigate(`/doctors?specialty=${encodeURIComponent(specialty)}`);
   };
 
   const handleBrowseAll = () => {
     navigate('/clinics');
+  };
+
+  const handleUseExactLocation = () => {
+    setLocationTouched(false);
+    detected.requestPreciseLocation(clinicStats?.cities);
   };
 
   return (
@@ -135,15 +227,33 @@ const PremiumLanding = () => {
             {/* Left Side - Search Panel (Primary Focus) */}
             <div className="space-y-8">
               {/* Location Badge */}
-              <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-2 text-sm flex-wrap">
                 <MapPin className="w-4 h-4" />
-                <span className="text-foreground">{t('landing.location.morocco')}</span>
+                <span className="text-foreground">
+                  {detected.status === 'detecting'
+                    ? t('landing.location.detecting')
+                    : detected.city
+                      ? t('landing.location.near', { city: detected.city })
+                      : t('landing.location.morocco')}
+                </span>
                 <button
                   type="button"
                   onClick={() => locationInputRef.current?.focus()}
                   className="text-foreground font-medium underline underline-offset-4 hover:no-underline"
                 >
                   {t('landing.location.changeLocation')}
+                </button>
+                <span className="text-muted-foreground">·</span>
+                <button
+                  type="button"
+                  onClick={handleUseExactLocation}
+                  disabled={detected.isLocating}
+                  className="text-foreground font-medium underline underline-offset-4 hover:no-underline inline-flex items-center gap-1 disabled:opacity-60"
+                >
+                  {detected.isLocating
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <Navigation className="w-3.5 h-3.5" />}
+                  {t('landing.location.useExactLocation')}
                 </button>
               </div>
 
@@ -162,16 +272,107 @@ const PremiumLanding = () => {
               {/* Search Card */}
               <form onSubmit={handleSearch} className="bg-card rounded-2xl border border-border shadow-xl p-2 max-w-xl">
                 <div className="space-y-1">
-                  {/* Specialty/Clinic Search */}
-                  <div className="relative flex items-center">
-                    <div className="absolute left-4 w-2.5 h-2.5 rounded-full bg-obsidian"></div>
-                    <Input
-                      type="text"
-                      placeholder={t('landing.search.specialtyPlaceholder')}
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 pr-4 h-14 border-0 bg-muted rounded-xl text-base placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:bg-muted"
-                    />
+                  {/* Doctor / Specialty Search with live typeahead */}
+                  <div className="relative">
+                    <div className="relative flex items-center">
+                      <div className="absolute left-4 w-2.5 h-2.5 rounded-full bg-obsidian z-10"></div>
+                      <Input
+                        type="text"
+                        placeholder={t('landing.search.doctorPlaceholder')}
+                        value={searchQuery}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          setActiveIndex(-1);
+                        }}
+                        onFocus={() => {
+                          if (blurTimeout.current) clearTimeout(blurTimeout.current);
+                          setIsSearchFocused(true);
+                        }}
+                        onBlur={() => {
+                          blurTimeout.current = setTimeout(() => setIsSearchFocused(false), 150);
+                        }}
+                        onKeyDown={handleSearchKeyDown}
+                        role="combobox"
+                        aria-expanded={showDropdown}
+                        aria-autocomplete="list"
+                        className="pl-10 pr-10 h-14 border-0 bg-muted rounded-xl text-base placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:bg-muted"
+                      />
+                      {isSearching && typeaheadEnabled && (
+                        <Loader2 className="absolute right-4 w-4 h-4 text-muted-foreground animate-spin" />
+                      )}
+                    </div>
+
+                    {showDropdown && (
+                      <div
+                        className="absolute z-30 left-0 right-0 top-full mt-2 bg-card rounded-xl border border-border shadow-2xl overflow-hidden max-h-[360px] overflow-y-auto"
+                        role="listbox"
+                      >
+                        {doctorResults.map((doctor, idx) => (
+                          <button
+                            key={doctor.staffId}
+                            type="button"
+                            role="option"
+                            aria-selected={activeIndex === idx}
+                            onMouseEnter={() => setActiveIndex(idx)}
+                            onClick={() => selectNavItem({ kind: 'doctor', doctor })}
+                            className={cn(
+                              "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors",
+                              activeIndex === idx ? "bg-muted" : "hover:bg-muted",
+                            )}
+                          >
+                            <div className="w-9 h-9 rounded-full bg-obsidian flex items-center justify-center text-white text-xs font-semibold shrink-0">
+                              {doctor.fullName.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-foreground truncate">
+                                {doctor.fullName}
+                                {(doctor.specialization || doctor.clinicSpecialty) && (
+                                  <span className="text-muted-foreground font-normal">
+                                    {' · '}{doctor.specialization || doctor.clinicSpecialty}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-muted-foreground truncate">
+                                {doctor.clinicName}{doctor.city ? ` · ${doctor.city}` : ''}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+
+                        {specialtyGroups.length > 0 && (
+                          <div className="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-t border-border">
+                            {t('landing.search.specialtyGroup')}
+                          </div>
+                        )}
+                        {specialtyGroups.map(([value, count], i) => {
+                          const idx = doctorResults.length + i;
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              role="option"
+                              aria-selected={activeIndex === idx}
+                              onMouseEnter={() => setActiveIndex(idx)}
+                              onClick={() => selectNavItem({ kind: 'specialty', value, count })}
+                              className={cn(
+                                "w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors",
+                                activeIndex === idx ? "bg-muted" : "hover:bg-muted",
+                              )}
+                            >
+                              <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center shrink-0">
+                                <Stethoscope className="w-4 h-4 text-foreground" />
+                              </div>
+                              <div className="text-sm text-foreground">
+                                {value}
+                                <span className="text-muted-foreground">
+                                  {' '}({t('landing.search.specialtyCount', { count })})
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* Vertical Line Connector */}
@@ -187,7 +388,10 @@ const PremiumLanding = () => {
                       type="text"
                       placeholder={t('landing.search.locationPlaceholder')}
                       value={location}
-                      onChange={(e) => setLocation(e.target.value)}
+                      onChange={(e) => {
+                        setLocation(e.target.value);
+                        setLocationTouched(true);
+                      }}
                       className="pl-10 pr-12 h-14 border-0 bg-muted rounded-xl text-base placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:bg-muted"
                     />
                     <button
@@ -205,7 +409,7 @@ const PremiumLanding = () => {
                   type="submit"
                   className="w-full h-14 mt-3 bg-obsidian hover:bg-obsidian-hover text-white font-semibold text-base rounded-xl transition-all"
                 >
-                  {t('landing.search.searchButton')}
+                  {t('landing.search.searchDoctorsButton')}
                 </Button>
               </form>
 
