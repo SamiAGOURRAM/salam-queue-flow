@@ -14,9 +14,8 @@
  */
 import {
   APPOINTMENT_BOOKED_EVENT,
+  selectNotifyRoute,
   type DomainEvent,
-  type NotifyChannel,
-  type PatientProfile,
   type ServiceContainer,
 } from "@queuemed/core";
 import { logger } from "../utils/logger.js";
@@ -46,7 +45,12 @@ export async function handleAppointmentBooked(
 
   try {
     const profile = await container.patient.getPatientProfile(patientId);
-    const route = resolveChannel(profile);
+    const route = selectNotifyRoute({
+      phoneNumber: profile.phoneNumber,
+      email: profile.email,
+      preferredLanguage: profile.preferredLanguage,
+      notificationPreferences: profile.notificationPreferences,
+    });
     if (!route) {
       logger.warn("Skipping booking confirmation: patient has no reachable channel", { patientId });
       return;
@@ -60,7 +64,7 @@ export async function handleAppointmentBooked(
       type: "appointment_confirmed",
       phoneNumber: route.phoneNumber,
       email: route.email,
-      language: profile.preferredLanguage,
+      language: route.preferredLanguage,
       variables: {
         appointmentDate: (event.payload.appointmentDate as string) ?? "",
         scheduledTime: (event.payload.scheduledTime as string) ?? "",
@@ -76,17 +80,4 @@ export async function handleAppointmentBooked(
       error: (error as Error).message,
     });
   }
-}
-
-/**
- * Minimal channel selection: prefer SMS (phone), else email. Full channel
- * preference parity with the web ChannelRouter would share a core resolver —
- * tracked as a follow-up.
- */
-function resolveChannel(
-  profile: PatientProfile,
-): { channel: NotifyChannel; phoneNumber?: string; email?: string } | null {
-  if (profile.phoneNumber) return { channel: "sms", phoneNumber: profile.phoneNumber };
-  if (profile.email) return { channel: "email", email: profile.email };
-  return null;
 }

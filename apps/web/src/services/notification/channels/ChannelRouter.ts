@@ -1,10 +1,13 @@
 /**
  * Channel Router
  * Resolves the best reachable channel for a patient.
+ *
+ * Contact fetching + PII decryption live here (web-specific); the *decision* of
+ * which channel to use is delegated to the shared core policy `selectNotifyRoute`
+ * so the web UI and the AI agent route identically.
  */
-
+import { selectNotifyRoute, type NotifyRoute } from '@queuemed/core';
 import { supabase } from '@/integrations/supabase/client';
-import { Json } from '@/integrations/supabase/types';
 import { logger } from '../../shared/logging/Logger';
 import { NotificationChannel } from '../models/NotificationModels';
 
@@ -13,13 +16,6 @@ export interface ResolvedNotificationRoute {
   phoneNumber?: string;
   email?: string;
   preferredLanguage: string;
-}
-
-interface ParsedPreferences {
-  preferredChannel?: NotificationChannel;
-  smsEnabled?: boolean;
-  whatsappEnabled?: boolean;
-  emailEnabled?: boolean;
 }
 
 type DecryptedPatient = {
@@ -58,12 +54,14 @@ export class ChannelRouter {
         });
       } else if (profileLookup.data) {
         const profile = profileLookup.data;
-        const route = this.chooseRoute({
-          phoneNumber: profile.phone_number,
-          email: profile.email,
-          preferredLanguage: profile.preferred_language,
-          preferences: this.parsePreferences(profile.notification_preferences),
-        });
+        const route = this.toRoute(
+          selectNotifyRoute({
+            phoneNumber: profile.phone_number,
+            email: profile.email,
+            preferredLanguage: profile.preferred_language,
+            notificationPreferences: profile.notification_preferences,
+          }),
+        );
 
         if (route) {
           return route;
@@ -92,118 +90,24 @@ export class ChannelRouter {
       return null;
     }
 
-    return this.chooseRoute({
-      phoneNumber: contact.phone_number,
-      email: contact.email,
-      preferredLanguage: null,
-      preferences: {},
-    });
+    return this.toRoute(
+      selectNotifyRoute({
+        phoneNumber: contact.phone_number,
+        email: contact.email,
+        preferredLanguage: null,
+        notificationPreferences: null,
+      }),
+    );
   }
 
-  private chooseRoute(input: {
-    phoneNumber?: string | null;
-    email?: string | null;
-    preferredLanguage?: string | null;
-    preferences: ParsedPreferences;
-  }): ResolvedNotificationRoute | null {
-    const phoneNumber = this.normalize(input.phoneNumber);
-    const email = this.normalize(input.email);
-    const preferredLanguage = input.preferredLanguage || 'ar';
-
-    if (!phoneNumber && !email) {
-      return null;
-    }
-
-    const preferredChannel = this.resolvePreferredChannel(input.preferences, Boolean(phoneNumber), Boolean(email));
-    if (preferredChannel === NotificationChannel.EMAIL && email) {
-      return { channel: NotificationChannel.EMAIL, email, preferredLanguage };
-    }
-
-    if (preferredChannel === NotificationChannel.WHATSAPP && phoneNumber) {
-      return { channel: NotificationChannel.WHATSAPP, phoneNumber, preferredLanguage };
-    }
-
-    if (preferredChannel === NotificationChannel.SMS && phoneNumber) {
-      return { channel: NotificationChannel.SMS, phoneNumber, preferredLanguage };
-    }
-
-    if (phoneNumber) {
-      return { channel: NotificationChannel.SMS, phoneNumber, preferredLanguage };
-    }
-
-    return { channel: NotificationChannel.EMAIL, email, preferredLanguage };
-  }
-
-  private resolvePreferredChannel(
-    preferences: ParsedPreferences,
-    hasPhoneNumber: boolean,
-    hasEmail: boolean
-  ): NotificationChannel {
-    if (preferences.preferredChannel) {
-      return preferences.preferredChannel;
-    }
-
-    if (hasPhoneNumber && preferences.whatsappEnabled) {
-      return NotificationChannel.WHATSAPP;
-    }
-    if (hasPhoneNumber && preferences.smsEnabled !== false) {
-      return NotificationChannel.SMS;
-    }
-    if (hasEmail && preferences.emailEnabled !== false) {
-      return NotificationChannel.EMAIL;
-    }
-
-    return hasPhoneNumber ? NotificationChannel.SMS : NotificationChannel.EMAIL;
-  }
-
-  private parsePreferences(preferences: Json | null): ParsedPreferences {
-    if (!preferences || typeof preferences !== 'object' || Array.isArray(preferences)) {
-      return {};
-    }
-
-    const raw = preferences as Record<string, unknown>;
-    const channelsValue =
-      raw.channels && typeof raw.channels === 'object' && !Array.isArray(raw.channels)
-        ? (raw.channels as Record<string, unknown>)
-        : {};
-
+  /** Map the core route (NotifyChannel string) to the web shape (enum — identical values). */
+  private toRoute(route: NotifyRoute | null): ResolvedNotificationRoute | null {
+    if (!route) return null;
     return {
-      preferredChannel: this.parseChannel(raw.preferred_channel ?? raw.preferredChannel),
-      smsEnabled: this.parseBoolean(raw.sms_enabled ?? raw.sms ?? channelsValue.sms),
-      whatsappEnabled: this.parseBoolean(raw.whatsapp_enabled ?? raw.whatsapp ?? channelsValue.whatsapp),
-      emailEnabled: this.parseBoolean(raw.email_enabled ?? raw.email ?? channelsValue.email),
+      channel: route.channel as NotificationChannel,
+      phoneNumber: route.phoneNumber,
+      email: route.email,
+      preferredLanguage: route.preferredLanguage,
     };
-  }
-
-  private parseChannel(value: unknown): NotificationChannel | undefined {
-    if (typeof value !== 'string') {
-      return undefined;
-    }
-
-    const normalized = value.toLowerCase();
-    switch (normalized) {
-      case NotificationChannel.SMS:
-      case NotificationChannel.WHATSAPP:
-      case NotificationChannel.EMAIL:
-      case NotificationChannel.PUSH:
-        return normalized;
-      default:
-        return undefined;
-    }
-  }
-
-  private parseBoolean(value: unknown): boolean | undefined {
-    if (typeof value === 'boolean') {
-      return value;
-    }
-    return undefined;
-  }
-
-  private normalize(value: string | null | undefined): string | undefined {
-    if (!value) {
-      return undefined;
-    }
-    const trimmed = value.trim();
-    return trimmed.length ? trimmed : undefined;
   }
 }
