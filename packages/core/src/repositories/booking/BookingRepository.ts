@@ -6,8 +6,9 @@
  */
 
 import { BaseRepository } from '../base/BaseRepository.js';
-import type { IDatabaseClient } from '../../ports/database.js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ILogger } from '../../ports/logger.js';
+import type { IBookingRepository, ClinicDetails } from '../../ports/repositories/IBookingRepository.js';
 import type {
   BookingRequest,
   BookingResponse,
@@ -15,15 +16,11 @@ import type {
   AppointmentAvailability,
   QueueMode,
   AppointmentType,
-  Tables
 } from '../../types.js';
 
-/** The clinic columns `getClinicDetails` actually selects. */
-export type ClinicDetails = Pick<Tables<'clinics'>, 'id' | 'name' | 'specialty' | 'settings'>;
-
-export class BookingRepository extends BaseRepository {
-  constructor(db: IDatabaseClient, logger: ILogger) {
-    super(db, logger, 'BookingRepository');
+export class BookingRepository extends BaseRepository implements IBookingRepository {
+  constructor(client: SupabaseClient, logger: ILogger) {
+    super(client, logger, 'BookingRepository');
   }
 
   /**
@@ -51,8 +48,7 @@ export class BookingRepository extends BaseRepository {
    * Get clinic details for booking
    */
   async getClinicDetails(clinicId: string): Promise<ClinicDetails> {
-    const client = this.db.getClient();
-    const { data, error } = await client
+    const { data, error } = await this.client
       .from('clinics')
       .select('id, name, specialty, settings')
       .eq('id', clinicId)
@@ -69,11 +65,9 @@ export class BookingRepository extends BaseRepository {
    * Get appointment types for a clinic
    */
   async getAppointmentTypes(clinicId: string): Promise<AppointmentType[]> {
-    const client = this.db.getClient();
-    
     try {
       // First check if the table exists and try to get custom types
-      const { data: customTypes, error } = await client
+      const { data: customTypes, error } = await this.client
         .from('clinic_appointment_types' as 'clinics') // Type workaround
         .select('name, label, duration')
         .eq('clinic_id', clinicId)
@@ -82,7 +76,7 @@ export class BookingRepository extends BaseRepository {
       // If we get a 404 or no data, use clinic settings or defaults
       if (error?.code === 'PGRST116' || error?.message?.includes('404') || !customTypes?.length) {
         // Try to get from clinic settings
-        const { data: clinic } = await client
+        const { data: clinic } = await this.client
           .from('clinics')
           .select('settings')
           .eq('id', clinicId)
@@ -124,8 +118,7 @@ export class BookingRepository extends BaseRepository {
     date: string, 
     callback: () => void
   ): () => void {
-    const client = this.db.getClient();
-    const channel = client
+    const channel = this.client
       .channel(`booking-slots-${clinicId}-${date}`)
       .on(
         'postgres_changes',
@@ -139,7 +132,7 @@ export class BookingRepository extends BaseRepository {
       )
       .subscribe();
 
-    return () => client.removeChannel(channel);
+    return () => this.client.removeChannel(channel);
   }
 
   // ============================================================================

@@ -3,8 +3,9 @@
  */
 
 import { BaseRepository } from '../base/BaseRepository.js';
-import type { IDatabaseClient } from '../../ports/database.js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ILogger } from '../../ports/logger.js';
+import type { IClinicRepository, ClinicSearchParams } from '../../ports/repositories/IClinicRepository.js';
 import type { Clinic, ClinicSettings, DoctorListing, DoctorSearchParams, Tables } from '../../types.js';
 import { NotFoundError } from '../../errors.js';
 
@@ -12,14 +13,6 @@ import { NotFoundError } from '../../errors.js';
 type ClinicRow = Pick<Tables<'clinics'>, 'id' | 'name' | 'specialty' | 'city'>;
 type StaffRow = Pick<Tables<'clinic_staff'>, 'id' | 'clinic_id' | 'user_id' | 'role' | 'specialization'>;
 type ProfileRow = Pick<Tables<'profiles'>, 'id' | 'full_name'>;
-
-export interface ClinicSearchParams {
-  city?: string;
-  specialty?: string;
-  name?: string;
-  limit?: number;
-  offset?: number;
-}
 
 /**
  * Whether a staff row should surface as a bookable "doctor" in patient discovery.
@@ -38,17 +31,17 @@ function isDoctorLikeRole(role: string | null | undefined): boolean {
   return clinicalRoles.has(normalized);
 }
 
-export class ClinicRepository extends BaseRepository {
-  constructor(db: IDatabaseClient, logger: ILogger) {
-    super(db, logger, 'ClinicRepository');
+export class ClinicRepository extends BaseRepository implements IClinicRepository {
+  constructor(client: SupabaseClient, logger: ILogger) {
+    super(client, logger, 'ClinicRepository');
   }
 
   /**
    * Get clinic by ID
    */
   async getById(clinicId: string): Promise<Clinic | null> {
-    const client = this.db.getClient();
-    const { data, error } = await client
+    // Using this.client directly
+    const { data, error } = await this.client
       .from('clinics')
       .select('*')
       .eq('id', clinicId)
@@ -69,8 +62,8 @@ export class ClinicRepository extends BaseRepository {
    * Search clinics
    */
   async search(params: ClinicSearchParams): Promise<Clinic[]> {
-    const client = this.db.getClient();
-    let query = client
+    // Using this.client directly
+    let query = this.client
       .from('clinics')
       .select('*');
 
@@ -111,10 +104,10 @@ export class ClinicRepository extends BaseRepository {
    * Returns only public-facing fields (no PHI).
    */
   async searchDoctors(params: DoctorSearchParams): Promise<DoctorListing[]> {
-    const client = this.db.getClient();
+    // Using this.client directly
 
     // 1) Active clinics (apply clinic-level filters here).
-    let clinicQuery = client
+    let clinicQuery = this.client
       .from('clinics')
       .select('id, name, specialty, city')
       .eq('is_active', true);
@@ -135,7 +128,7 @@ export class ClinicRepository extends BaseRepository {
     // Bounded fetch: the JS-side `limit` is applied after doctor/name filtering,
     // so cap the DB read to avoid pulling an unbounded staff set into memory.
     const MAX_STAFF_SCAN = 200;
-    const { data: staffData, error: staffError } = await client
+    const { data: staffData, error: staffError } = await this.client
       .from('clinic_staff')
       .select('id, clinic_id, user_id, role, specialization')
       .eq('is_active', true)
@@ -152,7 +145,7 @@ export class ClinicRepository extends BaseRepository {
 
     // 3) Provider names.
     const userIds = [...new Set(doctorStaff.map((s) => s.user_id))];
-    const { data: profilesData, error: profilesError } = await client
+    const { data: profilesData, error: profilesError } = await this.client
       .from('profiles')
       .select('id, full_name')
       .in('id', userIds);
@@ -199,7 +192,7 @@ export class ClinicRepository extends BaseRepository {
    * Update clinic settings
    */
   async updateSettings(clinicId: string, settings: Partial<ClinicSettings>): Promise<Clinic> {
-    const client = this.db.getClient();
+    // Using this.client directly
     
     // First get current settings
     const current = await this.getById(clinicId);
@@ -212,7 +205,7 @@ export class ClinicRepository extends BaseRepository {
       ...settings
     };
 
-    const { data, error } = await client
+    const { data, error } = await this.client
       .from('clinics')
       .update({ settings: updatedSettings })
       .eq('id', clinicId)
@@ -231,8 +224,8 @@ export class ClinicRepository extends BaseRepository {
    * Get clinics by owner ID
    */
   async getByOwnerId(ownerId: string): Promise<Clinic[]> {
-    const client = this.db.getClient();
-    const { data, error } = await client
+    // Using this.client directly
+    const { data, error } = await this.client
       .from('clinics')
       .select('*')
       .eq('owner_id', ownerId);
@@ -246,19 +239,58 @@ export class ClinicRepository extends BaseRepository {
   }
 
   /**
+   * Update clinic metadata fields (name, address, specialty, etc. — NOT settings).
+   * Settings, queueMode, and subscriptionTier have dedicated update methods.
+   */
+  async updateClinic(clinicId: string, data: Partial<Clinic>): Promise<Clinic> {
+    const updateData: Record<string, unknown> = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.nameAr !== undefined) updateData.name_ar = data.nameAr;
+    if (data.specialty !== undefined) updateData.specialty = data.specialty;
+    if (data.address !== undefined) updateData.address = data.address;
+    if (data.city !== undefined) updateData.city = data.city;
+    if (data.phoneNumber !== undefined) updateData.phone = data.phoneNumber;
+    if (data.email !== undefined) updateData.email = data.email;
+    if (data.logoUrl !== undefined) updateData.logo_url = data.logoUrl;
+    if (data.isActive !== undefined) updateData.is_active = data.isActive;
+
+    const { data: updated, error } = await this.client
+      .from('clinics')
+      .update(updateData)
+      .eq('id', clinicId)
+      .select()
+      .single();
+
+    if (error) {
+      this.logError('Failed to update clinic', new Error(error.message), { clinicId });
+      throw error;
+    }
+
+    return this.mapToClinic(updated);
+  }
+
+  /**
    * Map database row to Clinic
    */
   private mapToClinic(row: Record<string, unknown>): Clinic {
     return {
       id: row.id as string,
       name: row.name as string,
+      nameAr: row.name_ar as string | undefined,
+      ownerId: row.owner_id as string | undefined,
+      practiceType: row.practice_type as string | undefined,
       specialty: row.specialty as string | undefined,
       address: row.address as string | undefined,
       city: row.city as string | undefined,
-      phoneNumber: row.phone_number as string | undefined,
+      phoneNumber: row.phone as string | undefined,
       email: row.email as string | undefined,
+      logoUrl: row.logo_url as string | undefined,
       settings: row.settings as ClinicSettings | undefined,
-      createdAt: row.created_at as string
+      subscriptionTier: row.subscription_tier as string | undefined,
+      isActive: row.is_active as boolean | undefined,
+      queueMode: row.queue_mode as string | null | undefined,
+      createdAt: row.created_at as string,
+      updatedAt: row.updated_at as string | undefined,
     };
   }
 }

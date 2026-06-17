@@ -19,15 +19,37 @@ import { createServiceContainer, type ServiceContainer } from "@queuemed/core";
 import { config } from "../config.js";
 import { getRequestStore } from "../middleware/auth/requestContext.js";
 import { logger } from "../utils/logger.js";
+import { CoreLoggerAdapter } from "./loggerAdapter.js";
+import { LoggingNotifier } from "./notifier.js";
+import { subscribeBookingConfirmation } from "./bookingNotification.js";
 
 let serviceRoleContainer: ServiceContainer | null = null;
 let anonContainer: ServiceContainer | null = null;
+
+// Core services use the default ConsoleLogger which writes to stdout — that
+// corrupts the MCP stdio protocol.  Every container MUST use CoreLoggerAdapter
+// so all core-service log output goes to stderr instead.
+const coreLogger = new CoreLoggerAdapter();
+
+// Single notifier adapter shared across containers (stateless placeholder).
+const notifier = new LoggingNotifier();
 
 function makeClient(key: string, jwt?: string): SupabaseClient {
   return createClient(config.supabaseUrl, key, {
     auth: { autoRefreshToken: false, persistSession: false },
     ...(jwt ? { global: { headers: { Authorization: `Bearer ${jwt}` } } } : {}),
   });
+}
+
+/**
+ * Build a core container wired with the MCP notifier + booking-confirmation
+ * handler, so an agent booking (`appointment.booked`) triggers a confirmation
+ * resolved/delivered under the same RLS-scoped client as the booking.
+ */
+function buildContainer(client: SupabaseClient): ServiceContainer {
+  const container = createServiceContainer({ supabaseClient: client, logger: coreLogger, notifier });
+  subscribeBookingConfirmation(container);
+  return container;
 }
 
 /** Service-role container (RLS-bypassing). Kept as a fallback only. */
@@ -39,19 +61,16 @@ export function initializeServices(): ServiceContainer {
   }
   if (!serviceRoleContainer) {
     logger.info("Initializing service-role container (fallback)");
-    serviceRoleContainer = createServiceContainer({ supabaseClient: makeClient(config.supabaseServiceKey) });
+    serviceRoleContainer = buildContainer(makeClient(config.supabaseServiceKey));
   }
   return serviceRoleContainer;
 }
 
-/** Anon container (RLS as `anon`). Falls back to service-role if no anon key. */
+/** Anon container (RLS as `anon`). Config validation at startup
+ *  ensures SUPABASE_ANON_KEY is set, so this never falls back. */
 function getAnonContainer(): ServiceContainer {
-  if (!config.supabaseAnonKey) {
-    logger.warn("SUPABASE_ANON_KEY not set — falling back to service-role (RLS bypassed). Set it to enforce RLS.");
-    return initializeServices();
-  }
   if (!anonContainer) {
-    anonContainer = createServiceContainer({ supabaseClient: makeClient(config.supabaseAnonKey) });
+    anonContainer = buildContainer(makeClient(config.supabaseAnonKey));
   }
   return anonContainer;
 }
@@ -65,9 +84,7 @@ export function getServices(): ServiceContainer {
 
   if (store?.token && config.supabaseAnonKey) {
     if (!store.services) {
-      store.services = createServiceContainer({
-        supabaseClient: makeClient(config.supabaseAnonKey, store.token),
-      });
+      store.services = buildContainer(makeClient(config.supabaseAnonKey, store.token));
     }
     return store.services as ServiceContainer;
   }

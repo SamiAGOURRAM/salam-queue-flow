@@ -5,6 +5,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import type { Database, Json } from '@/integrations/supabase/types';
+import type { INotifier, NotifyRequest, NotifyResult } from '@queuemed/core';
 import { logger } from '../shared/logging/Logger';
 import { DatabaseError, ExternalServiceError, ValidationError } from '../shared/errors';
 import {
@@ -26,9 +27,33 @@ const DELIVERY_BACKOFF_MS = [500, 1500, 3000];
 const CHANNEL_RATE_LIMIT_WINDOW_MS = 750;
 const rateLimitWindowByKey = new Map<string, number>();
 
-export class NotificationService {
+export class NotificationService implements INotifier {
   private readonly templateService = new NotificationTemplateService();
   private readonly whatsAppChannel = new WhatsAppChannel();
+
+  /**
+   * INotifier port implementation — the core-facing messaging seam.
+   *
+   * Maps a transport-agnostic core `NotifyRequest` onto the web `send()` DTO so
+   * `@queuemed/core` services (and the AI agent) can request a notification
+   * without knowing the channel/provider. Channel/type strings are identical to
+   * the web enums (same string values), so the mapping is a safe narrowing.
+   */
+  async notify(request: NotifyRequest): Promise<NotifyResult> {
+    const sent = await this.send({
+      clinicId: request.clinicId,
+      patientId: request.patientId,
+      appointmentId: request.appointmentId,
+      channel: request.channel as NotificationChannel,
+      type: request.type as NotificationType,
+      phoneNumber: request.phoneNumber,
+      email: request.email,
+      pushToken: request.pushToken,
+      language: request.language,
+      templateVariables: request.variables,
+    });
+    return { id: sent.id, status: sent.status as NotifyResult['status'] };
+  }
 
   /**
    * Send a notification

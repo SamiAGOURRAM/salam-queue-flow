@@ -9,7 +9,7 @@ const noop = new Proxy({}, { get: () => () => {} }) as any;
  * (eq/ilike/in) are no-ops — the join/filter logic under test runs in JS after
  * the fetch, so these tests exercise that logic with fixed inputs.
  */
-function makeDb(tables: Record<string, unknown[]>) {
+function makeClient(tables: Record<string, unknown[]>) {
   const chainFor = (table: string) => {
     const result = { data: tables[table] ?? [], error: null };
     const chain: any = {
@@ -22,10 +22,11 @@ function makeDb(tables: Record<string, unknown[]>) {
     };
     return chain;
   };
-  return { getClient: () => ({ from: chainFor }) } as any;
+  // Repositories now receive SupabaseClient directly (no getClient() wrapper)
+  return { from: chainFor } as any;
 }
 
-const repo = (tables: Record<string, unknown[]>) => new ClinicRepository(makeDb(tables), noop);
+const repo = (tables: Record<string, unknown[]>) => new ClinicRepository(makeClient(tables), noop);
 const clinics = [{ id: "c1", name: "Casa Family Care", specialty: "Dermatologie", city: "Casablanca" }];
 
 describe("ClinicRepository.searchDoctors", () => {

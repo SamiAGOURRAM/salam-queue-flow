@@ -16,7 +16,7 @@ import {
   NotFoundError, 
   AuthorizationError,
 } from "../../utils/errors.js";
-import type { AuthContext } from "../../middleware/auth/types.js";
+import type { AuthContext } from "@queuemed/core";
 
 // ============================================
 // INPUT SCHEMA

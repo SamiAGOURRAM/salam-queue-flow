@@ -10,9 +10,9 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { logger } from "../utils/logger.js";
 import { formatErrorResponse } from "../utils/errors.js";
-import type { AuthContext } from "../middleware/auth/index.js";
+import type { AuthContext } from "@queuemed/core";
+import { ANONYMOUS_CONTEXT } from "@queuemed/core";
 import {
-  ANONYMOUS_CONTEXT,
   canAccessTool,
   assertToolAccess,
 } from "../middleware/auth/index.js";
@@ -208,15 +208,8 @@ export async function executeToolWithToken(
   let context: AuthContext = ANONYMOUS_CONTEXT;
 
   if (token) {
-    try {
-      const { validateToken } = await import("../middleware/auth/index.js");
-      context = await validateToken(token);
-    } catch (error) {
-      logger.warn("Token validation failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      // Continue with anonymous context for public tools
-    }
+    const { validateToken } = await import("../middleware/auth/index.js");
+    context = await validateToken(token);
   }
 
   return executeToolCall(name, args, context);

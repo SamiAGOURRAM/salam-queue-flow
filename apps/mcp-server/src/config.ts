@@ -55,8 +55,31 @@ function getIntEnv(key: string, defaultValue: number): number {
   return isNaN(parsed) ? defaultValue : parsed;
 }
 
+// ── Startup validation ──────────────────────────────────
+// Fail hard if critical Supabase config is missing.
+// The anon key is required because every JWT-scoped tool data
+// query relies on it — falling back to the service key silently
+// bypasses all RLS (see services/index.ts).
+function validateSupabaseConfig(): void {
+  const missing: string[] = [];
+  if (!process.env.SUPABASE_URL) missing.push("SUPABASE_URL");
+  if (!process.env.SUPABASE_SERVICE_KEY) missing.push("SUPABASE_SERVICE_KEY");
+  if (!process.env.SUPABASE_ANON_KEY) missing.push("SUPABASE_ANON_KEY");
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required Supabase environment variables: ${missing.join(", ")}. ` +
+      "Set them in .env or the container environment. " +
+      "SUPABASE_ANON_KEY is required to enforce RLS on tool data queries."
+    );
+  }
+}
+
 // Validate and export configuration
-export const config: Config = {
+export const config: Config = (() => {
+  if (getOptionalEnv("NODE_ENV") !== "test") {
+    validateSupabaseConfig();
+  }
+  return {
   // Environment
   nodeEnv: getOptionalEnv("NODE_ENV", "development"),
   logLevel: getOptionalEnv("LOG_LEVEL", "info"),
@@ -82,6 +105,7 @@ export const config: Config = {
   // Server
   serverPort: getIntEnv("SERVER_PORT", 3001),
 };
+})();
 
 // Log configuration on startup (without sensitive values)
 export function logConfig(): void {

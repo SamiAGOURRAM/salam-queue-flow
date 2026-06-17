@@ -12,7 +12,7 @@ import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { getClinicService } from "../../services/index.js";
 import { logger } from "../../utils/logger.js";
 import { ValidationError } from "../../utils/errors.js";
-import type { AuthContext } from "../../middleware/auth/types.js";
+import type { AuthContext } from "@queuemed/core";
 import { buildBookingHref, type DiscoveryCards, type ClinicCardItem, type Clinic } from "@queuemed/core";
 
 // ============================================

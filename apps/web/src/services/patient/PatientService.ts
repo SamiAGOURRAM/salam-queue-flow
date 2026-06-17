@@ -1,13 +1,27 @@
-/**
- * Patient Service
- * Handles all patient-related operations
- * Uses repository pattern - NO direct Supabase client usage
- */
+// src/services/patient/PatientService.ts
+//
+// SINGLE SOURCE OF TRUTH: all patient business logic lives in `@queuemed/core`
+// (PatientService + PatientRepository), shared by the web app and the MCP/chat
+// server. This file is a thin browser-side facade that wires core to the web
+// Supabase client and preserves the existing web API surface (string→Date dates,
+// web-typed shapes). No patient business logic lives here.
 
-import { PatientRepository } from './repositories/PatientRepository';
+import type {
+  Patient as CorePatient,
+  PatientProfile as CorePatientProfile,
+  WalkInPatient as CoreWalkInPatient,
+} from '@queuemed/core';
+import { coreContainer } from '../core/coreContainer';
+import { NotFoundError, DatabaseError } from '../shared/errors';
 import { logger } from '../shared/logging/Logger';
-import { NotFoundError, ValidationError, DatabaseError } from '../shared/errors';
 import { PatientSource } from './models/PatientModels';
+
+// Shared core container (one event bus + notifier for the whole app).
+const corePatient = coreContainer.patient;
+
+// ============================================================================
+// WEB-SPECIFIC TYPES (preserved for backward compat with existing consumers)
+// ============================================================================
 
 export interface PatientProfile {
   id: string;
@@ -38,52 +52,20 @@ export interface FindOrCreatePatientResult {
   isNew: boolean;
 }
 
-export class PatientService {
-  private repository: PatientRepository;
+// ============================================================================
+// FAÇADE
+// ============================================================================
 
-  constructor(repository?: PatientRepository) {
-    this.repository = repository || new PatientRepository();
-  }
+export class PatientService {
+  /** For testing — allows injecting a mock core service. */
+  constructor(private readonly core: typeof corePatient = corePatient) {}
 
   /**
-   * Find or create a patient by phone number
-   * First checks registered patients, then guest patients
-   * Creates new guest patient if neither exists
+   * Find or create a patient by phone number (walk-in flow).
    */
   async findOrCreatePatient(phoneNumber: string, fullName: string): Promise<FindOrCreatePatientResult> {
     try {
-      logger.debug('Finding or creating patient', { phoneNumber, fullName });
-
-      // Step 1: Check for registered patient (via repository)
-      const registeredPatient = await this.repository.findPatientByPhone(phoneNumber);
-
-      if (registeredPatient) {
-        logger.info('Found registered patient', { patientId: registeredPatient.id, phoneNumber });
-        return {
-          patientId: registeredPatient.id,
-          isNew: false,
-        };
-      }
-
-      // Step 2: Check for existing walk-in patient (via repository)
-      const existingWalkIn = await this.repository.findWalkInPatientByPhone(phoneNumber);
-
-      if (existingWalkIn) {
-        logger.info('Found existing walk-in patient', { patientId: existingWalkIn.id, phoneNumber });
-        return {
-          patientId: existingWalkIn.id,
-          isNew: false,
-        };
-      }
-
-      // Step 3: Create new walk-in patient (via repository)
-      const newWalkIn = await this.repository.createWalkInPatient(fullName, phoneNumber);
-
-      logger.info('Created new walk-in patient', { patientId: newWalkIn.id, phoneNumber, fullName });
-      return {
-        patientId: newWalkIn.id,
-        isNew: true,
-      };
+      return await this.core.findOrCreatePatient(phoneNumber, fullName);
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error finding or creating patient', error as Error, { phoneNumber, fullName });
@@ -92,31 +74,16 @@ export class PatientService {
   }
 
   /**
-   * Get patient profile by ID
+   * Get patient profile by ID.
    */
   async getPatientProfile(patientId: string): Promise<PatientProfile> {
     try {
-      logger.debug('Fetching patient profile', { patientId });
-
-      const profile = await this.repository.getPatientProfile(patientId);
-
-      return {
-        id: profile.id,
-        phoneNumber: profile.phone_number,
-        fullName: profile.full_name,
-        email: profile.email || undefined,
-        city: profile.city || undefined,
-        preferredLanguage: profile.preferred_language || undefined,
-        notificationPreferences: profile.notification_preferences as Record<string, unknown> | undefined,
-        noShowCount: profile.no_show_count || 0,
-        createdAt: new Date(profile.created_at),
-        updatedAt: new Date(profile.updated_at),
-      };
+      const profile = await this.core.getPatientProfile(patientId);
+      return this.toWebProfile(profile);
     } catch (error) {
+      if (error instanceof NotFoundError) throw new NotFoundError('Patient not found');
       if (error instanceof DatabaseError) {
-        if (error.message.includes('not found')) {
-          throw new NotFoundError('Patient not found');
-        }
+        if (error.message.includes('not found')) throw new NotFoundError('Patient not found');
         throw error;
       }
       logger.error('Unexpected error fetching patient profile', error as Error, { patientId });
@@ -125,25 +92,17 @@ export class PatientService {
   }
 
   /**
-   * Update patient profile
-   * TODO: Should use RPC function for complex updates
+   * Update patient profile.
    */
   async updatePatientProfile(patientId: string, data: Partial<PatientProfile>): Promise<PatientProfile> {
     try {
-      logger.debug('Updating patient profile', { patientId, data });
-
-      const updateData: Partial<import('./repositories/PatientRepository').PatientProfileRow> = {};
-      if (data.fullName) updateData.full_name = data.fullName;
-      if (data.phoneNumber) updateData.phone_number = data.phoneNumber;
-      if (data.email !== undefined) updateData.email = data.email;
-      if (data.city !== undefined) updateData.city = data.city || null;
-      if (data.preferredLanguage) updateData.preferred_language = data.preferredLanguage;
-      if (data.notificationPreferences) updateData.notification_preferences = data.notificationPreferences as Record<string, unknown> | null;
-
-      await this.repository.updatePatientProfile(patientId, updateData);
-
-      logger.info('Patient profile updated', { patientId });
-      return this.getPatientProfile(patientId);
+      const updated = await this.core.updatePatientProfile(patientId, {
+        fullName: data.fullName,
+        phoneNumber: data.phoneNumber,
+        email: data.email,
+        city: data.city,
+      });
+      return this.toWebProfile(updated);
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error updating patient profile', error as Error, { patientId, data });
@@ -152,36 +111,53 @@ export class PatientService {
   }
 
   /**
-   * Get walk-in patient by ID (decrypts PII)
+   * Get walk-in patient by ID (decrypts PII).
    */
   async getWalkInPatient(patientId: string): Promise<WalkInPatient> {
     try {
-      logger.debug('Fetching walk-in patient', { patientId });
-
-      const patient = await this.repository.getWalkInPatient(patientId);
-
-      return {
-        id: patient.id,
-        phoneNumber: patient.phone_number,
-        fullName: patient.full_name,
-        source: patient.source as PatientSource,
-        isClaimed: patient.is_claimed,
-        claimedBy: patient.claimed_by || undefined,
-        createdAt: new Date(patient.created_at),
-        updatedAt: new Date(patient.updated_at),
-      };
+      const patient = await this.core.getWalkInPatient(patientId);
+      return this.toWebWalkIn(patient);
     } catch (error) {
-      if (error instanceof DatabaseError) {
-        if (error.message.includes('not found')) {
-          throw new NotFoundError('Walk-in patient not found');
-        }
-        throw error;
+      if (error instanceof DatabaseError) throw error;
+      if (error instanceof Error && error.message.includes('not found')) {
+        throw new NotFoundError('Walk-in patient not found');
       }
       logger.error('Unexpected error fetching walk-in patient', error as Error, { patientId });
       throw new DatabaseError('Unexpected error fetching walk-in patient', error as Error);
     }
   }
+
+  /** Map a core PatientProfile/Patient to the web profile shape (string → Date). */
+  private toWebProfile(core: CorePatientProfile | CorePatient): PatientProfile {
+    const profile = core as CorePatientProfile;
+    const now = new Date();
+    return {
+      id: core.id,
+      phoneNumber: core.phoneNumber || '',
+      fullName: core.fullName,
+      email: core.email || undefined,
+      city: core.city || undefined,
+      preferredLanguage: profile.preferredLanguage || undefined,
+      notificationPreferences: profile.notificationPreferences,
+      noShowCount: profile.noShowCount ?? 0,
+      createdAt: core.createdAt ? new Date(core.createdAt) : now,
+      updatedAt: core.updatedAt ? new Date(core.updatedAt) : now,
+    };
+  }
+
+  /** Map a core WalkInPatient to the web shape (string → Date, source → enum). */
+  private toWebWalkIn(core: CoreWalkInPatient): WalkInPatient {
+    return {
+      id: core.id,
+      phoneNumber: core.phoneNumber,
+      fullName: core.fullName,
+      source: core.source as PatientSource,
+      isClaimed: core.isClaimed,
+      claimedBy: core.claimedBy || undefined,
+      createdAt: core.createdAt ? new Date(core.createdAt) : new Date(),
+      updatedAt: core.updatedAt ? new Date(core.updatedAt) : new Date(),
+    };
+  }
 }
 
 export const patientService = new PatientService();
-

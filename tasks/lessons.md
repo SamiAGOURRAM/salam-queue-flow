@@ -1,5 +1,7 @@
 # Lessons
 
+- **STRATEGY.md** at project root contains the strategic vision: what QueueMed is, what existing projects inspired it (not forked), what makes it a lasting contribution. Read it before major architectural decisions.
+
 - When mocking `react-i18next`'s `useTranslation` in tests, hoist the `t` function to a stable reference (`vi.fn()` or module-level const) instead of creating it inline. An unstable `t` reference in the component's `useEffect` dependency array causes an infinite re-render loop: effect fires -> promise resolves -> state update -> re-render -> new `t` -> effect re-fires -> ...
 
 - When review feedback flags hardcoded UI strings in clinician workflows, immediately check print templates and datalist suggestion constants for i18n coverage in all active locales.

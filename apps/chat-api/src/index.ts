@@ -6,9 +6,11 @@
  * GET  /health
  */
 import express, { type Request, type Response } from "express";
+import rateLimit from "express-rate-limit";
 import { streamChatToResponse, type QueueMedUIMessage } from "./agent.js";
 import { resolveModel } from "./llm.js";
 import { config } from "./config.js";
+import { validateToken } from "./auth.js";
 
 function extractBearerToken(req: Request): string | undefined {
   const header = req.headers["authorization"];
@@ -43,6 +45,7 @@ function isValidMessages(value: unknown): value is QueueMedUIMessage[] {
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 
+// ── CORS ──────────────────────────────────────────────────
 app.use((req, res, next) => {
   const origin = config.corsOrigins;
   res.header("Access-Control-Allow-Origin", origin);
@@ -56,7 +59,32 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get("/health", (_req, res) => {
+// Warn if Supabase is not configured (auth validation is disabled).
+if (!config.supabaseUrl) {
+  console.warn(
+    "[chat-api] WARNING: SUPABASE_URL not set — auth validation is disabled. " +
+    "Set SUPABASE_URL and SUPABASE_ANON_KEY in production.",
+  );
+}
+
+// ── Rate limiting ─────────────────────────────────────────
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  max: 30,             // max 30 requests per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please slow down." },
+});
+
+const healthLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// ── Routes ────────────────────────────────────────────────
+app.get("/health", healthLimiter, (_req, res) => {
   const model = resolveModel();
   res.json({
     status: "ok",
@@ -67,14 +95,23 @@ app.get("/health", (_req, res) => {
   });
 });
 
-app.post("/api/chat", async (req: Request, res: Response) => {
+app.post("/api/chat", chatLimiter, async (req: Request, res: Response) => {
+  // ── Auth gate ───────────────────────────────────────────
+  // Validate the caller's Supabase JWT. When SUPABASE_URL is
+  // unset (local dev), validation is skipped with a warning.
+  const token = extractBearerToken(req);
+  const auth = await validateToken(token);
+  if (!auth.authenticated) {
+    res.status(401).json({ error: auth.error ?? "Unauthorized" });
+    return;
+  }
+
   const messages = req.body?.messages;
   if (!isValidMessages(messages) || messages.length === 0) {
     res.status(400).json({ error: "Body must be { messages: [{ role, content }] } with at least one message." });
     return;
   }
 
-  const token = extractBearerToken(req);
   try {
     await streamChatToResponse({ messages, token, res });
   } catch (error) {

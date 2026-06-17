@@ -1,13 +1,23 @@
-/**
- * Clinic Service
- * Handles all clinic-related operations
- * Uses repository pattern - NO direct Supabase client usage
- */
+// src/services/clinic/ClinicService.ts
+//
+// SINGLE SOURCE OF TRUTH: all clinic business logic lives in `@queuemed/core`
+// (ClinicService + ClinicRepository), shared by the web app and the MCP/chat
+// server. This file is a thin browser-side facade that wires core to the web
+// Supabase client and preserves the existing web API surface.
+// No clinic business logic lives here.
 
-import { ClinicRepository } from './repositories/ClinicRepository';
+import type { Clinic as CoreClinic } from '@queuemed/core';
+import { coreContainer } from '../core/coreContainer';
+import { NotFoundError, DatabaseError } from '../shared/errors';
 import { logger } from '../shared/logging/Logger';
-import { NotFoundError, ValidationError, DatabaseError } from '../shared/errors';
 import type { DoctorListing, DoctorSearchParams } from '@queuemed/core';
+
+// Shared core container (one event bus + notifier for the whole app).
+const coreClinic = coreContainer.clinic;
+
+// ============================================================================
+// WEB-SPECIFIC TYPES (preserved for backward compat with existing consumers)
+// ============================================================================
 
 export interface Clinic {
   id: string;
@@ -31,11 +41,7 @@ export interface Clinic {
 
 export interface ClinicSettings {
   buffer_time?: number;
-  working_hours?: Record<string, {
-    open?: string;
-    close?: string;
-    closed?: boolean;
-  }>;
+  working_hours?: Record<string, { open?: string; close?: string; closed?: boolean }>;
   allow_walk_ins?: boolean;
   max_queue_size?: number;
   requires_appointment?: boolean;
@@ -54,27 +60,24 @@ export interface ClinicSettings {
   };
 }
 
+// ============================================================================
+// FAÇADE
+// ============================================================================
+
 export class ClinicService {
-  private repository: ClinicRepository;
-
-  constructor(repository?: ClinicRepository) {
-    this.repository = repository || new ClinicRepository();
-  }
-
   /**
-   * Get clinic by ID
+   * For testing — allows injecting a mock core service.
    */
+  constructor(private readonly core: typeof coreClinic = coreClinic) {}
+
   async getClinic(clinicId: string): Promise<Clinic> {
     try {
-      logger.debug('Fetching clinic', { clinicId });
-
-      const clinic = await this.repository.getClinic(clinicId);
-      return this.mapClinic(clinic);
+      const result = await this.core.getClinic(clinicId);
+      return this.toWebClinic(result);
     } catch (error) {
+      if (error instanceof NotFoundError) throw error;
       if (error instanceof DatabaseError) {
-        if (error.message.includes('not found')) {
-          throw new NotFoundError('Clinic not found');
-        }
+        if (error.message.includes('not found')) throw new NotFoundError('Clinic not found');
         throw error;
       }
       logger.error('Unexpected error fetching clinic', error as Error, { clinicId });
@@ -82,20 +85,11 @@ export class ClinicService {
     }
   }
 
-  /**
-   * Get clinic by owner ID
-   */
   async getClinicByOwner(ownerId: string): Promise<Clinic | null> {
     try {
-      logger.debug('Fetching clinic by owner', { ownerId });
-
-      const clinic = await this.repository.getClinicByOwner(ownerId);
-
-      if (!clinic) {
-        return null;
-      }
-
-      return this.mapClinic(clinic);
+      const clinics = await this.core.getClinicsByOwner(ownerId);
+      if (clinics.length === 0) return null;
+      return this.toWebClinic(clinics[0]);
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error fetching clinic by owner', error as Error, { ownerId });
@@ -103,14 +97,10 @@ export class ClinicService {
     }
   }
 
-  /**
-   * Search doctors (active providers at active clinics) for patient discovery.
-   * Delegates to the repository (clinics → clinic_staff → profiles join).
-   */
   async searchDoctors(params: DoctorSearchParams): Promise<DoctorListing[]> {
     try {
       logger.debug('Searching doctors', params as Record<string, unknown>);
-      const doctors = await this.repository.searchDoctors(params);
+      const doctors = await this.core.searchDoctors(params);
       logger.info('Doctors found', { count: doctors.length });
       return doctors;
     } catch (error) {
@@ -120,20 +110,14 @@ export class ClinicService {
     }
   }
 
-  /**
-   * Get clinic settings
-   */
   async getClinicSettings(clinicId: string): Promise<ClinicSettings> {
     try {
-      logger.debug('Fetching clinic settings', { clinicId });
-
-      const settings = await this.repository.getClinicSettings(clinicId);
-      return this.normalizeClinicSettings(settings);
+      const settings = await this.core.getClinicSettings(clinicId);
+      return this.normalizeClinicSettings(settings as Record<string, unknown>) as ClinicSettings;
     } catch (error) {
+      if (error instanceof NotFoundError) throw new NotFoundError('Clinic not found');
       if (error instanceof DatabaseError) {
-        if (error.message.includes('not found')) {
-          throw new NotFoundError('Clinic not found');
-        }
+        if (error.message.includes('not found')) throw new NotFoundError('Clinic not found');
         throw error;
       }
       logger.error('Unexpected error fetching clinic settings', error as Error, { clinicId });
@@ -141,25 +125,15 @@ export class ClinicService {
     }
   }
 
-  /**
-   * Update clinic settings
-   * TODO: Should use RPC function for complex updates
-   */
   async updateClinicSettings(clinicId: string, settings: Partial<ClinicSettings>): Promise<ClinicSettings> {
     try {
-      logger.debug('Updating clinic settings', { clinicId, settings });
-
-      // Get current settings
-      const currentSettings = await this.getClinicSettings(clinicId);
-      const updatedSettings = {
-        ...currentSettings,
+      const currentSettings = await this.core.getClinicSettings(clinicId);
+      const merged = {
+        ...(currentSettings as Record<string, unknown>),
         ...this.normalizeClinicSettings(settings as Record<string, unknown>),
       };
-
-      await this.repository.updateClinicSettings(clinicId, updatedSettings as Record<string, unknown>);
-
-      logger.info('Clinic settings updated', { clinicId });
-      return updatedSettings;
+      await this.core.updateClinicSettings(clinicId, merged as Record<string, unknown>);
+      return merged as ClinicSettings;
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error updating clinic settings', error as Error, { clinicId, settings });
@@ -167,29 +141,21 @@ export class ClinicService {
     }
   }
 
-  /**
-   * Update clinic information
-   * TODO: Should use RPC function for complex updates
-   */
   async updateClinic(clinicId: string, data: Partial<Clinic>): Promise<Clinic> {
     try {
-      logger.debug('Updating clinic', { clinicId, data });
+      const mapped: Partial<CoreClinic> = {};
+      if (data.name !== undefined) mapped.name = data.name;
+      if (data.nameAr !== undefined) mapped.nameAr = data.nameAr;
+      if (data.specialty !== undefined) mapped.specialty = data.specialty;
+      if (data.address !== undefined) mapped.address = data.address;
+      if (data.city !== undefined) mapped.city = data.city;
+      if (data.phone !== undefined) mapped.phoneNumber = data.phone;
+      if (data.email !== undefined) mapped.email = data.email;
+      if (data.logoUrl !== undefined) mapped.logoUrl = data.logoUrl;
+      if (data.isActive !== undefined) mapped.isActive = data.isActive;
 
-      const updateData: Partial<import('./repositories/ClinicRepository').ClinicRow> = {};
-      if (data.name) updateData.name = data.name;
-      if (data.nameAr !== undefined) updateData.name_ar = data.nameAr;
-      if (data.specialty) updateData.specialty = data.specialty;
-      if (data.address) updateData.address = data.address;
-      if (data.city) updateData.city = data.city;
-      if (data.phone) updateData.phone = data.phone;
-      if (data.email !== undefined) updateData.email = data.email;
-      if (data.logoUrl !== undefined) updateData.logo_url = data.logoUrl;
-      if (data.isActive !== undefined) updateData.is_active = data.isActive;
-
-      await this.repository.updateClinic(clinicId, updateData);
-
-      logger.info('Clinic updated', { clinicId });
-      return this.getClinic(clinicId);
+      const result = await this.core.updateClinic(clinicId, mapped);
+      return this.toWebClinic(result);
     } catch (error) {
       if (error instanceof DatabaseError) throw error;
       logger.error('Unexpected error updating clinic', error as Error, { clinicId, data });
@@ -198,35 +164,38 @@ export class ClinicService {
   }
 
   /**
-   * Map database row to Clinic object
+   * Map core Clinic to web Clinic (string dates → Date, phoneNumber → phone).
    */
-  private mapClinic(clinic: import('./repositories/ClinicRepository').ClinicRow): Clinic {
+  private toWebClinic(core: CoreClinic): Clinic {
     return {
-      id: clinic.id,
-      name: clinic.name,
-      nameAr: clinic.name_ar || undefined,
-      ownerId: clinic.owner_id,
-      practiceType: clinic.practice_type,
-      specialty: clinic.specialty,
-      address: clinic.address,
-      city: clinic.city,
-      phone: clinic.phone,
-      email: clinic.email || undefined,
-      logoUrl: clinic.logo_url || undefined,
-      settings: this.normalizeClinicSettings(clinic.settings),
-      subscriptionTier: clinic.subscription_tier,
-      isActive: clinic.is_active,
-      queueMode: clinic.queue_mode,
-      createdAt: new Date(clinic.created_at),
-      updatedAt: new Date(clinic.updated_at),
+      id: core.id,
+      name: core.name,
+      nameAr: core.nameAr,
+      ownerId: core.ownerId || '',
+      practiceType: core.practiceType || '',
+      specialty: core.specialty || '',
+      address: core.address || '',
+      city: core.city || '',
+      phone: core.phoneNumber || '',
+      email: core.email,
+      logoUrl: core.logoUrl,
+      settings: (core.settings || {}) as ClinicSettings,
+      subscriptionTier: core.subscriptionTier || '',
+      isActive: core.isActive ?? true,
+      queueMode: core.queueMode ?? null,
+      createdAt: new Date(core.createdAt),
+      updatedAt: core.updatedAt ? new Date(core.updatedAt) : new Date(),
     };
   }
 
-  private normalizeClinicSettings(raw: unknown): ClinicSettings {
+  /**
+   * Normalize clinic settings (from DB or user input) to canonical snake_case.
+   * Strips legacy camelCase keys that may arrive from older UI code.
+   */
+  private normalizeClinicSettings(raw: unknown): Record<string, unknown> {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
       return {};
     }
-
     const settings = raw as Record<string, unknown>;
     const normalized: Record<string, unknown> = { ...settings };
 
@@ -241,74 +210,43 @@ export class ClinicService {
     delete normalized.paymentMethods;
 
     if ('working_hours' in settings) {
-      const workingHoursValue = settings.working_hours;
-      if (workingHoursValue && typeof workingHoursValue === 'object' && !Array.isArray(workingHoursValue)) {
-        normalized.working_hours = workingHoursValue;
+      const v = settings.working_hours;
+      if (v && typeof v === 'object' && !Array.isArray(v)) {
+        normalized.working_hours = v;
       } else {
         delete normalized.working_hours;
       }
     }
-
-    if ('buffer_time' in settings) {
-      if (typeof settings.buffer_time === 'number') {
-        normalized.buffer_time = settings.buffer_time;
-      } else {
-        delete normalized.buffer_time;
-      }
+    if ('buffer_time' in settings && typeof settings.buffer_time !== 'number') {
+      delete normalized.buffer_time;
     }
-
-    if ('allow_walk_ins' in settings) {
-      if (typeof settings.allow_walk_ins === 'boolean') {
-        normalized.allow_walk_ins = settings.allow_walk_ins;
-      } else {
-        delete normalized.allow_walk_ins;
-      }
+    if ('allow_walk_ins' in settings && typeof settings.allow_walk_ins !== 'boolean') {
+      delete normalized.allow_walk_ins;
     }
-
-    if ('max_queue_size' in settings) {
-      if (typeof settings.max_queue_size === 'number') {
-        normalized.max_queue_size = settings.max_queue_size;
-      } else {
-        delete normalized.max_queue_size;
-      }
+    if ('max_queue_size' in settings && typeof settings.max_queue_size !== 'number') {
+      delete normalized.max_queue_size;
     }
-
-    if ('requires_appointment' in settings) {
-      if (typeof settings.requires_appointment === 'boolean') {
-        normalized.requires_appointment = settings.requires_appointment;
-      } else {
-        delete normalized.requires_appointment;
-      }
+    if ('requires_appointment' in settings && typeof settings.requires_appointment !== 'boolean') {
+      delete normalized.requires_appointment;
     }
-
-    if ('average_appointment_duration' in settings) {
-      if (typeof settings.average_appointment_duration === 'number') {
-        normalized.average_appointment_duration = settings.average_appointment_duration;
-      } else {
-        delete normalized.average_appointment_duration;
-      }
+    if ('average_appointment_duration' in settings && typeof settings.average_appointment_duration !== 'number') {
+      delete normalized.average_appointment_duration;
     }
-
-    if ('appointment_types' in settings) {
-      if (Array.isArray(settings.appointment_types)) {
-        normalized.appointment_types = settings.appointment_types;
-      } else {
-        delete normalized.appointment_types;
-      }
+    if ('appointment_types' in settings && !Array.isArray(settings.appointment_types)) {
+      delete normalized.appointment_types;
     }
-
     if ('payment_methods' in settings) {
-      const paymentMethodsValue = settings.payment_methods;
-      if (paymentMethodsValue && typeof paymentMethodsValue === 'object' && !Array.isArray(paymentMethodsValue)) {
-        normalized.payment_methods = paymentMethodsValue;
+      const v = settings.payment_methods;
+      if (v && typeof v === 'object' && !Array.isArray(v)) {
+        normalized.payment_methods = v;
       } else {
         delete normalized.payment_methods;
       }
     }
 
-    return normalized as ClinicSettings;
+    return normalized;
   }
 }
 
+// Export singleton instance
 export const clinicService = new ClinicService();
-

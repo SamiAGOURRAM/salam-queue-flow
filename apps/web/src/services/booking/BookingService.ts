@@ -5,12 +5,13 @@
 // server. This file is a thin browser-side facade that wires core to the web
 // Supabase client and preserves the existing web API surface, so consumers and
 // `./types` are unchanged. No booking logic lives here.
-import { createServiceContainer } from '@queuemed/core';
-import { supabase } from '@/integrations/supabase/client';
+import { coreContainer } from '../core/coreContainer';
 import { BookingRequest, BookingResponse, AvailableSlotsResponse } from './types';
 
-// One core container per app, bound to the authenticated web Supabase client.
-const core = createServiceContainer({ supabaseClient: supabase }).booking;
+// Shared core container (one event bus + notifier for the whole app), so a
+// successful booking's `appointment.booked` event reaches the confirmation
+// handler subscribed to the same bus.
+const core = coreContainer.booking;
 
 /**
  * Thin facade over the core BookingService. Core returns structurally-identical

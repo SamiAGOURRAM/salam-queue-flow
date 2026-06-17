@@ -7,8 +7,8 @@
  * - REST API
  */
 
-import type { BookingRepository, ClinicDetails } from '../../repositories/booking/BookingRepository.js';
-import type { IEventBus, DomainEvent } from '../../ports/eventBus.js';
+import type { IBookingRepository, ClinicDetails } from '../../ports/repositories/IBookingRepository.js';
+import type { IEventBus } from '../../ports/eventBus.js';
 import type { ILogger } from '../../ports/logger.js';
 import type {
   BookingRequest,
@@ -18,37 +18,19 @@ import type {
   AppointmentType,
   NextAvailableSlot
 } from '../../types.js';
+import { BaseService } from '../BaseService.js';
 
-// Domain Events
-interface BookingCreatedEvent extends DomainEvent {
-  eventType: 'booking:created';
-  payload: {
-    appointmentId: string;
-    clinicId: string;
-    patientId: string;
-    date: string;
-    time: string | null;
-    appointmentType: string;
-  };
-}
+/** Event type published when an appointment is successfully booked. */
+export const APPOINTMENT_BOOKED_EVENT = 'appointment.booked';
 
-interface BookingFailedEvent extends DomainEvent {
-  eventType: 'booking:failed';
-  payload: {
-    clinicId: string;
-    patientId: string;
-    reason: string;
-    date: string;
-    time: string | null;
-  };
-}
-
-export class BookingService {
+export class BookingService extends BaseService {
   constructor(
-    private readonly repository: BookingRepository,
+    private readonly repository: IBookingRepository,
     private readonly eventBus: IEventBus,
-    private readonly logger: ILogger
-  ) {}
+    logger: ILogger
+  ) {
+    super(logger);
+  }
 
   /**
    * Book appointment with dual-mode support (free queue or time slots)
@@ -82,8 +64,6 @@ export class BookingService {
           capacity: availability.capacity
         });
 
-        await this.publishBookingFailed(request, 'Slot not available');
-
         return {
           success: false,
           error: 'This time slot is no longer available'
@@ -94,12 +74,15 @@ export class BookingService {
       const result = await this.repository.createAppointmentForMode(request);
 
       if (result.success) {
-        await this.publishBookingCreated(request, result.appointmentId!);
         this.logger.info('Appointment created successfully', {
           appointmentId: result.appointmentId,
           queuePosition: result.queuePosition,
           mode: request.scheduledTime ? 'time_slot' : 'free_queue'
         });
+        // Announce the booking so notification handlers (web today, MCP later)
+        // can resolve the recipient and deliver a confirmation via INotifier.
+        // Shared by UI + agent, so both notify identically (agent parity).
+        await this.publishAppointmentBooked(request, result);
       } else {
         this.logger.error('Failed to create appointment', new Error(result.error || 'Unknown error'));
       }
@@ -107,10 +90,38 @@ export class BookingService {
       return result;
     } catch (error) {
       this.logger.error('Booking failed with exception', error as Error);
-      await this.publishBookingFailed(request, (error as Error).message);
       throw error;
     } finally {
       this.logger.clearContext();
+    }
+  }
+
+  /**
+   * Publish the `appointment.booked` domain event. Best-effort: a failure here
+   * must never fail the booking, so errors are swallowed (logged only).
+   */
+  private async publishAppointmentBooked(request: BookingRequest, result: BookingResponse): Promise<void> {
+    try {
+      await this.eventBus.publish({
+        eventId: this.eventBus.generateEventId(),
+        eventType: APPOINTMENT_BOOKED_EVENT,
+        timestamp: new Date(),
+        clinicId: request.clinicId,
+        userId: request.patientId,
+        payload: {
+          appointmentId: result.appointmentId,
+          patientId: request.patientId,
+          staffId: request.staffId,
+          appointmentDate: request.appointmentDate,
+          scheduledTime: request.scheduledTime ?? null,
+          appointmentType: request.appointmentType,
+          queuePosition: result.queuePosition,
+        },
+      });
+    } catch (error) {
+      this.logger.warn('Failed to publish appointment.booked event (booking unaffected)', {
+        error: (error as Error).message,
+      });
     }
   }
 
@@ -123,30 +134,20 @@ export class BookingService {
     appointmentType?: string,
     staffId?: string
   ): Promise<AvailableSlotsResponse> {
-    this.logger.setContext({
+    return this.executeWithLogging('getAvailableSlotsForMode', {
       service: 'BookingService',
-      operation: 'getAvailableSlotsForMode',
-      clinicId
-    });
-
-    try {
-      this.logger.debug('Fetching available slots for mode', { date, appointmentType });
-
+      clinicId,
+      date,
+      appointmentType,
+    }, async () => {
       const slots = await this.repository.getAvailableSlotsForMode(clinicId, date, appointmentType, staffId);
-
       this.logger.info('Available slots fetched', {
         mode: slots.mode,
         totalSlots: slots.slots?.length || 0,
         availableCount: slots.slots?.filter(s => s.available).length || 0
       });
-
       return slots;
-    } catch (error) {
-      this.logger.error('Failed to fetch available slots', error as Error);
-      throw error;
-    } finally {
-      this.logger.clearContext();
-    }
+    });
   }
 
   /**
@@ -164,13 +165,10 @@ export class BookingService {
     staffId: string,
     maxDays = 14
   ): Promise<NextAvailableSlot | null> {
-    this.logger.setContext({
+    return this.executeWithLogging('getNextAvailableSlot', {
       service: 'BookingService',
-      operation: 'getNextAvailableSlot',
-      clinicId
-    });
-
-    try {
+      clinicId,
+    }, async () => {
       for (let i = 0; i < maxDays; i++) {
         const date = this.addDaysUtc(fromDate, i);
         // Call the repository directly to avoid nested log-context churn per day.
@@ -183,12 +181,7 @@ export class BookingService {
         }
       }
       return null;
-    } catch (error) {
-      this.logger.error('Failed to compute next available slot', error as Error);
-      throw error;
-    } finally {
-      this.logger.clearContext();
-    }
+    });
   }
 
   /** Add `days` to a `YYYY-MM-DD` string in UTC, returning `YYYY-MM-DD`. */
@@ -228,31 +221,19 @@ export class BookingService {
     clinic: ClinicDetails;
     appointmentTypes: AppointmentType[];
   }> {
-    this.logger.setContext({
+    return this.executeWithLogging('getClinicInfo', {
       service: 'BookingService',
-      operation: 'getClinicInfo',
-      clinicId
-    });
-
-    try {
-      this.logger.debug('Fetching clinic info');
-
+      clinicId,
+    }, async () => {
       const [clinic, appointmentTypes] = await Promise.all([
         this.repository.getClinicDetails(clinicId),
         this.repository.getAppointmentTypes(clinicId)
       ]);
-
       this.logger.info('Clinic info fetched successfully', {
         appointmentTypesCount: appointmentTypes.length
       });
-
       return { clinic, appointmentTypes };
-    } catch (error) {
-      this.logger.error('Failed to fetch clinic info', error as Error);
-      throw error;
-    } finally {
-      this.logger.clearContext();
-    }
+    });
   }
 
   /**
@@ -290,41 +271,5 @@ export class BookingService {
     return this.repository.subscribeToSlotUpdates(clinicId, date, callback);
   }
 
-  // Private helper methods
-
-  private async publishBookingCreated(request: BookingRequest, appointmentId: string): Promise<void> {
-    await this.eventBus.publish<BookingCreatedEvent>({
-      eventId: this.eventBus.generateEventId(),
-      eventType: 'booking:created',
-      timestamp: new Date(),
-      userId: request.patientId,
-      clinicId: request.clinicId,
-      payload: {
-        appointmentId,
-        clinicId: request.clinicId,
-        patientId: request.patientId,
-        date: request.appointmentDate,
-        time: request.scheduledTime,
-        appointmentType: request.appointmentType
-      }
-    });
-  }
-
-  private async publishBookingFailed(request: BookingRequest, reason: string): Promise<void> {
-    await this.eventBus.publish<BookingFailedEvent>({
-      eventId: this.eventBus.generateEventId(),
-      eventType: 'booking:failed',
-      timestamp: new Date(),
-      userId: request.patientId,
-      clinicId: request.clinicId,
-      payload: {
-        clinicId: request.clinicId,
-        patientId: request.patientId,
-        reason,
-        date: request.appointmentDate,
-        time: request.scheduledTime
-      }
-    });
-  }
 }
 

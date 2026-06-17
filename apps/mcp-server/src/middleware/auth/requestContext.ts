@@ -5,16 +5,16 @@
  * receive the underlying HTTP request, so we use AsyncLocalStorage to carry the
  * caller's bearer token from the HTTP transport layer into the tool handlers.
  *
- * `resolveAuthContext()` validates the token once per request (memoized) and
- * falls back to anonymous on any failure, so public tools keep working even
- * when Supabase isn't configured.
+ * `resolveAuthContext()` validates the token once per request (memoized).
+ * When no token is present it returns anonymous context so public tools
+ * (clinic_search, clinic_getInfo) remain accessible without auth.
+ * When a token IS present but invalid, the error propagates — fail-closed.
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { AuthContext } from "./types.js";
-import { ANONYMOUS_CONTEXT } from "./types.js";
+import type { AuthContext } from "@queuemed/core";
+import { ANONYMOUS_CONTEXT } from "@queuemed/core";
 import { validateToken } from "./authService.js";
-import { logger } from "../../utils/logger.js";
 
 interface RequestAuthStore {
   token?: string;
@@ -50,12 +50,7 @@ export function resolveAuthContext(): Promise<AuthContext> {
   }
 
   if (!store.resolved) {
-    store.resolved = validateToken(store.token).catch((error) => {
-      logger.warn("Auth token validation failed; falling back to anonymous", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return ANONYMOUS_CONTEXT;
-    });
+    store.resolved = validateToken(store.token);
   }
 
   return store.resolved;

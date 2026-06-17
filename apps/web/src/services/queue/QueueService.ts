@@ -4,6 +4,7 @@
  * It preserves all business logic while adapting to the new data model.
  */
 
+import { coreContainer } from '../core/coreContainer';
 import { QueueRepository } from './repositories/QueueRepository';
 import { eventBus } from '../shared/events/EventBus';
 import { logger } from '../shared/logging/Logger';
@@ -32,6 +33,12 @@ import {
   UpdateAppointmentPaymentDTO,
 } from './models/QueueModels';
 import { QueueEventFactory, QueueEventType } from './events/QueueEvents';
+
+// Core is the SSOT for queue business rules shared with the MCP/chat agent.
+// Reorder logic (staff-scope, validation, audit override) lives in @queuemed/core
+// so the web UI and the AI agent enforce identical rules (agent parity).
+// Uses the shared app container (one event bus + notifier).
+const coreQueue = coreContainer.queue;
 
 export class QueueService {
   private repository: QueueRepository;
@@ -835,20 +842,22 @@ export class QueueService {
   async reorderQueue(dto: ReorderQueueDTO): Promise<QueueEntry> {
     logger.info('Reordering queue', { dto });
 
-    const entry = await this.getQueueEntry(dto.appointmentId);
-    this.assertEntryWithinStaffScope(entry, dto.allowedStaffIds);
-    if (dto.newPosition < 1) throw new ValidationError('Queue position must be greater than 0');
-    if (dto.newPosition === entry.queuePosition) return entry; // No change needed
+    // Capture the prior position for the UI event (subscribers depend on it).
+    const before = await this.getQueueEntry(dto.appointmentId);
+    const previousPosition = before.queuePosition;
 
-    const previousPosition = entry.queuePosition;
-    const updatedEntry = await this.repository.updateQueueEntry(entry.id, {
-      queuePosition: dto.newPosition,
-    });
+    // Delegate the business rules + audit override to core (SSOT). Core enforces
+    // staff-scope, validates the position, writes the queue_overrides row, and
+    // returns the updated entry. Cast at the boundary: core's QueueEntry is a
+    // structural subset of the web model (same runtime fields).
+    const updatedEntry = (await coreQueue.reorderQueue(dto)) as unknown as QueueEntry;
 
-    await this.repository.createQueueOverride(entry.clinicId, entry.id, QueueActionType.REORDER, dto.performedBy, dto.reason, previousPosition, dto.newPosition);
-
-    const event = QueueEventFactory.createQueuePositionChangedEvent(updatedEntry, previousPosition, dto.performedBy, dto.reason);
-    await eventBus.publish(event);
+    // Re-publish on the web event bus so existing UI subscribers still react.
+    // Preserve prior behavior: only emit when the position actually changed.
+    if (updatedEntry.queuePosition !== previousPosition) {
+      const event = QueueEventFactory.createQueuePositionChangedEvent(updatedEntry, previousPosition, dto.performedBy, dto.reason);
+      await eventBus.publish(event);
+    }
 
     return updatedEntry;
   }

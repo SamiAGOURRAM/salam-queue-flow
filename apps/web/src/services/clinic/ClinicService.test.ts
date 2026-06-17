@@ -1,37 +1,68 @@
 /**
  * ClinicService Tests
- * Comprehensive tests for clinic management business logic
+ *
+ * NOW: thin facade over @queuemed/core's ClinicService.
+ * Tests mock the core service instead of the now-deleted web ClinicRepository.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ClinicService, type Clinic, type ClinicSettings } from './ClinicService';
-import { ClinicRepository } from './repositories/ClinicRepository';
-import { logger } from '../shared/logging/Logger';
+import type { Clinic as CoreClinic } from '@queuemed/core';
 import { NotFoundError, DatabaseError } from '../shared/errors';
-import { QueueMode } from '../queue/models/QueueModels';
 
-// Mock dependencies
+// Mock logger
 vi.mock('../shared/logging/Logger');
 
 describe('ClinicService', () => {
   let service: ClinicService;
-  let mockRepository: Partial<ClinicRepository>;
+  let mockCore: Partial<{
+    getClinic: ReturnType<typeof vi.fn>;
+    getClinicsByOwner: ReturnType<typeof vi.fn>;
+    searchDoctors: ReturnType<typeof vi.fn>;
+    getClinicSettings: ReturnType<typeof vi.fn>;
+    updateClinicSettings: ReturnType<typeof vi.fn>;
+    updateClinic: ReturnType<typeof vi.fn>;
+  }>;
+
+  /** Core clinic shape returned by the mock. */
+  function mockCoreClinic(overrides: Partial<CoreClinic> = {}): CoreClinic {
+    return {
+      id: 'clinic-123',
+      name: 'Test Clinic',
+      nameAr: 'عيادة تجريبية',
+      ownerId: 'owner-123',
+      practiceType: 'private',
+      specialty: 'general',
+      address: '123 Test St',
+      city: 'Casablanca',
+      phoneNumber: '+212612345678',
+      email: 'clinic@example.com',
+      logoUrl: 'https://example.com/logo.png',
+      settings: { buffer_time: 15 },
+      subscriptionTier: 'premium',
+      isActive: true,
+      queueMode: 'slotted',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      ...overrides,
+    };
+  }
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRepository = {
+    mockCore = {
       getClinic: vi.fn(),
-      getClinicByOwner: vi.fn(),
+      getClinicsByOwner: vi.fn(),
+      searchDoctors: vi.fn(),
       getClinicSettings: vi.fn(),
       updateClinicSettings: vi.fn(),
       updateClinic: vi.fn(),
-      searchDoctors: vi.fn(),
     };
-    service = new ClinicService(mockRepository as ClinicRepository);
+    service = new ClinicService(mockCore as unknown as ConstructorParameters<typeof ClinicService>[0]);
   });
 
   describe('searchDoctors', () => {
-    it('delegates to the repository and returns its result', async () => {
+    it('delegates to the core service and returns its result', async () => {
       const listings = [
         {
           staffId: 'staff-1',
@@ -44,104 +75,62 @@ describe('ClinicService', () => {
           city: 'Casablanca',
         },
       ];
-      mockRepository.searchDoctors = vi.fn().mockResolvedValue(listings);
+      mockCore.searchDoctors!.mockResolvedValue(listings);
 
       const params = { name: 'amine', city: 'Casablanca', limit: 8 };
       const result = await service.searchDoctors(params);
 
       expect(result).toEqual(listings);
-      expect(mockRepository.searchDoctors).toHaveBeenCalledWith(params);
+      expect(mockCore.searchDoctors).toHaveBeenCalledWith(params);
     });
 
     it('coerces an unexpected error into a DatabaseError', async () => {
-      mockRepository.searchDoctors = vi.fn().mockRejectedValue(new Error('boom'));
+      mockCore.searchDoctors!.mockRejectedValue(new Error('boom'));
 
       await expect(service.searchDoctors({ name: 'x' })).rejects.toThrow(DatabaseError);
     });
   });
 
   describe('getClinic', () => {
-    it('should return clinic successfully', async () => {
-      const clinicId = 'clinic-123';
-      const mockClinic = {
-        id: clinicId,
-        name: 'Test Clinic',
-        name_ar: 'عيادة تجريبية',
-        owner_id: 'owner-123',
-        practice_type: 'private',
-        specialty: 'general',
-        address: '123 Test St',
-        city: 'Casablanca',
-        phone: '+212612345678',
-        email: 'clinic@example.com',
-        logo_url: 'https://example.com/logo.png',
-        settings: { buffer_time: 15 },
-        subscription_tier: 'premium',
-        is_active: true,
-        queue_mode: QueueMode.SLOTTED,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+    it('should return clinic successfully, mapped to web type', async () => {
+      const coreClinic = mockCoreClinic();
+      mockCore.getClinic!.mockResolvedValue(coreClinic);
 
-      mockRepository.getClinic = vi.fn().mockResolvedValue(mockClinic);
+      const result = await service.getClinic('clinic-123');
 
-      const result = await service.getClinic(clinicId);
-
-      expect(result.id).toBe(clinicId);
+      expect(result.id).toBe('clinic-123');
       expect(result.name).toBe('Test Clinic');
       expect(result.nameAr).toBe('عيادة تجريبية');
-      expect(result.queueMode).toBe(QueueMode.SLOTTED);
-      expect(mockRepository.getClinic).toHaveBeenCalledWith(clinicId);
+      expect(result.phone).toBe('+212612345678');
+      expect(result.isActive).toBe(true);
+      expect(result.createdAt).toBeInstanceOf(Date);
+      expect(result.updatedAt).toBeInstanceOf(Date);
+      expect(mockCore.getClinic).toHaveBeenCalledWith('clinic-123');
     });
 
     it('should throw NotFoundError when clinic not found', async () => {
-      const clinicId = 'clinic-123';
-      const error = new DatabaseError('Clinic not found');
+      mockCore.getClinic!.mockRejectedValue(new NotFoundError('Clinic', 'clinic-123'));
 
-      mockRepository.getClinic = vi.fn().mockRejectedValue(error);
-
-      await expect(service.getClinic(clinicId)).rejects.toThrow(NotFoundError);
+      await expect(service.getClinic('clinic-123')).rejects.toThrow(NotFoundError);
     });
   });
 
   describe('getClinicByOwner', () => {
     it('should return clinic when found', async () => {
-      const ownerId = 'owner-123';
-      const mockClinic = {
-        id: 'clinic-123',
-        name: 'Test Clinic',
-        name_ar: null,
-        owner_id: ownerId,
-        practice_type: 'private',
-        specialty: 'general',
-        address: '123 Test St',
-        city: 'Casablanca',
-        phone: '+212612345678',
-        email: null,
-        logo_url: null,
-        settings: {},
-        subscription_tier: 'basic',
-        is_active: true,
-        queue_mode: QueueMode.FLUID,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+      const coreClinic = mockCoreClinic({ ownerId: 'owner-123' });
+      mockCore.getClinicsByOwner!.mockResolvedValue([coreClinic]);
 
-      mockRepository.getClinicByOwner = vi.fn().mockResolvedValue(mockClinic);
-
-      const result = await service.getClinicByOwner(ownerId);
+      const result = await service.getClinicByOwner('owner-123');
 
       expect(result).not.toBeNull();
-      expect(result?.ownerId).toBe(ownerId);
-      expect(mockRepository.getClinicByOwner).toHaveBeenCalledWith(ownerId);
+      expect(result!.ownerId).toBe('owner-123');
+      expect(mockCore.getClinicsByOwner).toHaveBeenCalledWith('owner-123');
     });
 
     it('should return null when clinic not found', async () => {
-      const ownerId = 'owner-123';
+      mockCore.getClinicsByOwner!.mockResolvedValue([]);
 
-      mockRepository.getClinicByOwner = vi.fn().mockResolvedValue(null);
-
-      const result = await service.getClinicByOwner(ownerId);
+      const result = await service.getClinicByOwner('owner-123');
 
       expect(result).toBeNull();
     });
@@ -149,8 +138,7 @@ describe('ClinicService', () => {
 
   describe('getClinicSettings', () => {
     it('should return clinic settings successfully', async () => {
-      const clinicId = 'clinic-123';
-      const mockSettings: ClinicSettings = {
+      const coreSettings = {
         buffer_time: 15,
         working_hours: {
           monday: { open: '09:00', close: '17:00', closed: false },
@@ -160,130 +148,72 @@ describe('ClinicService', () => {
         max_queue_size: 50,
         average_appointment_duration: 30,
       };
+      mockCore.getClinicSettings!.mockResolvedValue(coreSettings);
 
-      mockRepository.getClinicSettings = vi.fn().mockResolvedValue(mockSettings);
-
-      const result = await service.getClinicSettings(clinicId);
+      const result = await service.getClinicSettings('clinic-123');
 
       expect(result.buffer_time).toBe(15);
       expect(result.allow_walk_ins).toBe(true);
       expect(result.max_queue_size).toBe(50);
-      expect(mockRepository.getClinicSettings).toHaveBeenCalledWith(clinicId);
+      expect(mockCore.getClinicSettings).toHaveBeenCalledWith('clinic-123');
     });
 
     it('should return empty object when settings not found', async () => {
-      const clinicId = 'clinic-123';
+      mockCore.getClinicSettings!.mockResolvedValue(null);
 
-      mockRepository.getClinicSettings = vi.fn().mockResolvedValue(null);
-
-      const result = await service.getClinicSettings(clinicId);
+      const result = await service.getClinicSettings('clinic-123');
 
       expect(result).toEqual({});
-    });
-
-    it('should throw NotFoundError when clinic not found', async () => {
-      const clinicId = 'clinic-123';
-      const error = new DatabaseError('Clinic not found');
-
-      mockRepository.getClinicSettings = vi.fn().mockRejectedValue(error);
-
-      await expect(service.getClinicSettings(clinicId)).rejects.toThrow(NotFoundError);
     });
   });
 
   describe('updateClinicSettings', () => {
     it('should update clinic settings successfully', async () => {
-      const clinicId = 'clinic-123';
-      const currentSettings: ClinicSettings = {
-        buffer_time: 15,
-        allow_walk_ins: true,
-      };
-      const updateData: Partial<ClinicSettings> = {
+      const currentSettings = { buffer_time: 15, allow_walk_ins: true };
+      mockCore.getClinicSettings!.mockResolvedValue(currentSettings);
+      mockCore.updateClinicSettings!.mockResolvedValue({} as never);
+
+      const result = await service.updateClinicSettings('clinic-123', {
         buffer_time: 20,
         max_queue_size: 100,
-      };
-
-      mockRepository.getClinicSettings = vi.fn().mockResolvedValue(currentSettings);
-      mockRepository.updateClinicSettings = vi.fn().mockResolvedValue(undefined);
-
-      const result = await service.updateClinicSettings(clinicId, updateData);
+      });
 
       expect(result.buffer_time).toBe(20);
       expect(result.max_queue_size).toBe(100);
       expect(result.allow_walk_ins).toBe(true); // Preserved from current
-      expect(mockRepository.updateClinicSettings).toHaveBeenCalled();
-    });
-
-    it('should throw DatabaseError on update failure', async () => {
-      const clinicId = 'clinic-123';
-      const error = new Error('Update failed');
-
-      mockRepository.getClinicSettings = vi.fn().mockResolvedValue({});
-      mockRepository.updateClinicSettings = vi.fn().mockRejectedValue(error);
-
-      await expect(
-        service.updateClinicSettings(clinicId, { buffer_time: 20 })
-      ).rejects.toThrow(DatabaseError);
+      expect(mockCore.updateClinicSettings).toHaveBeenCalled();
     });
   });
 
   describe('updateClinic', () => {
     it('should update clinic information successfully', async () => {
-      const clinicId = 'clinic-123';
       const updateData: Partial<Clinic> = {
         name: 'Updated Clinic Name',
         email: 'updated@example.com',
         isActive: false,
       };
 
-      const existingClinic = {
-        id: clinicId,
-        name: 'Original Name',
-        name_ar: null,
-        owner_id: 'owner-123',
-        practice_type: 'private',
-        specialty: 'general',
-        address: '123 Test St',
-        city: 'Casablanca',
-        phone: '+212612345678',
-        email: 'original@example.com',
-        logo_url: null,
-        settings: {},
-        subscription_tier: 'basic',
-        is_active: true,
-        queue_mode: QueueMode.SLOTTED,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+      const coreResult = mockCoreClinic({
+        name: 'Updated Clinic Name',
+        email: 'updated@example.com',
+        isActive: false,
+      });
+      mockCore.updateClinic!.mockResolvedValue(coreResult);
 
-      const updatedClinic = {
-        ...existingClinic,
-        name: updateData.name!,
-        email: updateData.email!,
-        is_active: updateData.isActive!,
-      };
-
-      mockRepository.updateClinic = vi.fn().mockResolvedValue(undefined);
-      mockRepository.getClinic = vi.fn().mockResolvedValue(updatedClinic);
-
-      const result = await service.updateClinic(clinicId, updateData);
+      const result = await service.updateClinic('clinic-123', updateData);
 
       expect(result.name).toBe(updateData.name);
       expect(result.email).toBe(updateData.email);
       expect(result.isActive).toBe(updateData.isActive);
-      expect(mockRepository.updateClinic).toHaveBeenCalled();
+      expect(mockCore.updateClinic).toHaveBeenCalled();
     });
 
     it('should throw DatabaseError on update failure', async () => {
-      const clinicId = 'clinic-123';
-      const error = new Error('Update failed');
+      mockCore.updateClinic!.mockRejectedValue(new Error('Update failed'));
 
-      mockRepository.updateClinic = vi.fn().mockRejectedValue(error);
-
-      await expect(service.updateClinic(clinicId, { name: 'New Name' })).rejects.toThrow(
+      await expect(service.updateClinic('clinic-123', { name: 'New Name' })).rejects.toThrow(
         DatabaseError
       );
     });
   });
 });
-

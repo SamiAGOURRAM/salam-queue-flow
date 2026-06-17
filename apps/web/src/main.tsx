@@ -6,9 +6,11 @@ import "./index.css";
 
 // Initialize event handlers
 import { initializeQueueEventHandlers } from "./services/queue/handlers/QueueEventHandlers";
+import { initializeBookingNotificationHandler } from "./services/notification/handlers/BookingNotificationHandler";
 import { waitTimeEstimationOrchestrator } from "./services/ml/WaitTimeEstimationOrchestrator";
 
 initializeQueueEventHandlers();
+initializeBookingNotificationHandler();
 waitTimeEstimationOrchestrator.initialize();
 
 createRoot(document.getElementById("root")!).render(

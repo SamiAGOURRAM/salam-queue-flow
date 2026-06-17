@@ -1557,3 +1557,36 @@ chat booking e2e books successfully (real JWT); app serves 200. Net ~ −600 lin
 
 - [ ] **USER:** browser-test the WEB booking flow (BookingFlow / BookAppointmentDialog) once — the facade is
       tsc+test-verified but the live UI booking is the one path I can't exercise myself.
+
+---
+
+## Dead event-bus publish removal + BaseService DRY (2026-06-17)
+
+### Changes
+**Spec 1 — Removed dead event-bus publish calls:**
+- `BookingService`: Removed `BookingCreatedEvent` + `BookingFailedEvent` interfaces, `publishBookingCreated()` + `publishBookingFailed()` private methods, and all 3 call sites in `bookAppointmentForMode`. `IEventBus` import and constructor param kept for future wiring.
+- `QueueService`: Removed `PatientCheckedInEvent` + `PatientCalledEvent` interfaces, inline `eventBus.publish()` blocks in `checkInPatient` and `callNextPatient`. `IEventBus` import and constructor param kept.
+- `DomainEvent` removed from imports (was only used by the deleted event interfaces).
+
+**Spec 2 — DRY service logging boilerplate with BaseService:**
+- Created `packages/core/src/services/BaseService.ts` with `executeWithLogging<T>()` and `executeVoid()` helpers that handle setContext/debug/error/clearContext lifecycle.
+- All 4 core services now extend `BaseService` (BookingService, QueueService, ClinicService, PatientService).
+- `28 setContext` calls were reduced to `3` (only `bookAppointmentForMode`, `manuallyAssignTimeSlot`, `getQueueMode` keep manual try/catch — these have custom error return types).
+- `25 executeWithLogging`/`executeVoid` usages across all services.
+- `subscribeToSlotUpdates` and `subscribeToQueueUpdates` left as-is (no try/catch).
+
+### Verification
+- `tsc --noEmit`: core, MCP server, web — all clean
+- Core tests: 14/14 passed
+- MCP tests: 146/146 passed  
+- Web tests: 206/206 passed (32 files)
+- **Total: 366 tests pass across all packages**
+
+### Files changed
+| Package | File | Change |
+|---------|------|--------|
+| core | `services/BaseService.ts` | NEW — abstract base with `executeWithLogging`/`executeVoid` |
+| core | `services/booking/BookingService.ts` | Extends BaseService; removed event interfaces/publish helpers; 3 methods via executeWithLogging |
+| core | `services/queue/QueueService.ts` | Extends BaseService; removed event interfaces/publish calls; 9 methods via executeWithLogging |
+| core | `services/clinic/ClinicService.ts` | Extends BaseService; 7 methods via executeWithLogging |
+| core | `services/patient/PatientService.ts` | Extends BaseService; 5 methods via executeWithLogging |

@@ -39,6 +39,14 @@ vi.mock('../ml/MlApiClient', () => ({
   },
 }));
 
+// reorderQueue now delegates business rules to @queuemed/core (the SSOT shared
+// with the AI agent). Stub the core container so web tests cover only the web
+// responsibility: delegating, and re-publishing the UI event on an actual change.
+const coreReorderMock = vi.hoisted(() => vi.fn());
+vi.mock('@queuemed/core', () => ({
+  createServiceContainer: () => ({ queue: { reorderQueue: coreReorderMock } }),
+}));
+
 describe('QueueService', () => {
   let service: QueueService;
   let mockRepository: Partial<QueueRepository>;
@@ -858,7 +866,7 @@ describe('QueueService', () => {
   });
 
   describe('reorderQueue', () => {
-    it('should reorder queue successfully', async () => {
+    it('delegates to core and re-publishes the UI event when the position changes', async () => {
       const dto: ReorderQueueDTO = {
         appointmentId: 'app-123',
         newPosition: 3,
@@ -866,27 +874,21 @@ describe('QueueService', () => {
         reason: 'Priority case',
       };
 
-      const mockEntry = createMockQueueEntry({
-        id: dto.appointmentId,
-        queuePosition: 5,
-      });
+      const before = createMockQueueEntry({ id: dto.appointmentId, queuePosition: 5 });
+      const after = createMockQueueEntry({ id: dto.appointmentId, queuePosition: 3 });
 
-      mockRepository.getQueueEntryById = vi.fn().mockResolvedValue(mockEntry);
-      mockRepository.updateQueueEntry = vi.fn().mockResolvedValue({
-        ...mockEntry,
-        queuePosition: dto.newPosition,
-      });
-      mockRepository.createQueueOverride = vi.fn().mockResolvedValue(undefined);
+      mockRepository.getQueueEntryById = vi.fn().mockResolvedValue(before);
+      coreReorderMock.mockResolvedValue(after);
       vi.mocked(eventBus.publish).mockResolvedValue(undefined);
 
       const result = await service.reorderQueue(dto);
 
+      expect(coreReorderMock).toHaveBeenCalledWith(dto);
       expect(result.queuePosition).toBe(dto.newPosition);
-      expect(mockRepository.createQueueOverride).toHaveBeenCalled();
       expect(eventBus.publish).toHaveBeenCalled();
     });
 
-    it('should throw ValidationError for invalid position', async () => {
+    it('propagates validation errors raised by core', async () => {
       const dto: ReorderQueueDTO = {
         appointmentId: 'app-123',
         newPosition: 0,
@@ -894,14 +896,16 @@ describe('QueueService', () => {
         reason: 'Invalid test case',
       };
 
-      const mockEntry = createMockQueueEntry({ id: dto.appointmentId });
-
-      mockRepository.getQueueEntryById = vi.fn().mockResolvedValue(mockEntry);
+      mockRepository.getQueueEntryById = vi
+        .fn()
+        .mockResolvedValue(createMockQueueEntry({ id: dto.appointmentId }));
+      coreReorderMock.mockRejectedValue(new ValidationError('Queue position must be greater than 0'));
 
       await expect(service.reorderQueue(dto)).rejects.toThrow(ValidationError);
+      expect(eventBus.publish).not.toHaveBeenCalled();
     });
 
-    it('should return entry unchanged if position is the same', async () => {
+    it('does not publish the UI event when the position is unchanged (no-op)', async () => {
       const dto: ReorderQueueDTO = {
         appointmentId: 'app-123',
         newPosition: 5,
@@ -909,17 +913,15 @@ describe('QueueService', () => {
         reason: 'No-op reorder',
       };
 
-      const mockEntry = createMockQueueEntry({
-        id: dto.appointmentId,
-        queuePosition: 5,
-      });
+      const entry = createMockQueueEntry({ id: dto.appointmentId, queuePosition: 5 });
 
-      mockRepository.getQueueEntryById = vi.fn().mockResolvedValue(mockEntry);
+      mockRepository.getQueueEntryById = vi.fn().mockResolvedValue(entry);
+      coreReorderMock.mockResolvedValue(entry); // core returns the entry unchanged
 
       const result = await service.reorderQueue(dto);
 
-      expect(result).toEqual(mockEntry);
-      expect(mockRepository.updateQueueEntry).not.toHaveBeenCalled();
+      expect(result.queuePosition).toBe(5);
+      expect(eventBus.publish).not.toHaveBeenCalled();
     });
   });
 });

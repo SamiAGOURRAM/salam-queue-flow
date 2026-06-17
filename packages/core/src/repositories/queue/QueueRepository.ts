@@ -3,8 +3,9 @@
  */
 
 import { BaseRepository } from '../base/BaseRepository.js';
-import type { IDatabaseClient } from '../../ports/database.js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ILogger } from '../../ports/logger.js';
+import type { IQueueRepository, QueueOverrideInput } from '../../ports/repositories/IQueueRepository.js';
 import {
   AppointmentStatus,
   type QueueEntry,
@@ -12,9 +13,9 @@ import {
   type CallNextPatientDTO,
 } from '../../types.js';
 
-export class QueueRepository extends BaseRepository {
-  constructor(db: IDatabaseClient, logger: ILogger) {
-    super(db, logger, 'QueueRepository');
+export class QueueRepository extends BaseRepository implements IQueueRepository {
+  constructor(client: SupabaseClient, logger: ILogger) {
+    super(client, logger, 'QueueRepository');
   }
 
   /**
@@ -41,8 +42,8 @@ export class QueueRepository extends BaseRepository {
     clinicId: string,
     date: string
   ): Promise<QueueEntry[]> {
-    const client = this.db.getClient();
-    const { data, error } = await client
+    // Using this.client directly below - no local variable needed
+    const { data, error } = await this.client
       .from('appointments')
       .select(`
         id,
@@ -78,11 +79,52 @@ export class QueueRepository extends BaseRepository {
   }
 
   /**
+   * Get all queue entries for a patient (by patients.uuid).
+   * Returns entries ordered by appointment_date descending (most recent first).
+   */
+  async getQueueEntriesByPatient(patientId: string): Promise<QueueEntry[]> {
+    // Using this.client directly below
+    const { data, error } = await this.client
+      .from('appointments')
+      .select(`
+        id,
+        clinic_id,
+        patient_id,
+        staff_id,
+        appointment_date,
+        time_slot,
+        checked_in_at,
+        start_time,
+        end_time,
+        status,
+        queue_position,
+        appointment_type,
+        reason_for_visit,
+        predicted_wait_time,
+        actual_duration,
+        profiles!appointments_patient_fkey (
+          full_name,
+          phone_number
+        )
+      `)
+      .eq('patient_id', patientId)
+      .order('appointment_date', { ascending: false })
+      .order('scheduled_time', { ascending: false, nullsFirst: false });
+
+    if (error) {
+      this.logError('Failed to get patient queue entries', new Error(error.message), { patientId });
+      throw error;
+    }
+
+    return (data || []).map(entry => this.mapToQueueEntry(entry));
+  }
+
+  /**
    * Get a specific queue entry by appointment ID
    */
   async getQueueEntry(appointmentId: string): Promise<QueueEntry | null> {
-    const client = this.db.getClient();
-    const { data, error } = await client
+    // Using this.client directly below - no local variable needed
+    const { data, error } = await this.client
       .from('appointments')
       .select(`
         id,
@@ -171,8 +213,8 @@ export class QueueRepository extends BaseRepository {
     appointmentId: string,
     status: AppointmentStatus
   ): Promise<QueueEntry> {
-    const client = this.db.getClient();
-    const { data, error } = await client
+    // Using this.client directly below - no local variable needed
+    const { data, error } = await this.client
       .from('appointments')
       .update({ 
         status,
@@ -192,11 +234,57 @@ export class QueueRepository extends BaseRepository {
   }
 
   /**
+   * Set an appointment's queue position (manual reorder).
+   */
+  async updateQueuePosition(appointmentId: string, newPosition: number): Promise<QueueEntry> {
+    const { data, error } = await this.client
+      .from('appointments')
+      .update({ queue_position: newPosition, updated_at: new Date().toISOString() })
+      .eq('id', appointmentId)
+      .select()
+      .single();
+
+    if (error) {
+      this.logError('Failed to update queue position', new Error(error.message), { appointmentId, newPosition });
+      throw error;
+    }
+
+    return this.mapToQueueEntry(data);
+  }
+
+  /**
+   * Record a manual queue action in the `queue_overrides` audit trail.
+   * `performedBy` must be a valid profile id (enforced by the table FK);
+   * the caller supplies it from the authenticated staff context.
+   */
+  async createQueueOverride(input: QueueOverrideInput): Promise<void> {
+    const { error } = await this.client
+      .from('queue_overrides')
+      .insert({
+        clinic_id: input.clinicId,
+        appointment_id: input.appointmentId,
+        action_type: input.action,
+        performed_by: input.performedBy,
+        reason: input.reason ?? null,
+        previous_position: input.previousPosition ?? null,
+        new_position: input.newPosition ?? null,
+      });
+
+    if (error) {
+      this.logError('Failed to create queue override', new Error(error.message), {
+        appointmentId: input.appointmentId,
+        action: input.action,
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Cancel an appointment
    */
   async cancelAppointment(appointmentId: string, reason?: string): Promise<void> {
-    const client = this.db.getClient();
-    const { error } = await client
+    // Using this.client directly below - no local variable needed
+    const { error } = await this.client
       .from('appointments')
       .update({ 
         status: AppointmentStatus.CANCELLED,
@@ -218,8 +306,8 @@ export class QueueRepository extends BaseRepository {
     date: string,
     callback: (payload: unknown) => void
   ): () => void {
-    const client = this.db.getClient();
-    const channel = client
+    // Using this.client directly below - no local variable needed
+    const channel = this.client
       .channel(`queue-${clinicId}-${date}`)
       .on(
         'postgres_changes',
@@ -233,7 +321,7 @@ export class QueueRepository extends BaseRepository {
       )
       .subscribe();
 
-    return () => client.removeChannel(channel);
+    return () => this.client.removeChannel(channel);
   }
 
   /**

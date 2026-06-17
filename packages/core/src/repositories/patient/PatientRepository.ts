@@ -3,21 +3,30 @@
  */
 
 import { BaseRepository } from '../base/BaseRepository.js';
-import type { IDatabaseClient } from '../../ports/database.js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ILogger } from '../../ports/logger.js';
-import { AppointmentStatus, type Patient, type PatientProfile, type QueueEntry } from '../../types.js';
+import type { IPatientRepository } from '../../ports/repositories/IPatientRepository.js';
+import {
+  AppointmentStatus,
+  PatientSource,
+  ConsentGivenBy,
+  type Patient,
+  type PatientProfile,
+  type QueueEntry,
+  type WalkInPatient,
+} from '../../types.js';
 
-export class PatientRepository extends BaseRepository {
-  constructor(db: IDatabaseClient, logger: ILogger) {
-    super(db, logger, 'PatientRepository');
+export class PatientRepository extends BaseRepository implements IPatientRepository {
+  constructor(client: SupabaseClient, logger: ILogger) {
+    super(client, logger, 'PatientRepository');
   }
 
   /**
    * Get patient by ID (profile)
    */
   async getById(patientId: string): Promise<Patient | null> {
-    const client = this.db.getClient();
-    const { data, error } = await client
+    // Using this.client directly
+    const { data, error } = await this.client
       .from('profiles')
       .select('*')
       .eq('id', patientId)
@@ -38,8 +47,8 @@ export class PatientRepository extends BaseRepository {
    * Get patient by phone number
    */
   async getByPhoneNumber(phoneNumber: string): Promise<Patient | null> {
-    const client = this.db.getClient();
-    const { data, error } = await client
+    // Using this.client directly
+    const { data, error } = await this.client
       .from('profiles')
       .select('*')
       .eq('phone_number', phoneNumber)
@@ -57,18 +66,136 @@ export class PatientRepository extends BaseRepository {
   }
 
   /**
-   * Get patient profile with extended info
+   * Get patient profile with extended info.
+   *
+   * Resolution order (mirrors the canonical flow):
+   *  1. `profiles` row by id (app user) → extended profile.
+   *  2. Fallback: `patients` row by user_id (non-anonymized) + PII decrypted via
+   *     `get_patient_decrypted` RPC.
+   *  3. Neither found → null (service raises NotFoundError).
    */
   async getProfile(patientId: string): Promise<PatientProfile | null> {
-    const patient = await this.getById(patientId);
-    if (!patient) return null;
+    const { data: profileRow } = await this.client
+      .from('profiles')
+      .select('*')
+      .eq('id', patientId)
+      .maybeSingle();
 
-    // In the future, this could fetch additional profile data
+    if (profileRow) {
+      return this.mapToProfile(profileRow as Record<string, unknown>);
+    }
+
+    // Fallback: resolve via the unified patients table by user_id.
+    const { data: identity, error: identityError } = await this.client
+      .from('patients')
+      .select('id, display_name, created_at, updated_at')
+      .eq('user_id', patientId)
+      .eq('is_anonymized', false)
+      .maybeSingle();
+
+    if (identityError || !identity) {
+      return null;
+    }
+
+    let fullName = identity.display_name as string;
+    let phoneNumber = '';
+    let email: string | undefined;
+
+    const { data: decrypted, error: decryptError } = await this.client.rpc('get_patient_decrypted', {
+      p_patient_id: identity.id,
+    });
+
+    if (!decryptError && Array.isArray(decrypted) && decrypted.length > 0) {
+      const d = decrypted[0] as { full_name?: string; phone_number?: string; email?: string | null };
+      fullName = d.full_name || fullName;
+      phoneNumber = d.phone_number || '';
+      email = d.email || undefined;
+    }
+
+    const nowIso = new Date().toISOString();
     return {
-      ...patient,
-      medicalHistory: undefined,
-      allergies: undefined,
-      insuranceInfo: undefined
+      id: patientId,
+      fullName,
+      phoneNumber,
+      email,
+      city: undefined,
+      preferredLanguage: undefined,
+      notificationPreferences: undefined,
+      noShowCount: 0,
+      createdAt: (identity.created_at as string) || nowIso,
+      updatedAt: (identity.updated_at as string) || nowIso,
+    };
+  }
+
+  /**
+   * Resolve a patient by phone via the `find_patient_by_phone` RPC.
+   */
+  async findByPhoneRpc(phoneNumber: string): Promise<{ id: string; isClaimed: boolean } | null> {
+    const { data, error } = await this.client.rpc('find_patient_by_phone', {
+      p_phone_number: phoneNumber,
+    });
+
+    if (error) {
+      this.logError('Failed to find patient by phone', new Error(error.message));
+      throw error;
+    }
+
+    const row = Array.isArray(data) ? data[0] : null;
+    if (!row) return null;
+    return { id: row.id as string, isClaimed: Boolean(row.is_claimed) };
+  }
+
+  /**
+   * Create a walk-in (receptionist-entered) patient.
+   */
+  async createWalkInPatient(fullName: string, phoneNumber: string): Promise<{ id: string }> {
+    const { data, error } = await this.client.rpc('create_patient', {
+      p_full_name: fullName,
+      p_phone_number: phoneNumber,
+      p_email: null,
+      p_source: PatientSource.WALK_IN,
+      p_user_id: null,
+      p_created_by: null,
+      p_consent_sms: false,
+      p_consent_data_processing: true,
+      p_consent_given_by: ConsentGivenBy.PATIENT_VERBAL,
+    });
+
+    if (error || !data) {
+      this.logError('Failed to create walk-in patient', new Error(error?.message || 'No id returned'), { fullName });
+      throw error || new Error('Failed to create walk-in patient');
+    }
+
+    return { id: data as string };
+  }
+
+  /**
+   * Get a walk-in patient by id (PII decrypted via RPC).
+   */
+  async getWalkInPatient(patientId: string): Promise<WalkInPatient> {
+    const { data, error } = await this.client.rpc('get_patient_decrypted', {
+      p_patient_id: patientId,
+    });
+
+    const row = Array.isArray(data) ? data[0] : null;
+    if (error || !row) {
+      this.logError('Walk-in patient not found', new Error(error?.message || 'No row'), { patientId });
+      throw error || new Error('Walk-in patient not found');
+    }
+
+    if ((row.source as string | undefined) === PatientSource.APP) {
+      throw new Error('Requested patient is not a walk-in record');
+    }
+
+    return {
+      id: row.id as string,
+      phoneNumber: row.phone_number as string,
+      fullName: row.full_name as string,
+      source: (row.source as string) ?? PatientSource.WALK_IN,
+      isClaimed: Boolean(row.is_claimed),
+      claimedBy: (row.user_id as string | null) ?? null,
+      createdAt: row.created_at as string,
+      updatedAt: row.created_at as string,
     };
   }
 
@@ -84,8 +211,8 @@ export class PatientRepository extends BaseRepository {
       limit?: number;
     }
   ): Promise<QueueEntry[]> {
-    const client = this.db.getClient();
-    let query = client
+    // Using this.client directly
+    let query = this.client
       .from('appointments')
       .select(`
         id,
@@ -153,16 +280,18 @@ export class PatientRepository extends BaseRepository {
    * Update patient profile
    */
   async updateProfile(patientId: string, updates: Partial<Patient>): Promise<Patient> {
-    const client = this.db.getClient();
-    const { data, error } = await client
+    // Only send defined fields so a partial update never nulls untouched columns.
+    const updateData: Record<string, unknown> = {};
+    if (updates.fullName !== undefined) updateData.full_name = updates.fullName;
+    if (updates.phoneNumber !== undefined) updateData.phone_number = updates.phoneNumber;
+    if (updates.email !== undefined) updateData.email = updates.email;
+    if (updates.dateOfBirth !== undefined) updateData.date_of_birth = updates.dateOfBirth;
+    if (updates.gender !== undefined) updateData.gender = updates.gender;
+    if (updates.city !== undefined) updateData.city = updates.city ?? null;
+
+    const { data, error } = await this.client
       .from('profiles')
-      .update({
-        full_name: updates.fullName,
-        phone_number: updates.phoneNumber,
-        email: updates.email,
-        date_of_birth: updates.dateOfBirth,
-        gender: updates.gender
-      })
+      .update(updateData)
       .eq('id', patientId)
       .select()
       .single();
@@ -186,7 +315,19 @@ export class PatientRepository extends BaseRepository {
       email: row.email as string | undefined,
       dateOfBirth: row.date_of_birth as string | undefined,
       gender: row.gender as string | undefined,
-      createdAt: row.created_at as string
+      city: row.city as string | undefined,
+      createdAt: row.created_at as string,
+      updatedAt: row.updated_at as string | undefined,
+    };
+  }
+
+  /** Map a `profiles` row to an extended PatientProfile. */
+  private mapToProfile(row: Record<string, unknown>): PatientProfile {
+    return {
+      ...this.mapToPatient(row),
+      preferredLanguage: row.preferred_language as string | undefined,
+      notificationPreferences: row.notification_preferences as Record<string, unknown> | undefined,
+      noShowCount: (row.no_show_count as number | undefined) ?? 0,
     };
   }
 

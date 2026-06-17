@@ -2,113 +2,87 @@
  * Queue Service - Business logic for queue management
  */
 
-import type { QueueRepository } from '../../repositories/queue/QueueRepository.js';
-import type { IEventBus, DomainEvent } from '../../ports/eventBus.js';
+import type { IQueueRepository } from '../../ports/repositories/IQueueRepository.js';
+import type { IEventBus } from '../../ports/eventBus.js';
 import type { ILogger } from '../../ports/logger.js';
 import {
   AppointmentStatus,
+  QueueActionType,
   type QueueEntry,
   type DailyScheduleEntry,
   type CallNextPatientDTO,
+  type ReorderQueueDTO,
 } from '../../types.js';
-import { NotFoundError, BusinessRuleError } from '../../errors.js';
+import { NotFoundError, BusinessRuleError, ValidationError } from '../../errors.js';
+import { BaseService } from '../BaseService.js';
 
-// Domain Events
-interface PatientCheckedInEvent extends DomainEvent {
-  eventType: 'queue:patient_checked_in';
-  payload: {
-    appointmentId: string;
-    clinicId: string;
-    patientId: string;
-    queuePosition: number;
-  };
-}
-
-interface PatientCalledEvent extends DomainEvent {
-  eventType: 'queue:patient_called';
-  payload: {
-    appointmentId: string;
-    clinicId: string;
-    patientId: string;
-    staffId: string;
-  };
-}
-
-export class QueueService {
+export class QueueService extends BaseService {
   constructor(
-    private readonly repository: QueueRepository,
+    private readonly repository: IQueueRepository,
     private readonly eventBus: IEventBus,
-    private readonly logger: ILogger
-  ) {}
+    logger: ILogger
+  ) {
+    super(logger);
+  }
 
   /**
    * Get daily schedule for a staff member
    */
   async getDailySchedule(staffId: string, targetDate: string): Promise<DailyScheduleEntry[]> {
-    this.logger.setContext({
+    return this.executeWithLogging('getDailySchedule', {
       service: 'QueueService',
-      operation: 'getDailySchedule',
-      staffId
-    });
-
-    try {
-      this.logger.debug('Fetching daily schedule', { targetDate });
+      staffId,
+      targetDate,
+    }, async () => {
       const schedule = await this.repository.getDailySchedule(staffId, targetDate);
       this.logger.info('Daily schedule fetched', { entryCount: schedule.length });
       return schedule;
-    } catch (error) {
-      this.logger.error('Failed to fetch daily schedule', error as Error);
-      throw error;
-    } finally {
-      this.logger.clearContext();
-    }
+    });
   }
 
   /**
    * Get queue entries for a clinic
    */
   async getQueueEntries(clinicId: string, date: string): Promise<QueueEntry[]> {
-    this.logger.setContext({
+    return this.executeWithLogging('getQueueEntries', {
       service: 'QueueService',
-      operation: 'getQueueEntries',
-      clinicId
-    });
-
-    try {
-      this.logger.debug('Fetching queue entries', { date });
+      clinicId,
+      date,
+    }, async () => {
       const entries = await this.repository.getQueueEntries(clinicId, date);
       this.logger.info('Queue entries fetched', { entryCount: entries.length });
       return entries;
-    } catch (error) {
-      this.logger.error('Failed to fetch queue entries', error as Error);
-      throw error;
-    } finally {
-      this.logger.clearContext();
-    }
+    });
+  }
+
+  /**
+   * Get all queue entries for a patient (by patients.uuid — not auth userId).
+   */
+  async getQueueEntriesByPatient(patientId: string): Promise<QueueEntry[]> {
+    return this.executeWithLogging('getQueueEntriesByPatient', {
+      service: 'QueueService',
+      userId: patientId,
+    }, async () => {
+      const entries = await this.repository.getQueueEntriesByPatient(patientId);
+      this.logger.info('Patient queue entries fetched', { entryCount: entries.length });
+      return entries;
+    });
   }
 
   /**
    * Get a specific queue entry
    */
   async getQueueEntry(appointmentId: string): Promise<QueueEntry> {
-    this.logger.setContext({
+    return this.executeWithLogging('getQueueEntry', {
       service: 'QueueService',
-      operation: 'getQueueEntry',
-      appointmentId
-    });
-
-    try {
+      appointmentId,
+    }, async () => {
       const entry = await this.repository.getQueueEntry(appointmentId);
       if (!entry) {
         throw new NotFoundError('Appointment', appointmentId);
       }
       return entry;
-    } catch (error) {
-      this.logger.error('Failed to get queue entry', error as Error);
-      throw error;
-    } finally {
-      this.logger.clearContext();
-    }
+    });
   }
 
   /**
@@ -119,37 +93,26 @@ export class QueueService {
     patientId: string,
     date: string
   ): Promise<{ position: number; total: number; estimatedWait: number } | null> {
-    this.logger.setContext({
+    return this.executeWithLogging('getQueuePosition', {
       service: 'QueueService',
-      operation: 'getQueuePosition',
       clinicId,
-      userId: patientId
-    });
-
-    try {
-      this.logger.debug('Getting queue position', { date });
+      userId: patientId,
+      date,
+    }, async () => {
       const position = await this.repository.getQueuePosition(clinicId, patientId, date);
       this.logger.info('Queue position fetched', position || { notFound: true });
       return position;
-    } catch (error) {
-      this.logger.error('Failed to get queue position', error as Error);
-      throw error;
-    } finally {
-      this.logger.clearContext();
-    }
+    });
   }
 
   /**
    * Check in a patient
    */
   async checkInPatient(appointmentId: string): Promise<QueueEntry> {
-    this.logger.setContext({
+    return this.executeWithLogging('checkInPatient', {
       service: 'QueueService',
-      operation: 'checkInPatient',
-      appointmentId
-    });
-
-    try {
+      appointmentId,
+    }, async () => {
       this.logger.info('Checking in patient');
 
       // Verify appointment exists and is in correct state
@@ -167,62 +130,27 @@ export class QueueService {
 
       const entry = await this.repository.checkInPatient(appointmentId);
 
-      await this.eventBus.publish<PatientCheckedInEvent>({
-        eventId: this.eventBus.generateEventId(),
-        eventType: 'queue:patient_checked_in',
-        timestamp: new Date(),
-        userId: entry.patientId,
-        clinicId: entry.clinicId,
-        payload: {
-          appointmentId: entry.id,
-          clinicId: entry.clinicId,
-          patientId: entry.patientId,
-          queuePosition: entry.queuePosition || 0
-        }
-      });
-
       this.logger.info('Patient checked in successfully', {
         queuePosition: entry.queuePosition
       });
 
       return entry;
-    } catch (error) {
-      this.logger.error('Failed to check in patient', error as Error);
-      throw error;
-    } finally {
-      this.logger.clearContext();
-    }
+    });
   }
 
   /**
    * Call the next patient in the queue
    */
   async callNextPatient(dto: CallNextPatientDTO): Promise<QueueEntry> {
-    this.logger.setContext({
+    return this.executeWithLogging('callNextPatient', {
       service: 'QueueService',
-      operation: 'callNextPatient',
       clinicId: dto.clinicId,
-      staffId: dto.staffId
-    });
-
-    try {
-      this.logger.info('Calling next patient', { date: dto.appointmentDate });
+      staffId: dto.staffId,
+      date: dto.appointmentDate,
+    }, async () => {
+      this.logger.info('Calling next patient');
 
       const entry = await this.repository.callNextPatient(dto);
-
-      await this.eventBus.publish<PatientCalledEvent>({
-        eventId: this.eventBus.generateEventId(),
-        eventType: 'queue:patient_called',
-        timestamp: new Date(),
-        userId: entry.patientId,
-        clinicId: entry.clinicId,
-        payload: {
-          appointmentId: entry.id,
-          clinicId: entry.clinicId,
-          patientId: entry.patientId,
-          staffId: dto.staffId
-        }
-      });
 
       this.logger.info('Next patient called', {
         appointmentId: entry.id,
@@ -230,12 +158,7 @@ export class QueueService {
       });
 
       return entry;
-    } catch (error) {
-      this.logger.error('Failed to call next patient', error as Error);
-      throw error;
-    } finally {
-      this.logger.clearContext();
-    }
+    });
   }
 
   /**
@@ -245,45 +168,31 @@ export class QueueService {
     appointmentId: string,
     status: AppointmentStatus
   ): Promise<QueueEntry> {
-    this.logger.setContext({
+    return this.executeWithLogging('updateAppointmentStatus', {
       service: 'QueueService',
-      operation: 'updateAppointmentStatus',
-      appointmentId
-    });
-
-    try {
-      this.logger.info('Updating appointment status', { status });
+      appointmentId,
+      status,
+    }, async () => {
+      this.logger.info('Updating appointment status');
       const entry = await this.repository.updateAppointmentStatus(appointmentId, status);
       this.logger.info('Appointment status updated');
       return entry;
-    } catch (error) {
-      this.logger.error('Failed to update appointment status', error as Error);
-      throw error;
-    } finally {
-      this.logger.clearContext();
-    }
+    });
   }
 
   /**
    * Cancel an appointment
    */
   async cancelAppointment(appointmentId: string, reason?: string): Promise<void> {
-    this.logger.setContext({
+    return this.executeVoid('cancelAppointment', {
       service: 'QueueService',
-      operation: 'cancelAppointment',
-      appointmentId
-    });
-
-    try {
-      this.logger.info('Cancelling appointment', { reason });
+      appointmentId,
+      reason,
+    }, async () => {
+      this.logger.info('Cancelling appointment');
       await this.repository.cancelAppointment(appointmentId, reason);
       this.logger.info('Appointment cancelled');
-    } catch (error) {
-      this.logger.error('Failed to cancel appointment', error as Error);
-      throw error;
-    } finally {
-      this.logger.clearContext();
-    }
+    });
   }
 
   /**
@@ -296,6 +205,93 @@ export class QueueService {
   ): () => void {
     this.logger.debug('Setting up queue updates subscription', { clinicId, date });
     return this.repository.subscribeToQueueUpdates(clinicId, date, callback);
+  }
+
+  /**
+   * Manually move a patient to a new queue position (staff action).
+   *
+   * SSOT for reorder business rules — shared by the web UI and (future) the AI
+   * agent so both enforce identical staff-scoping, validation, and audit. The
+   * `useCase` tag is an iii-style stable function id (`queue::reorder`): a
+   * zero-runtime convention that makes each use-case named/discoverable in logs.
+   */
+  async reorderQueue(dto: ReorderQueueDTO): Promise<QueueEntry> {
+    return this.executeWithLogging('reorderQueue', {
+      service: 'QueueService',
+      useCase: 'queue::reorder',
+      appointmentId: dto.appointmentId,
+    }, async () => {
+      const entry = await this.repository.getQueueEntry(dto.appointmentId);
+      if (!entry) {
+        throw new NotFoundError('Appointment', dto.appointmentId);
+      }
+      this.assertEntryWithinStaffScope(entry, dto.allowedStaffIds);
+
+      if (dto.newPosition < 1) {
+        throw new ValidationError('Queue position must be greater than 0');
+      }
+      if (dto.newPosition === entry.queuePosition) {
+        return entry; // No change needed — skip mutation, audit, and event.
+      }
+
+      const previousPosition = entry.queuePosition;
+      const updated = await this.repository.updateQueuePosition(entry.id, dto.newPosition);
+
+      await this.repository.createQueueOverride({
+        clinicId: entry.clinicId,
+        appointmentId: entry.id,
+        action: QueueActionType.REORDER,
+        performedBy: dto.performedBy,
+        reason: dto.reason,
+        previousPosition,
+        newPosition: dto.newPosition,
+      });
+
+      await this.eventBus.publish({
+        eventId: this.eventBus.generateEventId(),
+        eventType: 'queue.position_changed',
+        timestamp: new Date(),
+        clinicId: entry.clinicId,
+        userId: dto.performedBy,
+        payload: {
+          appointmentId: entry.id,
+          previousPosition,
+          newPosition: dto.newPosition,
+          reason: dto.reason,
+        },
+      });
+
+      this.logger.info('Queue reordered', {
+        appointmentId: entry.id,
+        previousPosition,
+        newPosition: dto.newPosition,
+      });
+      return updated;
+    });
+  }
+
+  private normalizeAllowedStaffIds(allowedStaffIds?: string[]): string[] {
+    return Array.from(
+      new Set(
+        (allowedStaffIds || []).filter(
+          (staffId): staffId is string => typeof staffId === 'string' && staffId.length > 0
+        )
+      )
+    );
+  }
+
+  /** Enforce per-provider queue scope: a scoped caller may only act on their own staff's entries. */
+  private assertEntryWithinStaffScope(entry: QueueEntry, allowedStaffIds?: string[]): void {
+    const normalized = this.normalizeAllowedStaffIds(allowedStaffIds);
+    if (normalized.length === 0) {
+      return; // Unscoped (e.g. owner/clinic-wide) — no restriction.
+    }
+    if (!entry.staffId || !normalized.includes(entry.staffId)) {
+      throw new BusinessRuleError(
+        'You are not allowed to manage this provider queue.',
+        'STAFF_SCOPE_VIOLATION'
+      );
+    }
   }
 }
 

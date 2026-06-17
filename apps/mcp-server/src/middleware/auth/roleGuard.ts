@@ -8,7 +8,8 @@
 
 import { logger } from "../../utils/logger.js";
 import { AuthorizationError } from "../../utils/errors.js";
-import { AuthContext, UserRole, PermissionLevel } from "./types.js";
+import type { AuthContext, UserRole } from "@queuemed/core";
+import type { PermissionLevel } from "./types.js";
 
 // ============================================
 // PERMISSION DEFINITIONS

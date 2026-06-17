@@ -5,8 +5,6 @@
 
 import { vi } from 'vitest';
 import type { QueueRepository } from '@/services/queue/repositories/QueueRepository';
-import type { PatientRepository } from '@/services/patient/repositories/PatientRepository';
-import type { ClinicRepository } from '@/services/clinic/repositories/ClinicRepository';
 import type { StaffRepository } from '@/services/staff/repositories/StaffRepository';
 import { createMockQueueEntry } from './testHelpers';
 import { createMockPatientProfile } from './testHelpers';
@@ -28,30 +26,6 @@ export function createMockQueueRepository(): Partial<QueueRepository> {
     getClinicEstimationConfigByStaffId: vi.fn(),
     recordActualWaitTime: vi.fn(),
     recordWaitTimePredictions: vi.fn(),
-  };
-}
-
-/**
- * Create a mock PatientRepository
- */
-export function createMockPatientRepository(): Partial<PatientRepository> {
-  return {
-    findPatientByPhone: vi.fn(),
-    getPatientProfile: vi.fn(),
-    updatePatientProfile: vi.fn(),
-  };
-}
-
-/**
- * Create a mock ClinicRepository
- */
-export function createMockClinicRepository(): Partial<ClinicRepository> {
-  return {
-    getClinic: vi.fn(),
-    getClinicByOwner: vi.fn(),
-    getClinicSettings: vi.fn(),
-    updateClinicSettings: vi.fn(),
-    updateClinic: vi.fn(),
   };
 }
 

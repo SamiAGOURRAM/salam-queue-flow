@@ -19,6 +19,15 @@ export const config = {
   nodeEnv: str("NODE_ENV", "development"),
   port: int("CHAT_API_PORT", 8787),
 
+  /**
+   * Supabase project connection for JWT validation.
+   * Use the same SUPABASE_URL and SUPABASE_ANON_KEY as the MCP server
+   * (see root .env). When unset, auth validation is skipped — a startup
+   * warning is emitted so this is never silent in production.
+   */
+  supabaseUrl: str("SUPABASE_URL"),
+  supabaseAnonKey: str("SUPABASE_ANON_KEY"),
+
   /** URL of the QueueMed MCP server (Streamable HTTP transport). */
   mcpUrl: str("MCP_SERVER_URL", "http://localhost:3001/mcp"),
 
