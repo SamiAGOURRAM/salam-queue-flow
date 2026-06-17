@@ -28,6 +28,13 @@ export const config = {
   supabaseUrl: str("SUPABASE_URL"),
   supabaseAnonKey: str("SUPABASE_ANON_KEY"),
 
+  /**
+   * Explicit opt-in to allow UNAUTHENTICATED requests when Supabase is not
+   * configured. Honored only outside production — a safety valve for local dev,
+   * never a production bypass. Default false (fail closed).
+   */
+  allowUnauthenticated: str("ALLOW_UNAUTHENTICATED").toLowerCase() === "true",
+
   /** URL of the QueueMed MCP server (Streamable HTTP transport). */
   mcpUrl: str("MCP_SERVER_URL", "http://localhost:3001/mcp"),
 

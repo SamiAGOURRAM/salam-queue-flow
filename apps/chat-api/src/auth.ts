@@ -5,10 +5,12 @@
  * This is the same approach the MCP server uses — `getUser()` validates the
  * token signature, expiry, and audience against the Supabase project.
  *
- * Behaviour:
- *  - If SUPABASE_URL is configured → validate tokens. Missing/invalid → 401.
- *  - If SUPABASE_URL is NOT configured → skip validation (local dev fallback).
- *    A startup warning is logged so this is never silent in production.
+ * Behaviour (fail closed):
+ *  - If Supabase is configured → validate tokens. Missing/invalid → 401.
+ *  - If Supabase is NOT configured → requests are rejected, EXCEPT a local-dev
+ *    opt-in (`ALLOW_UNAUTHENTICATED=true` and NODE_ENV !== 'production').
+ *  - `assertAuthConfigured()` crashes the process at startup in production when
+ *    auth is unconfigured, so the dev bypass can never be reached in prod.
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -39,21 +41,37 @@ export interface AuthResult {
 }
 
 /**
+ * Fail-fast startup guard. In production, auth MUST be configured; if it isn't,
+ * throw so the process crashes at boot rather than silently serving the dev
+ * bypass at runtime. Call once during server startup.
+ */
+export function assertAuthConfigured(): void {
+  if (config.nodeEnv === "production" && !getClient()) {
+    throw new Error(
+      "[chat-api] FATAL: SUPABASE_URL and SUPABASE_ANON_KEY must be set in production for JWT validation.",
+    );
+  }
+}
+
+/**
  * Validate a Bearer token against the configured Supabase project.
  *
  * Returns `{ authenticated: true, userId, error: null }` on success.
  * Returns `{ authenticated: false, userId: null, error }` on failure.
  *
- * When no Supabase URL is configured (local dev) this always returns
- * authenticated — a startup warning is logged so production deployments
- * know to set it.
+ * Fail closed: when Supabase is not configured, requests are rejected unless an
+ * explicit local-dev opt-in is set (`ALLOW_UNAUTHENTICATED=true` outside
+ * production). Production never reaches the bypass — see `assertAuthConfigured`.
  */
 export async function validateToken(token: string | undefined): Promise<AuthResult> {
   const client = getClient();
 
-  // No Supabase configured → skip validation (dev mode).
+  // No Supabase configured. Fail closed, except an explicit non-prod dev opt-in.
   if (!client) {
-    return { authenticated: true, userId: null, error: null };
+    if (config.nodeEnv !== "production" && config.allowUnauthenticated) {
+      return { authenticated: true, userId: null, error: null };
+    }
+    return { authenticated: false, userId: null, error: "Authentication is not configured" };
   }
 
   if (!token) {

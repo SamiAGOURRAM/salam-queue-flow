@@ -10,7 +10,7 @@ import rateLimit from "express-rate-limit";
 import { streamChatToResponse, type QueueMedUIMessage } from "./agent.js";
 import { resolveModel } from "./llm.js";
 import { config } from "./config.js";
-import { validateToken } from "./auth.js";
+import { validateToken, assertAuthConfigured } from "./auth.js";
 
 function extractBearerToken(req: Request): string | undefined {
   const header = req.headers["authorization"];
@@ -59,11 +59,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// Warn if Supabase is not configured (auth validation is disabled).
+// Fail fast: crash at startup if auth is unconfigured in production.
+assertAuthConfigured();
+
+// Warn in non-production when auth is not configured (requests will 401 unless
+// ALLOW_UNAUTHENTICATED=true is explicitly set for local dev).
 if (!config.supabaseUrl) {
   console.warn(
     "[chat-api] WARNING: SUPABASE_URL not set — auth validation is disabled. " +
-    "Set SUPABASE_URL and SUPABASE_ANON_KEY in production.",
+      (config.allowUnauthenticated
+        ? "ALLOW_UNAUTHENTICATED=true → requests allowed WITHOUT authentication (dev only)."
+        : "Requests will be rejected (401). Set SUPABASE_URL + SUPABASE_ANON_KEY, or ALLOW_UNAUTHENTICATED=true for local dev."),
   );
 }
 
