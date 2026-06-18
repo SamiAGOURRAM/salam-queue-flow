@@ -62,6 +62,23 @@ await shot(page, '02-typeahead', async () => {
   await settle(800);
 });
 
+// 2b) Location picker — country selector + live city autocomplete (Morocco, on-brand)
+await shot(page, '06-location', async () => {
+  await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+  await page.locator('h1').first().waitFor({ timeout: 15000 });
+  await awaitImages();
+  // Pick Morocco explicitly so the city autocomplete is scoped to MA.
+  await page.getByRole('button', { name: /select country/i }).click();
+  await page.getByPlaceholder(/search country/i).fill('morocco');
+  await page.getByRole('option', { name: /morocco/i }).first().click();
+  await settle(400);
+  const cityInput = page.locator('form input[type="text"]').nth(1);
+  await cityInput.click();
+  await cityInput.fill('cas');
+  await page.getByRole('listbox').waitFor({ timeout: 8000 });
+  await settle(800);
+});
+
 // 3) Doctors directory
 await shot(page, '03-doctors', async () => {
   await page.goto(`${BASE}/doctors`, { waitUntil: 'domcontentloaded' });

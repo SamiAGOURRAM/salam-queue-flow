@@ -12,6 +12,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useDoctorSearch } from "@/hooks/useDoctorSearch";
 import { useDetectedLocation } from "@/hooks/useDetectedLocation";
+import { LocationPicker } from "@/components/landing/LocationPicker";
+import { normalizeCountryCode } from "@/lib/countries";
 import { useAuth } from "@/hooks/useAuth";
 import { useForceLightMode } from "@/hooks/useForceLightMode";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -32,7 +34,9 @@ const PremiumLanding = () => {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [location, setLocation] = useState("");
+  const [countryCode, setCountryCode] = useState("MA");
   const [locationTouched, setLocationTouched] = useState(false);
+  const [countryTouched, setCountryTouched] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const locationInputRef = useRef<HTMLInputElement | null>(null);
@@ -122,6 +126,26 @@ const PremiumLanding = () => {
       setLocation(detected.city);
     }
   }, [detected.city, locationTouched]);
+
+  // Prefill the country from IP/GPS, but never clobber an explicit country choice.
+  useEffect(() => {
+    if (!countryTouched && detected.countryCode) {
+      setCountryCode(normalizeCountryCode(detected.countryCode));
+    }
+  }, [detected.countryCode, countryTouched]);
+
+  const handleCountryChange = (cc: string) => {
+    setCountryCode(cc);
+    setCountryTouched(true);
+    // A city belongs to a country — clear it so the user re-picks within the new one.
+    setLocation("");
+    setLocationTouched(true);
+  };
+
+  const handleCityChange = (value: string) => {
+    setLocation(value);
+    setLocationTouched(true);
+  };
 
   // Live doctor typeahead — debounced, server-filtered, capped for the dropdown.
   const trimmedQuery = searchQuery.trim();
@@ -380,28 +404,14 @@ const PremiumLanding = () => {
                     <div className="w-0.5 h-4 bg-muted"></div>
                   </div>
 
-                  {/* Location Search */}
-                  <div className="relative flex items-center">
-                    <div className="absolute left-4 w-2.5 h-2.5 bg-obsidian"></div>
-                    <Input
-                      ref={locationInputRef}
-                      type="text"
-                      placeholder={t('landing.search.locationPlaceholder')}
-                      value={location}
-                      onChange={(e) => {
-                        setLocation(e.target.value);
-                        setLocationTouched(true);
-                      }}
-                      className="pl-10 pr-12 h-14 border-0 bg-muted rounded-xl text-base placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:bg-muted"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => locationInputRef.current?.focus()}
-                      className="absolute right-3 p-2 hover:bg-muted rounded-lg transition-colors"
-                    >
-                      <MapPin className="w-5 h-5 text-muted-foreground" />
-                    </button>
-                  </div>
+                  {/* Location — country selector + live city autocomplete */}
+                  <LocationPicker
+                    countryCode={countryCode}
+                    city={location}
+                    onCountryChange={handleCountryChange}
+                    onCityChange={handleCityChange}
+                    cityInputRef={locationInputRef}
+                  />
                 </div>
 
                 {/* Search Button */}

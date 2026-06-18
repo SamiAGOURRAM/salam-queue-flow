@@ -7,6 +7,8 @@ export type LocationSource = 'ip' | 'gps' | null;
 interface DetectedLocation {
   /** Detected city name, or null when detection failed (caller renders the country fallback). */
   city: string | null;
+  /** Detected ISO alpha-2 country code (e.g. 'MA'), or null. */
+  countryCode: string | null;
   status: LocationStatus;
   source: LocationSource;
   /** True while a GPS lookup is in flight (the opt-in path). */
@@ -44,6 +46,7 @@ function matchKnownCity(detected: string, knownCities?: string[]): string {
  */
 export function useDetectedLocation(): DetectedLocation {
   const [city, setCity] = useState<string | null>(null);
+  const [countryCode, setCountryCode] = useState<string | null>(null);
   const [status, setStatus] = useState<LocationStatus>('detecting');
   const [source, setSource] = useState<LocationSource>(null);
   const [isLocating, setIsLocating] = useState(false);
@@ -58,12 +61,11 @@ export function useDetectedLocation(): DetectedLocation {
       try {
         const res = await fetch(IP_LOOKUP_URL, { signal: controller.signal });
         if (!res.ok) throw new Error(`IP lookup HTTP ${res.status}`);
-        const data: unknown = await res.json();
-        const detected =
-          data && typeof data === 'object' && typeof (data as { city?: unknown }).city === 'string'
-            ? ((data as { city: string }).city).trim()
-            : '';
+        const data = (await res.json()) as { city?: unknown; country_code?: unknown };
+        const detected = typeof data.city === 'string' ? data.city.trim() : '';
+        const cc = typeof data.country_code === 'string' ? data.country_code.toUpperCase() : '';
         if (!mountedRef.current) return;
+        if (cc) setCountryCode(cc);
         if (detected) {
           setCity(detected);
           setSource('ip');
@@ -101,9 +103,14 @@ export function useDetectedLocation(): DetectedLocation {
             `?latitude=${coords.latitude}&longitude=${coords.longitude}&localityLanguage=en`;
           const res = await fetch(url);
           if (!res.ok) throw new Error(`Reverse geocode HTTP ${res.status}`);
-          const data = (await res.json()) as { city?: string; locality?: string; principalSubdivision?: string };
+          const data = (await res.json()) as {
+            city?: string; locality?: string; principalSubdivision?: string; countryCode?: string;
+          };
           const detected = (data.city || data.locality || data.principalSubdivision || '').trim();
           if (!mountedRef.current) return;
+          if (typeof data.countryCode === 'string' && data.countryCode) {
+            setCountryCode(data.countryCode.toUpperCase());
+          }
           if (detected) {
             setCity(matchKnownCity(detected, knownCities));
             setSource('gps');
@@ -125,5 +132,5 @@ export function useDetectedLocation(): DetectedLocation {
     );
   }, []);
 
-  return { city, status, source, isLocating, requestPreciseLocation };
+  return { city, countryCode, status, source, isLocating, requestPreciseLocation };
 }

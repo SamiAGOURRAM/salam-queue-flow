@@ -39,11 +39,15 @@ QueueMed turns the everyday clinic problem — *long, opaque waiting lines* — 
 <table>
   <tr>
     <td width="50%"><img src="docs/screenshots/02-typeahead.png" alt="Live doctor typeahead grouped by specialty"><br><sub><b>Live typeahead</b> — debounced doctor search with a specialty group; selecting a result deep-links straight to booking.</sub></td>
-    <td width="50%"><img src="docs/screenshots/05-chat.png" alt="QueueMed AI assistant"><br><sub><b>AI assistant</b> — natural-language access to the same permission-checked tools as the UI.</sub></td>
+    <td width="50%"><img src="docs/screenshots/06-location.png" alt="Country selector with live city autocomplete"><br><sub><b>Location picker</b> — IP-prefilled country + live city autocomplete (geocoded), so the user confirms their location explicitly.</sub></td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/03-doctors.png" alt="Doctor directory"><br><sub><b>Doctor directory</b> — providers across clinics, filterable by city & specialty.</sub></td>
     <td width="50%"><img src="docs/screenshots/04-clinics.png" alt="Clinic directory"><br><sub><b>Clinic directory</b> — ratings, open/closed status, and one-tap booking.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/05-chat.png" alt="QueueMed AI assistant"><br><sub><b>AI assistant</b> — natural-language access to the same permission-checked tools as the UI.</sub></td>
+    <td width="50%"></td>
   </tr>
 </table>
 

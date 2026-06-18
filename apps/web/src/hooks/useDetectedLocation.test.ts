@@ -13,7 +13,7 @@ describe('useDetectedLocation', () => {
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ city: 'Rabat' }),
+        json: async () => ({ city: 'Rabat', country_code: 'ma' }),
       }),
     );
 
@@ -21,6 +21,7 @@ describe('useDetectedLocation', () => {
 
     await waitFor(() => expect(result.current.status).toBe('detected'));
     expect(result.current.city).toBe('Rabat');
+    expect(result.current.countryCode).toBe('MA'); // normalized to uppercase
     expect(result.current.source).toBe('ip');
   });
 
