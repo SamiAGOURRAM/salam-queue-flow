@@ -32,7 +32,20 @@ QueueMed turns the everyday clinic problem — *long, opaque waiting lines* — 
 - ▶️ **Live demo:** _add your deployed URL here_ (see [Deployment](#deployment-public-showcase)) — or run the whole stack locally with one command (see [Local development](#local-development)).
 - The assistant runs in **mock mode without any API key**, so the full UI + tool plumbing is explorable offline; add a free Groq key for live, tool-powered answers.
 
-> _Screenshots / a short walkthrough GIF go well here for a portfolio — drop them in a `docs/` folder and link them._
+### Landing — doctor-first search with IP-based location
+
+![Landing page: doctor search and auto-detected location](docs/screenshots/01-landing.png)
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/02-typeahead.png" alt="Live doctor typeahead grouped by specialty"><br><sub><b>Live typeahead</b> — debounced doctor search with a specialty group; selecting a result deep-links straight to booking.</sub></td>
+    <td width="50%"><img src="docs/screenshots/05-chat.png" alt="QueueMed AI assistant"><br><sub><b>AI assistant</b> — natural-language access to the same permission-checked tools as the UI.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/03-doctors.png" alt="Doctor directory"><br><sub><b>Doctor directory</b> — providers across clinics, filterable by city & specialty.</sub></td>
+    <td width="50%"><img src="docs/screenshots/04-clinics.png" alt="Clinic directory"><br><sub><b>Clinic directory</b> — ratings, open/closed status, and one-tap booking.</sub></td>
+  </tr>
+</table>
 
 ---
 
