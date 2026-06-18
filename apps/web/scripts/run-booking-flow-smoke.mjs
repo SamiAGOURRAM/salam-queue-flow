@@ -110,6 +110,15 @@ BEGIN
     public.hash_phone_number('${smokeConfig.staffPhone}')
   );
 
+  -- Child rows that RESTRICT / NO-ACTION the auth.users delete (audit + queue ops written
+  -- by the booking/cancel flow). Without these, deleting the smoke users fails on
+  -- audit_logs_user_id_fkey and similar constraints.
+  DELETE FROM public.audit_logs WHERE user_id IN (v_owner_id, v_patient_id, v_staff_id);
+  DELETE FROM public.queue_overrides WHERE performed_by IN (v_owner_id, v_patient_id, v_staff_id);
+  DELETE FROM public.queue_breaks
+  WHERE started_by IN (v_owner_id, v_patient_id, v_staff_id)
+     OR ended_by IN (v_owner_id, v_patient_id, v_staff_id);
+
   DELETE FROM auth.users WHERE email IN ('${smokeConfig.ownerEmail}', '${smokeConfig.patientEmail}', '${smokeConfig.staffEmail}');
 END $$;
 `;
