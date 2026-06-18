@@ -154,13 +154,13 @@ BEGIN
   ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
 
   -- Clinic staff: doctor + receptionist per clinic (idempotent).
-  -- Casa Family Care doctor/receptionist are managed by seed-demo.mjs, so
-  -- we ON CONFLICT skip those rows (the demo seed overwrites them with real
-  -- auth user links).
+  -- Casa Family Care's staff are the demo personas created by seed-demo.mjs
+  -- (demo.doctor / demo.reception), so they are intentionally NOT seeded here.
+  -- (The previous Casa rows reused the owner's user_id for BOTH doctor and
+  -- receptionist, which violates the clinic_staff (clinic_id, user_id) unique
+  -- constraint — and ON CONFLICT (id) could not absorb it.)
   INSERT INTO public.clinic_staff (id, clinic_id, user_id, role, specialization, is_active, average_consultation_duration)
   VALUES
-    ('${DOCTOR_IDS.casa}',   '00000000-0000-0000-0000-00000000c201', '${clinicSeedConfig.ownerId}', 'doctor', 'Médecine générale', true, 30),
-    ('${RECEPTION_IDS.casa}','00000000-0000-0000-0000-00000000c201', '${clinicSeedConfig.ownerId}', 'receptionist', NULL, true, NULL),
     ('${DOCTOR_IDS.rabat}',  '00000000-0000-0000-0000-00000000c202', '${STAFF_USERS.rabatDoctor}', 'doctor', 'Cardiologie', true, 45),
     ('${RECEPTION_IDS.rabat}','00000000-0000-0000-0000-00000000c202', '${STAFF_USERS.rabatReception}', 'receptionist', NULL, true, NULL),
     ('${DOCTOR_IDS.marrakech}','00000000-0000-0000-0000-00000000c203', '${STAFF_USERS.marrakechDoctor}', 'doctor', 'Pédiatrie', true, 20),
