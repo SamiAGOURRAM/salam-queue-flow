@@ -1,8 +1,38 @@
 # QueueMed
 
-AI-assisted healthcare **queue management & booking** platform for clinics in Morocco — multi-clinic, multi-role (patient / staff / clinic owner), trilingual (FR / AR / EN), with a built-in AI assistant that performs real actions through **permission-checked tools**.
+> **AI-assisted healthcare queue-management & booking platform for clinics in Morocco.**
+> Multi-clinic, multi-role (patient / staff / clinic owner), trilingual (FR / AR / EN), with a built-in AI assistant that performs **real, permission-checked actions** — not just chat.
 
-> Monorepo: **pnpm** workspaces + **Turborepo**. Frontend on Vite/React, backends on Node/TypeScript, data on Supabase (Postgres + Auth + RLS).
+<p>
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white">
+  <img alt="React" src="https://img.shields.io/badge/React_18-149ECA?logo=react&logoColor=white">
+  <img alt="Supabase" src="https://img.shields.io/badge/Supabase-3FCF8E?logo=supabase&logoColor=white">
+  <img alt="Model Context Protocol" src="https://img.shields.io/badge/MCP-tool_calling-7C3AED">
+  <img alt="Monorepo" src="https://img.shields.io/badge/Turborepo-pnpm-EF4444">
+</p>
+
+QueueMed turns the everyday clinic problem — *long, opaque waiting lines* — into a real-time, bookable queue, and puts a natural-language assistant in front of it that can search doctors, check availability, book, and report queue position **on the patient's behalf, bounded by exactly what that patient is allowed to do.**
+
+> Built as a portfolio-grade systems project: a clean **hexagonal core**, an **AI agent with provable tool-parity to the UI**, and authorization enforced **in the data layer** (Postgres RLS), not by which tools the model can see. The architectural reasoning lives in [`STRATEGY.md`](./STRATEGY.md).
+
+---
+
+## Highlights — what this project demonstrates
+
+- **An AI agent that's a front-end to real operations, not a toy.** The chatbot drives the *same* domain operations as the UI through [Model Context Protocol](https://modelcontextprotocol.io) tools. Its blast radius is provably ⊆ the signed-in user's: every tool runs with the user's own JWT and is gated by Postgres **Row-Level Security**, so the LLM can never exceed the user's permissions. ([why this matters →](./STRATEGY.md#2-the-ai-agent-is-not-a-privileged-actor--it-has-tool-parity-with-the-web-app))
+- **Hexagonal architecture (Ports & Adapters), enforced.** All business logic lives in `@queuemed/core` and depends only on interfaces; Supabase/Auth/messaging are swappable adapters wired at one composition root. A boundary **test fails CI** if a core service ever imports infrastructure.
+- **Security thinking, explicit.** Per-request JWT scoping, role-based tool visibility (`tools/list` only returns tools the caller may use), human-in-the-loop confirmation on irreversible actions, and a documented analysis of the LLM "lethal trifecta."
+- **Real product surface.** Doctor-first discovery with live typeahead + IP geolocation, slotted / fluid / hybrid queue modes, ML wait-time estimates, trilingual UI with full RTL Arabic, and a clinic console (queue, calendar, consultations, prescriptions).
+- **Tested & typed.** Vitest unit suites across web / core / server, a deterministic **RBAC matrix eval** for the agent's authorization, and a fully type-checked monorepo.
+
+---
+
+## Demo
+
+- ▶️ **Live demo:** _add your deployed URL here_ (see [Deployment](#deployment-public-showcase)) — or run the whole stack locally with one command (see [Local development](#local-development)).
+- The assistant runs in **mock mode without any API key**, so the full UI + tool plumbing is explorable offline; add a free Groq key for live, tool-powered answers.
+
+> _Screenshots / a short walkthrough GIF go well here for a portfolio — drop them in a `docs/` folder and link them._
 
 ---
 
@@ -103,3 +133,25 @@ pnpm --filter @queuemed/chat-api exec tsx scripts/smoke-mcp.mts   # MCP transpor
 ## Tech stack
 
 React 18 · Vite · TypeScript · Tailwind · Radix UI · TanStack Query · Supabase (Postgres/Auth/RLS) · Model Context Protocol · Vercel AI SDK · Groq · Express · Turborepo · pnpm · Docker.
+
+---
+
+## Project layout
+
+```
+apps/
+  web/         React SPA (patient + clinic console)
+  chat-api/    AI agent — Vercel AI SDK tool-calling loop over MCP
+  mcp-server/  MCP server — RBAC-gated domain tools (Streamable HTTP + stdio)
+packages/
+  core/        @queuemed/core — hexagonal business logic (services + ports)
+supabase/      Postgres schema, RLS policies, migrations, RPCs
+STRATEGY.md    Technical north star (architecture decisions & consolidation plan)
+```
+
+---
+
+## Author
+
+Built by **Sami Agourram**. Architecture & engineering notes in [`STRATEGY.md`](./STRATEGY.md).
+This repository is a personal portfolio / showcase project.
